@@ -1,33 +1,37 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Save, Users, Bell, Shield, CreditCard } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 /**
  * Página de Configurações
  * 
  * Seções de configuração:
- * - Informações da clínica
+ * - Informações da clínica (incluindo webhook_usuario)
  * - Gerenciamento de usuários e permissões
  * - Configurações de notificações
  * - Integrações externas
  * - Configurações de segurança
  * 
- * Todas as configurações devem ser persistidas no Supabase
+ * Todas as configurações são persistidas no Supabase
  * e aplicadas em tempo real no sistema.
  */
 
 export const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('clinic');
+  const [loading, setLoading] = useState(false);
+  const [clinicaId, setClinicaId] = useState<string | null>(null);
   
   // Estados para os formulários de configuração
   const [clinicData, setClinicData] = useState({
-    name: 'Clínica Exemplo',
-    phone: '(11) 99999-9999',
-    email: 'contato@clinica.com',
-    address: 'Rua das Flores, 123',
-    city: 'São Paulo',
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    city: '',
     state: 'SP',
-    zipCode: '01234-567'
+    zipCode: '',
+    webhook_usuario: '' // Novo campo para webhook
   });
 
   const [notificationSettings, setNotificationSettings] = useState({
@@ -37,6 +41,90 @@ export const SettingsPage = () => {
     leadAlerts: true
   });
 
+  // Carregar dados da clínica ao montar o componente
+  useEffect(() => {
+    carregarDadosClinica();
+  }, []);
+
+  // Função para carregar dados da clínica
+  const carregarDadosClinica = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clinicas')
+        .select('*')
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Erro ao carregar dados da clínica:', error);
+        return;
+      }
+
+      if (data) {
+        setClinicaId(data.id);
+        setClinicData({
+          name: data.nome || '',
+          phone: data.telefone || '',
+          email: data.email || '',
+          address: data.endereco || '',
+          city: '', // Não temos cidade separada no banco
+          state: 'SP',
+          zipCode: '', // Não temos CEP separado no banco
+          webhook_usuario: data.webhook_usuario || ''
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao carregar configurações:', error);
+    }
+  };
+
+  // Função para salvar configurações da clínica
+  const salvarConfiguracoes = async () => {
+    try {
+      setLoading(true);
+
+      if (clinicaId) {
+        // Atualizar clínica existente
+        const { error } = await supabase
+          .from('clinicas')
+          .update({
+            nome: clinicData.name,
+            telefone: clinicData.phone,
+            email: clinicData.email,
+            endereco: clinicData.address,
+            webhook_usuario: clinicData.webhook_usuario,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', clinicaId);
+
+        if (error) throw error;
+      } else {
+        // Criar nova clínica
+        const { data, error } = await supabase
+          .from('clinicas')
+          .insert({
+            nome: clinicData.name,
+            telefone: clinicData.phone,
+            email: clinicData.email,
+            endereco: clinicData.address,
+            webhook_usuario: clinicData.webhook_usuario
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        if (data) setClinicaId(data.id);
+      }
+
+      toast.success('Configurações salvas com sucesso!');
+    } catch (error) {
+      console.error('Erro ao salvar configurações:', error);
+      toast.error('Erro ao salvar configurações. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Tabs de navegação
   const tabs = [
     { id: 'clinic', label: 'Clínica', icon: Shield },
@@ -44,13 +132,6 @@ export const SettingsPage = () => {
     { id: 'notifications', label: 'Notificações', icon: Bell },
     { id: 'integrations', label: 'Integrações', icon: CreditCard }
   ];
-
-  // Função para salvar configurações
-  const handleSave = () => {
-    // Aqui seria feita a integração com Supabase
-    console.log('Salvando configurações...');
-    alert('Configurações salvas com sucesso!');
-  };
 
   return (
     <div className="h-full">
@@ -63,11 +144,12 @@ export const SettingsPage = () => {
           </p>
         </div>
         <button
-          onClick={handleSave}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          onClick={salvarConfiguracoes}
+          disabled={loading}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
         >
           <Save size={20} />
-          Salvar Alterações
+          {loading ? 'Salvando...' : 'Salvar Alterações'}
         </button>
       </div>
 
@@ -106,13 +188,14 @@ export const SettingsPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nome da Clínica
+                    Nome da Clínica *
                   </label>
                   <input
                     type="text"
                     value={clinicData.name}
                     onChange={(e) => setClinicData(prev => ({ ...prev, name: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
                   />
                 </div>
 
@@ -130,13 +213,14 @@ export const SettingsPage = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email
+                    Email *
                   </label>
                   <input
                     type="email"
                     value={clinicData.email}
                     onChange={(e) => setClinicData(prev => ({ ...prev, email: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
                   />
                 </div>
 
@@ -190,6 +274,26 @@ export const SettingsPage = () => {
                     <option value="MG">Minas Gerais</option>
                     {/* Adicionar outros estados */}
                   </select>
+                </div>
+
+                {/* Novo campo para usuário do webhook */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Usuário do Webhook
+                  </label>
+                  <input
+                    type="text"
+                    value={clinicData.webhook_usuario}
+                    onChange={(e) => setClinicData(prev => ({ ...prev, webhook_usuario: e.target.value }))}
+                    placeholder="Ex: clinica-exemplo"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    Nome de usuário para integração via webhook. Será usado na URL: 
+                    <code className="bg-gray-100 px-1 rounded text-xs ml-1">
+                      https://webhooks.marcolinofernades.site/webhook/{clinicData.webhook_usuario || '{usuario}'}
+                    </code>
+                  </p>
                 </div>
               </div>
             </div>
@@ -331,6 +435,27 @@ export const SettingsPage = () => {
                     <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
                       Conectar
                     </button>
+                  </div>
+                </div>
+
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-gray-900">Webhook Integration</h4>
+                      <p className="text-sm text-gray-600">
+                        Webhook configurado para: {clinicData.webhook_usuario ? 
+                          `https://webhooks.marcolinofernades.site/webhook/${clinicData.webhook_usuario}` : 
+                          'Não configurado'
+                        }
+                      </p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs ${
+                      clinicData.webhook_usuario ? 
+                        'bg-green-100 text-green-800' : 
+                        'bg-red-100 text-red-800'
+                    }`}>
+                      {clinicData.webhook_usuario ? 'Ativo' : 'Inativo'}
+                    </span>
                   </div>
                 </div>
 

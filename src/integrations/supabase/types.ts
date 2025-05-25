@@ -140,6 +140,7 @@ export type Database = {
           nome: string
           telefone: string | null
           updated_at: string | null
+          webhook_usuario: string | null
         }
         Insert: {
           cnpj?: string | null
@@ -150,6 +151,7 @@ export type Database = {
           nome: string
           telefone?: string | null
           updated_at?: string | null
+          webhook_usuario?: string | null
         }
         Update: {
           cnpj?: string | null
@@ -160,6 +162,7 @@ export type Database = {
           nome?: string
           telefone?: string | null
           updated_at?: string | null
+          webhook_usuario?: string | null
         }
         Relationships: []
       }
@@ -448,6 +451,70 @@ export type Database = {
             columns: ["clinica_id"]
             isOneToOne: false
             referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webhook_logs: {
+        Row: {
+          clinica_id: string
+          created_at: string | null
+          enviado_em: string | null
+          erro: string | null
+          id: string
+          lead_id: string
+          mensagem_id: string
+          resposta: string | null
+          status_code: number | null
+          tentativas: number | null
+          webhook_url: string
+        }
+        Insert: {
+          clinica_id: string
+          created_at?: string | null
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          lead_id: string
+          mensagem_id: string
+          resposta?: string | null
+          status_code?: number | null
+          tentativas?: number | null
+          webhook_url: string
+        }
+        Update: {
+          clinica_id?: string
+          created_at?: string | null
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          lead_id?: string
+          mensagem_id?: string
+          resposta?: string | null
+          status_code?: number | null
+          tentativas?: number | null
+          webhook_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_logs_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webhook_logs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webhook_logs_mensagem_id_fkey"
+            columns: ["mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "chat_mensagens"
             referencedColumns: ["id"]
           },
         ]

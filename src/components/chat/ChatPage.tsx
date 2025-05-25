@@ -1,9 +1,9 @@
-
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
 import { LeadInfoSidebar } from './LeadInfoSidebar';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useWebhook } from '@/hooks/useWebhook';
 
 /**
  * Página de Chat - Interface similar ao WhatsApp Web com persistência
@@ -15,12 +15,14 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
  * - Entrada de mensagem avançada com respostas prontas
  * - Busca de conversas
  * - Histórico de mensagens persistente
+ * - Webhook automático para cada mensagem enviada
  * 
  * Integração com Supabase:
  * - Busca mensagens da tabela chat_mensagens
  * - Salva novas mensagens automaticamente
  * - Carrega respostas prontas da tabela respostas_prontas
  * - Sincroniza com dados dos leads
+ * - Envia webhook para integração externa
  */
 
 interface Message {
@@ -46,6 +48,8 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     tags,
     loading
   } = useSupabaseData();
+
+  const { enviarWebhook } = useWebhook();
 
   const [selectedConversation, setSelectedConversation] = useState<string | null>(selectedLeadId || null);
   const [messageInput, setMessageInput] = useState('');
@@ -99,7 +103,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     lead.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Função para enviar mensagem
+  // Função para enviar mensagem com webhook
   const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversation || sendingMessage) return;
     
@@ -125,6 +129,20 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       // Adicionar mensagem ao estado local
       setMessages(prev => [...prev, novaMensagem]);
       setMessageInput('');
+
+      // Enviar webhook de forma assíncrona (não bloqueia a interface)
+      const leadSelecionado = leads.find(l => l.id === selectedConversation);
+      if (leadSelecionado?.clinica_id && novaMensagemRaw.enviado_por === 'usuario') {
+        enviarWebhook(
+          novaMensagemRaw.id,
+          novaMensagemRaw.lead_id,
+          leadSelecionado.clinica_id,
+          novaMensagemRaw.conteudo,
+          novaMensagemRaw.tipo || 'texto',
+          novaMensagemRaw.created_at
+        );
+      }
+
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
     } finally {
