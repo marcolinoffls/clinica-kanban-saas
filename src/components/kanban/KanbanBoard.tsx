@@ -15,14 +15,15 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
  * - Adição de novas etapas dinamicamente
  * - Edição segura de nomes das etapas
  * - Modal de histórico de consultas com LTV
+ * - Validação de dados antes do envio ao Supabase
  * 
  * Integração com backend:
  * - Dados salvos no Supabase em tempo real
  * - Políticas RLS para segurança
- * - Atualização automática do LTV
+ * - Triggers de validação no banco
  */
 
-// Tipos TypeScript para tipagem segura
+// Tipos TypeScript corrigidos para compatibilidade
 export interface Lead {
   id: string;
   nome: string;
@@ -35,6 +36,10 @@ export interface Lead {
   data_ultimo_contato?: string;
   created_at: string;
   updated_at: string;
+  // Campos gerados para compatibilidade
+  name?: string;
+  phone?: string;
+  notes?: string;
 }
 
 export interface KanbanColumn {
@@ -77,14 +82,22 @@ export const KanbanBoard = () => {
     setIsLeadModalOpen(true);
   };
 
-  // Função para salvar lead (criar ou editar)
+  // Função para salvar lead (criar ou editar) com validação
   const handleSaveLead = async (leadData: Partial<Lead>) => {
     try {
+      // Validação local antes de enviar para o Supabase
+      if (!leadData.nome?.trim()) {
+        throw new Error('Nome do lead é obrigatório');
+      }
+      if (!leadData.telefone?.trim()) {
+        throw new Error('Telefone do lead é obrigatório');
+      }
+
       await salvarLead(leadData);
       setIsLeadModalOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar lead:', error);
-      alert('Erro ao salvar lead. Tente novamente.');
+      alert(error.message || 'Erro ao salvar lead. Tente novamente.');
     }
   };
 
@@ -125,9 +138,19 @@ export const KanbanBoard = () => {
     setIsEtapaModalOpen(true);
   };
 
-  // Função para salvar etapa
+  // Função para salvar etapa com validação extra para etapas padrão
   const handleSaveEtapa = async (nome: string) => {
     try {
+      // Lista de etapas padrão que precisam de confirmação extra
+      const etapasPadrao = ['Novo Lead', 'Em Atendimento', 'Em Negociação', 'Agendado'];
+      
+      if (editingEtapa && etapasPadrao.includes(editingEtapa.nome)) {
+        const confirmacao = confirm(
+          `Você está editando uma etapa padrão "${editingEtapa.nome}". Tem certeza que deseja continuar?`
+        );
+        if (!confirmacao) return;
+      }
+
       if (editingEtapa) {
         await editarEtapa(editingEtapa.id, nome);
       } else {
@@ -196,7 +219,6 @@ export const KanbanBoard = () => {
                 leadIds: leadsEtapa.map(l => l.id)
               }}
               leads={leadsEtapa}
-              tags={tags}
               onEditLead={handleEditLead}
               onMoveCard={handleMoveCard}
               onOpenHistory={handleOpenHistory}
@@ -234,7 +256,6 @@ export const KanbanBoard = () => {
         isOpen={isLeadModalOpen}
         onClose={() => setIsLeadModalOpen(false)}
         lead={selectedLead}
-        tags={tags}
         onSave={handleSaveLead}
         onOpenHistory={selectedLead ? () => handleOpenHistory(selectedLead) : undefined}
       />

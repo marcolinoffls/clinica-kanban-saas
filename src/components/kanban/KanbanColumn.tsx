@@ -1,4 +1,5 @@
 
+import { Edit2 } from 'lucide-react';
 import { KanbanColumn as IKanbanColumn, Lead } from './KanbanBoard';
 import { LeadCard } from './LeadCard';
 
@@ -9,12 +10,14 @@ import { LeadCard } from './LeadCard';
  * - Exibe o título da etapa e contagem de leads
  * - Lista os cards dos leads nesta etapa
  * - Suporte a drag and drop
+ * - Botão para editar nome da etapa
  * 
  * Props:
  * - column: dados da coluna (id, título, leadIds)
  * - leads: array de leads desta coluna
  * - onEditLead: função para editar um lead
  * - onMoveCard: função para mover card entre colunas
+ * - onEditEtapa: função para editar o nome da etapa
  */
 
 interface KanbanColumnProps {
@@ -22,9 +25,18 @@ interface KanbanColumnProps {
   leads: Lead[];
   onEditLead: (lead: Lead) => void;
   onMoveCard: (leadId: string, fromColumn: string, toColumn: string) => void;
+  onOpenHistory: (lead: Lead) => void;
+  onEditEtapa: () => void;
 }
 
-export const KanbanColumn = ({ column, leads, onEditLead, onMoveCard }: KanbanColumnProps) => {
+export const KanbanColumn = ({ 
+  column, 
+  leads, 
+  onEditLead, 
+  onMoveCard, 
+  onOpenHistory,
+  onEditEtapa 
+}: KanbanColumnProps) => {
   // Configuração para permitir drop de cards
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -47,9 +59,18 @@ export const KanbanColumn = ({ column, leads, onEditLead, onMoveCard }: KanbanCo
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* Header da coluna com título e contagem */}
+      {/* Header da coluna com título, botão de edição e contagem */}
       <div className="flex justify-between items-center mb-4">
-        <h3 className="font-semibold text-gray-800">{column.title}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-gray-800">{column.title}</h3>
+          <button
+            onClick={onEditEtapa}
+            className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
+            title="Editar nome da etapa"
+          >
+            <Edit2 size={14} />
+          </button>
+        </div>
         <span className="bg-gray-200 text-gray-600 px-2 py-1 rounded-full text-sm">
           {leads.length}
         </span>
@@ -62,6 +83,7 @@ export const KanbanColumn = ({ column, leads, onEditLead, onMoveCard }: KanbanCo
             key={lead.id}
             lead={lead}
             onEdit={() => onEditLead(lead)}
+            onOpenHistory={() => onOpenHistory(lead)}
             columnId={column.id}
           />
         ))}

@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
  * - Gerencia estado dos dados
  * - Fornece funções para CRUD
  * - Simula clínica atual (em produção seria baseada no usuário logado)
+ * - Validação de dados antes de enviar ao banco
  */
 
 // ID da clínica de demonstração (em produção viria do contexto do usuário)
@@ -19,17 +20,20 @@ export const useSupabaseData = () => {
   const [etapas, setEtapas] = useState<any[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
   const [tags, setTags] = useState<any[]>([]);
-  const [consultas, setConsultas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Configura a clínica atual para as políticas RLS
   useEffect(() => {
     const setClinicContext = async () => {
-      await supabase.rpc('set_config', {
-        setting_name: 'app.current_clinic_id',
-        setting_value: DEMO_CLINIC_ID,
-        is_local: false
-      });
+      try {
+        await supabase.rpc('set_config', {
+          setting_name: 'app.current_clinic_id',
+          setting_value: DEMO_CLINIC_ID,
+          is_local: false
+        });
+      } catch (error) {
+        console.error('Erro ao configurar contexto da clínica:', error);
+      }
     };
     setClinicContext();
   }, []);
@@ -64,18 +68,9 @@ export const useSupabaseData = () => {
 
       if (tagsError) throw tagsError;
 
-      // Buscar consultas
-      const { data: consultasData, error: consultasError } = await supabase
-        .from('consultas')
-        .select('*')
-        .eq('clinica_id', DEMO_CLINIC_ID);
-
-      if (consultasError) throw consultasError;
-
       setEtapas(etapasData || []);
       setLeads(leadsData || []);
       setTags(tagsData || []);
-      setConsultas(consultasData || []);
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
     } finally {
@@ -108,6 +103,7 @@ export const useSupabaseData = () => {
       ));
     } catch (error) {
       console.error('Erro ao mover lead:', error);
+      throw error;
     }
   };
 
@@ -157,15 +153,27 @@ export const useSupabaseData = () => {
     }
   };
 
-  // Função para salvar lead
+  // Função para salvar lead com validação
   const salvarLead = async (leadData: any) => {
     try {
+      // Validação local antes de enviar
+      if (!leadData.nome?.trim()) {
+        throw new Error('Nome do lead é obrigatório');
+      }
+      if (!leadData.telefone?.trim()) {
+        throw new Error('Telefone do lead é obrigatório');
+      }
+
       if (leadData.id) {
         // Atualizar lead existente
         const { error } = await supabase
           .from('leads')
           .update({
-            ...leadData,
+            nome: leadData.nome.trim(),
+            telefone: leadData.telefone.trim(),
+            email: leadData.email?.trim() || null,
+            anotacoes: leadData.anotacoes?.trim() || null,
+            tag_id: leadData.tag_id || null,
             updated_at: new Date().toISOString()
           })
           .eq('id', leadData.id);
@@ -180,7 +188,11 @@ export const useSupabaseData = () => {
         const { data, error } = await supabase
           .from('leads')
           .insert({
-            ...leadData,
+            nome: leadData.nome.trim(),
+            telefone: leadData.telefone.trim(),
+            email: leadData.email?.trim() || null,
+            anotacoes: leadData.anotacoes?.trim() || null,
+            tag_id: leadData.tag_id || null,
             clinica_id: DEMO_CLINIC_ID,
             etapa_kanban_id: etapas[0]?.id // Primeira etapa por padrão
           })
@@ -197,14 +209,14 @@ export const useSupabaseData = () => {
     }
   };
 
-  // Função para buscar consultas de um lead específico
+  // Função para buscar consultas de um lead específico (usando agendamentos)
   const buscarConsultasLead = async (leadId: string) => {
     try {
       const { data, error } = await supabase
-        .from('consultas')
+        .from('agendamentos')
         .select('*')
-        .eq('lead_id', leadId)
-        .order('data_consulta', { ascending: false });
+        .eq('cliente_id', leadId)
+        .order('data_inicio', { ascending: false });
 
       if (error) throw error;
       return data || [];
@@ -218,7 +230,6 @@ export const useSupabaseData = () => {
     etapas,
     leads,
     tags,
-    consultas,
     loading,
     moverLead,
     criarEtapa,

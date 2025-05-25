@@ -151,8 +151,12 @@ export type Database = {
           etapa_kanban_id: string | null
           id: string
           ltv: number | null
+          name: string | null
           nome: string
+          notes: string | null
+          phone: string | null
           tag_id: string | null
+          tag_id_alias: string | null
           telefone: string | null
           updated_at: string | null
         }
@@ -165,8 +169,12 @@ export type Database = {
           etapa_kanban_id?: string | null
           id?: string
           ltv?: number | null
+          name?: string | null
           nome: string
+          notes?: string | null
+          phone?: string | null
           tag_id?: string | null
+          tag_id_alias?: string | null
           telefone?: string | null
           updated_at?: string | null
         }
@@ -179,8 +187,12 @@ export type Database = {
           etapa_kanban_id?: string | null
           id?: string
           ltv?: number | null
+          name?: string | null
           nome?: string
+          notes?: string | null
+          phone?: string | null
           tag_id?: string | null
+          tag_id_alias?: string | null
           telefone?: string | null
           updated_at?: string | null
         }

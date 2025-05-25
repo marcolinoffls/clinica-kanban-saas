@@ -1,23 +1,23 @@
 
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, History } from 'lucide-react';
 import { Lead } from './KanbanBoard';
-import { useTagStore } from '@/stores/tagStore';
 
 /**
  * Modal para criação e edição de leads
  * 
  * Funcionalidades:
  * - Formulário completo para dados do lead
- * - Seleção de tags
  * - Validação de campos obrigatórios
  * - Suporte a criação e edição
+ * - Botão para visualizar histórico
  * 
  * Props:
  * - isOpen: controla se o modal está visível
  * - onClose: função para fechar o modal
  * - lead: lead para edição (null para criação)
  * - onSave: função para salvar os dados
+ * - onOpenHistory: função para abrir histórico (opcional)
  */
 
 interface LeadModalProps {
@@ -25,55 +25,77 @@ interface LeadModalProps {
   onClose: () => void;
   lead: Lead | null;
   onSave: (leadData: Partial<Lead>) => void;
+  onOpenHistory?: () => void;
 }
 
-export const LeadModal = ({ isOpen, onClose, lead, onSave }: LeadModalProps) => {
-  const { tags } = useTagStore();
-  
+export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: LeadModalProps) => {
   // Estados do formulário
   const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
+    nome: '',
+    telefone: '',
     email: '',
-    notes: '',
-    tagId: ''
+    anotacoes: '',
+    tag_id: ''
   });
+  
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
 
   // Preenche o formulário quando um lead é selecionado para edição
   useEffect(() => {
     if (lead) {
       setFormData({
-        name: lead.name,
-        phone: lead.phone,
+        nome: lead.nome || '',
+        telefone: lead.telefone || '',
         email: lead.email || '',
-        notes: lead.notes || '',
-        tagId: lead.tagId || ''
+        anotacoes: lead.anotacoes || '',
+        tag_id: lead.tag_id || ''
       });
     } else {
       // Limpa o formulário para criação
       setFormData({
-        name: '',
-        phone: '',
+        nome: '',
+        telefone: '',
         email: '',
-        notes: '',
-        tagId: ''
+        anotacoes: '',
+        tag_id: ''
       });
     }
-  }, [lead]);
+    setErrors({});
+  }, [lead, isOpen]);
 
   // Função para atualizar campos do formulário
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    // Limpar erro do campo quando usuário digita
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  // Validação local do formulário
+  const validateForm = () => {
+    const newErrors: {[key: string]: string} = {};
+    
+    if (!formData.nome.trim()) {
+      newErrors.nome = 'Nome é obrigatório';
+    }
+    
+    if (!formData.telefone.trim()) {
+      newErrors.telefone = 'Telefone é obrigatório';
+    }
+    
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Email deve ter formato válido';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   // Função para salvar o lead
   const handleSave = () => {
-    // Validação básica - nome e telefone são obrigatórios
-    if (!formData.name.trim() || !formData.phone.trim()) {
-      alert('Nome e telefone são obrigatórios');
-      return;
-    }
-
+    if (!validateForm()) return;
+    
     onSave(formData);
   };
 
@@ -85,9 +107,20 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave }: LeadModalProps) => 
       <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
         {/* Header do modal */}
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold">
-            {lead ? 'Editar Lead' : 'Novo Lead'}
-          </h3>
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-semibold">
+              {lead ? 'Editar Lead' : 'Novo Lead'}
+            </h3>
+            {lead && onOpenHistory && (
+              <button
+                onClick={onOpenHistory}
+                className="flex items-center gap-1 px-2 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              >
+                <History size={14} />
+                Histórico
+              </button>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
@@ -105,11 +138,14 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave }: LeadModalProps) => 
             </label>
             <input
               type="text"
-              value={formData.name}
-              onChange={(e) => handleInputChange('name', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={formData.nome}
+              onChange={(e) => handleInputChange('nome', e.target.value)}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                errors.nome ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
+              }`}
               placeholder="Nome completo"
             />
+            {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
           </div>
 
           {/* Campo Telefone */}
@@ -119,11 +155,14 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave }: LeadModalProps) => 
             </label>
             <input
               type="tel"
-              value={formData.phone}
-              onChange={(e) => handleInputChange('phone', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={formData.telefone}
+              onChange={(e) => handleInputChange('telefone', e.target.value)}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                errors.telefone ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
+              }`}
               placeholder="(11) 99999-9999"
             />
+            {errors.telefone && <p className="text-red-500 text-xs mt-1">{errors.telefone}</p>}
           </div>
 
           {/* Campo Email */}
@@ -135,28 +174,12 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave }: LeadModalProps) => 
               type="email"
               value={formData.email}
               onChange={(e) => handleInputChange('email', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                errors.email ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
+              }`}
               placeholder="email@exemplo.com"
             />
-          </div>
-
-          {/* Seleção de Tag */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Categoria
-            </label>
-            <select
-              value={formData.tagId}
-              onChange={(e) => handleInputChange('tagId', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Selecione uma categoria</option>
-              {tags.map((tag) => (
-                <option key={tag.id} value={tag.id}>
-                  {tag.name}
-                </option>
-              ))}
-            </select>
+            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
           </div>
 
           {/* Campo Notas */}
@@ -165,8 +188,8 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave }: LeadModalProps) => 
               Observações
             </label>
             <textarea
-              value={formData.notes}
-              onChange={(e) => handleInputChange('notes', e.target.value)}
+              value={formData.anotacoes}
+              onChange={(e) => handleInputChange('anotacoes', e.target.value)}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Anotações sobre o lead..."
