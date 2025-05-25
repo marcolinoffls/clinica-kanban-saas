@@ -12,6 +12,7 @@ const corsHeaders = {
  * 
  * Funcionalidades:
  * - Envia webhook automaticamente após nova mensagem no chat
+ * - Inclui estado do botão de IA (evento_boolean)
  * - Inclui autenticação JWT no header
  * - Registra logs para auditoria
  * - Tenta reenvio em caso de falha
@@ -23,6 +24,7 @@ interface WebhookPayload {
   usuario_id: string;
   mensagem: string;
   tipo_mensagem: string;
+  evento_boolean: boolean; // Novo campo para estado da IA
 }
 
 serve(async (req) => {
@@ -42,7 +44,8 @@ serve(async (req) => {
       clinica_id, 
       conteudo, 
       tipo, 
-      created_at 
+      created_at,
+      evento_boolean = false // Novo campo do payload
     } = await req.json()
 
     // Buscar dados da clínica para obter o webhook_usuario
@@ -73,13 +76,14 @@ serve(async (req) => {
       .eq('id', lead_id)
       .single()
 
-    // Criar payload do webhook
+    // Criar payload do webhook com estado da IA
     const webhookPayload: WebhookPayload = {
       timestamp: created_at,
       lead_id: lead_id,
       usuario_id: clinica_id, // Usando clinica_id como usuario_id do software
       mensagem: conteudo,
-      tipo_mensagem: tipo || 'texto'
+      tipo_mensagem: tipo || 'texto',
+      evento_boolean: evento_boolean // Incluir estado do botão IA
     }
 
     // Gerar JWT simples para autenticação (usando secret da API)
@@ -98,6 +102,8 @@ serve(async (req) => {
     let statusCode = 0
     let resposta = ''
 
+    console.log('Enviando webhook com payload:', JSON.stringify(webhookPayload, null, 2))
+
     // Tentar enviar webhook (máximo 3 tentativas)
     while (tentativas <= 3 && !sucesso) {
       try {
@@ -115,12 +121,15 @@ serve(async (req) => {
 
         if (webhookResponse.ok) {
           sucesso = true
+          console.log('Webhook enviado com sucesso:', resposta)
         } else {
           ultimoErro = `HTTP ${statusCode}: ${resposta}`
+          console.error('Erro no webhook:', ultimoErro)
         }
       } catch (error) {
         ultimoErro = `Erro de rede: ${error.message}`
         statusCode = 0
+        console.error('Erro de rede no webhook:', error)
       }
 
       if (!sucesso) {

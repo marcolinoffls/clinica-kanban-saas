@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
@@ -15,14 +16,14 @@ import { useWebhook } from '@/hooks/useWebhook';
  * - Entrada de mensagem avançada com respostas prontas
  * - Busca de conversas
  * - Histórico de mensagens persistente
- * - Webhook automático para cada mensagem enviada
+ * - Webhook automático para cada mensagem enviada (com estado da IA)
  * 
  * Integração com Supabase:
  * - Busca mensagens da tabela chat_mensagens
  * - Salva novas mensagens automaticamente
  * - Carrega respostas prontas da tabela respostas_prontas
  * - Sincroniza com dados dos leads
- * - Envia webhook para integração externa
+ * - Envia webhook para integração externa com informações da IA
  */
 
 interface Message {
@@ -103,8 +104,8 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     lead.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Função para enviar mensagem com webhook
-  const handleSendMessage = async () => {
+  // Função para enviar mensagem com webhook (incluindo estado da IA)
+  const handleSendMessage = async (aiEnabled?: boolean) => {
     if (!messageInput.trim() || !selectedConversation || sendingMessage) return;
     
     try {
@@ -131,6 +132,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       setMessageInput('');
 
       // Enviar webhook de forma assíncrona (não bloqueia a interface)
+      // Incluindo o estado do botão IA no payload
       const leadSelecionado = leads.find(l => l.id === selectedConversation);
       if (leadSelecionado?.clinica_id && novaMensagemRaw.enviado_por === 'usuario') {
         enviarWebhook(
@@ -139,7 +141,8 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           leadSelecionado.clinica_id,
           novaMensagemRaw.conteudo,
           novaMensagemRaw.tipo || 'texto',
-          novaMensagemRaw.created_at
+          novaMensagemRaw.created_at,
+          aiEnabled || false // Adicionar estado da IA ao webhook
         );
       }
 
@@ -159,9 +162,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     });
   };
 
-  // Função para calcular últimas mensagens por lead
   const getLastMessage = (leadId: string) => {
-    // Em um caso real, isso viria do banco de dados
     return 'Clique para iniciar a conversa...';
   };
 
@@ -338,11 +339,11 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
               )}
             </div>
 
-            {/* Input de nova mensagem */}
+            {/* Input de nova mensagem com estado da IA */}
             <MessageInput
               value={messageInput}
               onChange={setMessageInput}
-              onSend={handleSendMessage}
+              onSend={handleSendMessage} // Agora recebe o estado da IA
               loading={sendingMessage}
               respostasProntas={respostasProntas}
             />
@@ -365,7 +366,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
         )}
       </div>
 
-      {/* Barra lateral com informações do lead */}
+      {/* Barra lateral com informações do lead - Tags integradas aqui */}
       {selectedLead && showLeadInfo && (
         <LeadInfoSidebar
           lead={selectedLead}

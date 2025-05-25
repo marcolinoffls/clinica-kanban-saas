@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
  * - Área de texto com redimensionamento automático
  * - Suporte a Shift+Enter para nova linha
  * - Botões para anexos, respostas prontas, IA e emojis
+ * - Toggle do botão IA para controle de estado
  * - Integração com respostas prontas via atalhos
  * - Validação de entrada e loading states
  */
@@ -19,7 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 interface MessageInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSend: () => void;
+  onSend: (aiEnabled?: boolean) => void; // Adicionado parâmetro para estado da IA
   onAttachFile?: () => void;
   loading?: boolean;
   respostasProntas?: Array<{
@@ -40,6 +41,8 @@ export const MessageInput = ({
 }: MessageInputProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showRespostasProntas, setShowRespostasProntas] = useState(false);
+  // Estado para controlar se o botão de IA está ativado
+  const [aiEnabled, setAiEnabled] = useState(false);
 
   // Função para lidar com teclas especiais
   const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -47,7 +50,8 @@ export const MessageInput = ({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (value.trim() && !loading) {
-        onSend();
+        // Enviar estado do botão IA junto com a mensagem
+        onSend(aiEnabled);
       }
     }
 
@@ -62,6 +66,11 @@ export const MessageInput = ({
     onChange(conteudo);
     setShowRespostasProntas(false);
     textareaRef.current?.focus();
+  };
+
+  // Função para toggle do botão IA
+  const toggleAI = () => {
+    setAiEnabled(!aiEnabled);
   };
 
   // Filtrar respostas prontas baseado no texto digitado
@@ -127,11 +136,17 @@ export const MessageInput = ({
           </PopoverContent>
         </Popover>
 
+        {/* Botão IA com toggle de estado */}
         <Button
           variant="ghost"
           size="sm"
-          className="text-gray-500 hover:text-gray-700"
-          title="Assistente IA"
+          onClick={toggleAI}
+          className={`${
+            aiEnabled 
+              ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          title={`Assistente IA ${aiEnabled ? 'ativado' : 'desativado'}`}
         >
           <Bot size={16} />
         </Button>
@@ -177,7 +192,7 @@ export const MessageInput = ({
         </div>
 
         <Button
-          onClick={onSend}
+          onClick={() => onSend(aiEnabled)} // Passar estado da IA ao enviar
           disabled={!value.trim() || loading}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 h-[60px]"
         >
@@ -185,10 +200,17 @@ export const MessageInput = ({
         </Button>
       </div>
 
-      {/* Dica de uso */}
+      {/* Dica de uso com indicador do estado da IA */}
       <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
         <span>Shift+Enter para nova linha</span>
-        <span>/ para respostas prontas</span>
+        <div className="flex items-center gap-2">
+          <span>/ para respostas prontas</span>
+          {aiEnabled && (
+            <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded">
+              IA ativada
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

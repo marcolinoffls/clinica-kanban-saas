@@ -6,22 +6,26 @@ import { supabase } from '@/integrations/supabase/client';
  * 
  * Funcionalidades:
  * - Enviar webhook após nova mensagem
+ * - Incluir estado do botão de IA no payload
  * - Integração com Edge Function
  * - Tratamento de erros
  */
 
 export const useWebhook = () => {
   // Função para enviar webhook via Edge Function
+  // Agora inclui o parâmetro aiEnabled para o estado da IA
   const enviarWebhook = async (
     mensagemId: string,
     leadId: string,
     clinicaId: string,
     conteudo: string,
     tipo: string,
-    createdAt: string
+    createdAt: string,
+    aiEnabled: boolean = false // Novo parâmetro para estado da IA
   ) => {
     try {
       console.log('Enviando webhook para mensagem:', mensagemId);
+      console.log('Estado da IA:', aiEnabled ? 'ativado' : 'desativado');
       
       const { data, error } = await supabase.functions.invoke('send-webhook', {
         body: {
@@ -30,7 +34,8 @@ export const useWebhook = () => {
           clinica_id: clinicaId,
           conteudo: conteudo,
           tipo: tipo,
-          created_at: createdAt
+          created_at: createdAt,
+          evento_boolean: aiEnabled // Adicionar estado da IA ao payload
         }
       });
 
