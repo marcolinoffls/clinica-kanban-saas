@@ -66,10 +66,27 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const carregarMensagens = async (leadId: string) => {
     try {
       setLoadingMessages(true);
-      const mensagens = await buscarMensagensLead(leadId);
-      setMessages(mensagens || []);
+      const mensagensRaw = await buscarMensagensLead(leadId);
+      
+      // Converter e validar dados do banco para interface Message
+      const mensagensFormatadas: Message[] = (mensagensRaw || []).map(msg => ({
+        id: msg.id,
+        lead_id: msg.lead_id,
+        conteudo: msg.conteudo,
+        created_at: msg.created_at,
+        enviado_por: (msg.enviado_por === 'usuario' || msg.enviado_por === 'lead') 
+          ? msg.enviado_por 
+          : 'usuario', // fallback seguro
+        tipo: (['texto', 'imagem', 'arquivo', 'audio'].includes(msg.tipo)) 
+          ? msg.tipo as 'texto' | 'imagem' | 'arquivo' | 'audio'
+          : 'texto', // fallback seguro
+        lida: Boolean(msg.lida)
+      }));
+      
+      setMessages(mensagensFormatadas);
     } catch (error) {
       console.error('Erro ao carregar mensagens:', error);
+      setMessages([]); // fallback para array vazio
     } finally {
       setLoadingMessages(false);
     }
@@ -88,7 +105,22 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     
     try {
       setSendingMessage(true);
-      const novaMensagem = await enviarMensagem(selectedConversation, messageInput);
+      const novaMensagemRaw = await enviarMensagem(selectedConversation, messageInput);
+      
+      // Converter resposta do banco para interface Message
+      const novaMensagem: Message = {
+        id: novaMensagemRaw.id,
+        lead_id: novaMensagemRaw.lead_id,
+        conteudo: novaMensagemRaw.conteudo,
+        created_at: novaMensagemRaw.created_at,
+        enviado_por: (novaMensagemRaw.enviado_por === 'usuario' || novaMensagemRaw.enviado_por === 'lead') 
+          ? novaMensagemRaw.enviado_por 
+          : 'usuario',
+        tipo: (['texto', 'imagem', 'arquivo', 'audio'].includes(novaMensagemRaw.tipo)) 
+          ? novaMensagemRaw.tipo as 'texto' | 'imagem' | 'arquivo' | 'audio'
+          : 'texto',
+        lida: Boolean(novaMensagemRaw.lida)
+      };
       
       // Adicionar mensagem ao estado local
       setMessages(prev => [...prev, novaMensagem]);
