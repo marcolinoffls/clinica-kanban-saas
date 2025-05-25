@@ -1,30 +1,31 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
-import { useTagStore } from '@/stores/tagStore';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
 
 /**
  * Componente para gerenciamento de tags na barra lateral direita
  * 
  * Funcionalidades:
- * - Lista todas as tags criadas
+ * - Lista todas as tags criadas (persiste no Supabase)
  * - Permite criar novas tags com nome e cor
  * - Edição e exclusão de tags existentes
  * - Preview da cor da tag
+ * - Sincronização com banco de dados
  * 
  * Este componente fica sempre visível na lateral direita da aplicação
  * para facilitar a gestão das categorias de leads.
  */
 
 export const TagManager = () => {
-  const { tags, addTag, removeTag, updateTag } = useTagStore();
+  const { tags, salvarTag, atualizarTag, excluirTag } = useSupabaseData();
   
   // Estados para o formulário de criação/edição
   const [isCreating, setIsCreating] = useState(false);
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    color: '#3B82F6'
+    nome: '',
+    cor: '#3B82F6'
   });
 
   // Cores predefinidas para facilitar a seleção
@@ -41,7 +42,7 @@ export const TagManager = () => {
 
   // Função para iniciar criação de nova tag
   const handleStartCreate = () => {
-    setFormData({ name: '', color: '#3B82F6' });
+    setFormData({ nome: '', cor: '#3B82F6' });
     setIsCreating(true);
     setEditingTag(null);
   };
@@ -50,38 +51,59 @@ export const TagManager = () => {
   const handleStartEdit = (tagId: string) => {
     const tag = tags.find(t => t.id === tagId);
     if (tag) {
-      setFormData({ name: tag.name, color: tag.color });
+      setFormData({ nome: tag.nome, cor: tag.cor });
       setEditingTag(tagId);
       setIsCreating(false);
     }
   };
 
   // Função para salvar tag (criar ou editar)
-  const handleSave = () => {
-    if (!formData.name.trim()) {
+  const handleSave = async () => {
+    if (!formData.nome.trim()) {
       alert('Nome da tag é obrigatório');
       return;
     }
 
-    if (editingTag) {
-      // Editando tag existente
-      updateTag(editingTag, formData.name, formData.color);
-    } else {
-      // Criando nova tag
-      addTag(formData.name, formData.color);
-    }
+    try {
+      if (editingTag) {
+        // Editando tag existente
+        await atualizarTag(editingTag, formData);
+      } else {
+        // Criando nova tag
+        await salvarTag(formData);
+      }
 
-    // Reset do formulário
-    setFormData({ name: '', color: '#3B82F6' });
-    setIsCreating(false);
-    setEditingTag(null);
+      // Reset do formulário
+      setFormData({ nome: '', cor: '#3B82F6' });
+      setIsCreating(false);
+      setEditingTag(null);
+    } catch (error) {
+      console.error('Erro ao salvar tag:', error);
+      alert('Erro ao salvar tag. Tente novamente.');
+    }
   };
 
   // Função para cancelar edição/criação
   const handleCancel = () => {
-    setFormData({ name: '', color: '#3B82F6' });
+    setFormData({ nome: '', cor: '#3B82F6' });
     setIsCreating(false);
     setEditingTag(null);
+  };
+
+  // Função para excluir tag
+  const handleDelete = async (tagId: string) => {
+    const tag = tags.find(t => t.id === tagId);
+    if (!tag) return;
+
+    const confirmacao = confirm(`Tem certeza que deseja excluir a tag "${tag.nome}"?`);
+    if (!confirmacao) return;
+
+    try {
+      await excluirTag(tagId);
+    } catch (error) {
+      console.error('Erro ao excluir tag:', error);
+      alert('Erro ao excluir tag. Tente novamente.');
+    }
   };
 
   return (
@@ -111,10 +133,10 @@ export const TagManager = () => {
               {/* Preview da cor da tag */}
               <div
                 className="w-4 h-4 rounded-full"
-                style={{ backgroundColor: tag.color }}
+                style={{ backgroundColor: tag.cor }}
               />
               <span className="text-sm font-medium text-gray-900">
-                {tag.name}
+                {tag.nome}
               </span>
             </div>
             
@@ -128,7 +150,7 @@ export const TagManager = () => {
                 <Edit2 size={14} />
               </button>
               <button
-                onClick={() => removeTag(tag.id)}
+                onClick={() => handleDelete(tag.id)}
                 className="p-1 text-gray-500 hover:text-red-600 transition-colors"
                 title="Remover categoria"
               >
@@ -153,8 +175,8 @@ export const TagManager = () => {
             </label>
             <input
               type="text"
-              value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              value={formData.nome}
+              onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Nome da categoria"
             />
@@ -169,9 +191,9 @@ export const TagManager = () => {
               {presetColors.map((color) => (
                 <button
                   key={color}
-                  onClick={() => setFormData(prev => ({ ...prev, color }))}
+                  onClick={() => setFormData(prev => ({ ...prev, cor: color }))}
                   className={`w-8 h-8 rounded-md border-2 transition-all ${
-                    formData.color === color
+                    formData.cor === color
                       ? 'border-gray-900 scale-110'
                       : 'border-gray-300 hover:scale-105'
                   }`}
@@ -185,8 +207,8 @@ export const TagManager = () => {
             <div className="mt-2">
               <input
                 type="color"
-                value={formData.color}
-                onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                value={formData.cor}
+                onChange={(e) => setFormData(prev => ({ ...prev, cor: e.target.value }))}
                 className="w-full h-8 rounded border border-gray-300"
               />
             </div>

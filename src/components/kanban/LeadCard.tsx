@@ -1,5 +1,5 @@
 
-import { History } from 'lucide-react';
+import { History, MessageCircle } from 'lucide-react';
 import { Lead } from './KanbanBoard';
 
 /**
@@ -10,12 +10,14 @@ import { Lead } from './KanbanBoard';
  * - Suporte a drag and drop
  * - Click para editar lead
  * - Botão para ver histórico de consultas
+ * - Botão para abrir chat com o lead
  * - Tag colorida para categorização
  * 
  * Props:
  * - lead: dados do lead
  * - onEdit: função para editar o lead
  * - onOpenHistory: função para abrir histórico
+ * - onOpenChat: função para abrir chat
  * - columnId: id da coluna atual (para drag and drop)
  */
 
@@ -23,10 +25,11 @@ interface LeadCardProps {
   lead: Lead;
   onEdit: () => void;
   onOpenHistory: () => void;
+  onOpenChat: () => void;
   columnId: string;
 }
 
-export const LeadCard = ({ lead, onEdit, onOpenHistory, columnId }: LeadCardProps) => {
+export const LeadCard = ({ lead, onEdit, onOpenHistory, onOpenChat, columnId }: LeadCardProps) => {
   // Configuração para arrastar o card
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('leadId', lead.id);
@@ -39,6 +42,11 @@ export const LeadCard = ({ lead, onEdit, onOpenHistory, columnId }: LeadCardProp
     onOpenHistory();
   };
 
+  const handleChatClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onOpenChat();
+  };
+
   return (
     <div
       className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:shadow-md transition-shadow relative"
@@ -46,17 +54,26 @@ export const LeadCard = ({ lead, onEdit, onOpenHistory, columnId }: LeadCardProp
       onDragStart={handleDragStart}
       onClick={onEdit}
     >
-      {/* Botão de histórico */}
-      <button
-        onClick={handleHistoryClick}
-        className="absolute top-2 right-2 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-        title="Ver histórico de consultas"
-      >
-        <History size={14} />
-      </button>
+      {/* Botões de ação no topo */}
+      <div className="absolute top-2 right-2 flex gap-1">
+        <button
+          onClick={handleChatClick}
+          className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+          title="Abrir chat"
+        >
+          <MessageCircle size={14} />
+        </button>
+        <button
+          onClick={handleHistoryClick}
+          className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+          title="Ver histórico de consultas"
+        >
+          <History size={14} />
+        </button>
+      </div>
 
       {/* Nome do lead */}
-      <h4 className="font-medium text-gray-900 mb-2 pr-6">{lead.nome}</h4>
+      <h4 className="font-medium text-gray-900 mb-2 pr-12">{lead.nome}</h4>
       
       {/* Telefone do lead */}
       <p className="text-sm text-gray-600 mb-3">{lead.telefone}</p>

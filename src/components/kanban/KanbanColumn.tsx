@@ -1,5 +1,5 @@
 
-import { Edit2 } from 'lucide-react';
+import { Edit2, Trash2 } from 'lucide-react';
 import { KanbanColumn as IKanbanColumn, Lead } from './KanbanBoard';
 import { LeadCard } from './LeadCard';
 
@@ -11,13 +11,17 @@ import { LeadCard } from './LeadCard';
  * - Lista os cards dos leads nesta etapa
  * - Suporte a drag and drop
  * - Botão para editar nome da etapa
+ * - Botão para excluir etapa
  * 
  * Props:
  * - column: dados da coluna (id, título, leadIds)
  * - leads: array de leads desta coluna
  * - onEditLead: função para editar um lead
  * - onMoveCard: função para mover card entre colunas
+ * - onOpenHistory: função para abrir histórico de consultas
+ * - onOpenChat: função para abrir chat
  * - onEditEtapa: função para editar o nome da etapa
+ * - onDeleteEtapa: função para excluir a etapa
  */
 
 interface KanbanColumnProps {
@@ -26,7 +30,9 @@ interface KanbanColumnProps {
   onEditLead: (lead: Lead) => void;
   onMoveCard: (leadId: string, fromColumn: string, toColumn: string) => void;
   onOpenHistory: (lead: Lead) => void;
+  onOpenChat: (lead: Lead) => void;
   onEditEtapa: () => void;
+  onDeleteEtapa: () => void;
 }
 
 export const KanbanColumn = ({ 
@@ -35,7 +41,9 @@ export const KanbanColumn = ({
   onEditLead, 
   onMoveCard, 
   onOpenHistory,
-  onEditEtapa 
+  onOpenChat,
+  onEditEtapa,
+  onDeleteEtapa 
 }: KanbanColumnProps) => {
   // Configuração para permitir drop de cards
   const handleDragOver = (e: React.DragEvent) => {
@@ -59,17 +67,26 @@ export const KanbanColumn = ({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* Header da coluna com título, botão de edição e contagem */}
+      {/* Header da coluna com título, botões de ação e contagem */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
           <h3 className="font-semibold text-gray-800">{column.title}</h3>
-          <button
-            onClick={onEditEtapa}
-            className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
-            title="Editar nome da etapa"
-          >
-            <Edit2 size={14} />
-          </button>
+          <div className="flex gap-1">
+            <button
+              onClick={onEditEtapa}
+              className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              title="Editar nome da etapa"
+            >
+              <Edit2 size={14} />
+            </button>
+            <button
+              onClick={onDeleteEtapa}
+              className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+              title="Excluir etapa"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
         </div>
         <span className="bg-gray-200 text-gray-600 px-2 py-1 rounded-full text-sm">
           {leads.length}
@@ -84,6 +101,7 @@ export const KanbanColumn = ({
             lead={lead}
             onEdit={() => onEditLead(lead)}
             onOpenHistory={() => onOpenHistory(lead)}
+            onOpenChat={() => onOpenChat(lead)}
             columnId={column.id}
           />
         ))}

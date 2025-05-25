@@ -26,11 +26,15 @@ export const useSupabaseData = () => {
   useEffect(() => {
     const setClinicContext = async () => {
       try {
-        await supabase.rpc('set_config', {
+        const { error } = await supabase.rpc('set_config', {
           setting_name: 'app.current_clinic_id',
           setting_value: DEMO_CLINIC_ID,
           is_local: false
         });
+        
+        if (error) {
+          console.error('Erro ao configurar contexto da clínica:', error);
+        }
       } catch (error) {
         console.error('Erro ao configurar contexto da clínica:', error);
       }
@@ -153,6 +157,30 @@ export const useSupabaseData = () => {
     }
   };
 
+  // Função para excluir etapa
+  const excluirEtapa = async (etapaId: string) => {
+    try {
+      // Verificar se há leads nesta etapa
+      const leadsNaEtapa = leads.filter(lead => lead.etapa_kanban_id === etapaId);
+      
+      if (leadsNaEtapa.length > 0) {
+        throw new Error('Não é possível excluir uma etapa que contém leads. Mova os leads para outra etapa primeiro.');
+      }
+
+      const { error } = await supabase
+        .from('etapas_kanban')
+        .delete()
+        .eq('id', etapaId);
+
+      if (error) throw error;
+
+      setEtapas(prev => prev.filter(etapa => etapa.id !== etapaId));
+    } catch (error) {
+      console.error('Erro ao excluir etapa:', error);
+      throw error;
+    }
+  };
+
   // Função para salvar lead com validação
   const salvarLead = async (leadData: any) => {
     try {
@@ -226,6 +254,68 @@ export const useSupabaseData = () => {
     }
   };
 
+  // Função para salvar tag
+  const salvarTag = async (tagData: { nome: string; cor: string }) => {
+    try {
+      const { data, error } = await supabase
+        .from('tags')
+        .insert({
+          nome: tagData.nome,
+          cor: tagData.cor,
+          clinica_id: DEMO_CLINIC_ID
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setTags(prev => [...prev, data]);
+      return data;
+    } catch (error) {
+      console.error('Erro ao salvar tag:', error);
+      throw error;
+    }
+  };
+
+  // Função para atualizar tag
+  const atualizarTag = async (tagId: string, tagData: { nome: string; cor: string }) => {
+    try {
+      const { error } = await supabase
+        .from('tags')
+        .update({
+          nome: tagData.nome,
+          cor: tagData.cor
+        })
+        .eq('id', tagId);
+
+      if (error) throw error;
+
+      setTags(prev => prev.map(tag => 
+        tag.id === tagId ? { ...tag, ...tagData } : tag
+      ));
+    } catch (error) {
+      console.error('Erro ao atualizar tag:', error);
+      throw error;
+    }
+  };
+
+  // Função para excluir tag
+  const excluirTag = async (tagId: string) => {
+    try {
+      const { error } = await supabase
+        .from('tags')
+        .delete()
+        .eq('id', tagId);
+
+      if (error) throw error;
+
+      setTags(prev => prev.filter(tag => tag.id !== tagId));
+    } catch (error) {
+      console.error('Erro ao excluir tag:', error);
+      throw error;
+    }
+  };
+
   return {
     etapas,
     leads,
@@ -234,8 +324,12 @@ export const useSupabaseData = () => {
     moverLead,
     criarEtapa,
     editarEtapa,
+    excluirEtapa,
     salvarLead,
     buscarConsultasLead,
+    salvarTag,
+    atualizarTag,
+    excluirTag,
     refetch: fetchData
   };
 };

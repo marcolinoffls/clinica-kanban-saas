@@ -1,6 +1,5 @@
-
 import { useState } from 'react';
-import { Search, Send, Phone, Video } from 'lucide-react';
+import { Search, Send, Phone, Video, MessageSquare } from 'lucide-react';
 
 /**
  * Página de Chat - Interface similar ao WhatsApp Web
@@ -34,8 +33,12 @@ interface Conversation {
   avatar: string;
 }
 
-export const ChatPage = () => {
-  const [selectedConversation, setSelectedConversation] = useState<string | null>('1');
+interface ChatPageProps {
+  selectedLeadId?: string;
+}
+
+export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(selectedLeadId || '1');
   const [messageInput, setMessageInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -122,8 +125,8 @@ export const ChatPage = () => {
 
   return (
     <div className="h-full flex">
-      {/* Lista de conversas - Lateral esquerda */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+      {/* Lista de conversas - Lateral esquerda - Responsiva */}
+      <div className="w-full md:w-80 bg-white border-r border-gray-200 flex flex-col">
         {/* Header da lista */}
         <div className="p-4 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900 mb-3">Conversas</h2>
@@ -191,8 +194,8 @@ export const ChatPage = () => {
         </div>
       </div>
 
-      {/* Área de mensagens - Direita */}
-      <div className="flex-1 flex flex-col">
+      {/* Área de mensagens - Direita - Responsiva */}
+      <div className="hidden md:flex flex-1 flex-col">
         {selectedConv ? (
           <>
             {/* Header da conversa */}

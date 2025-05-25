@@ -14,7 +14,10 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
  * - Persistência automática da posição dos cards
  * - Adição de novas etapas dinamicamente
  * - Edição segura de nomes das etapas
+ * - Exclusão de etapas com confirmação
  * - Modal de histórico de consultas com LTV
+ * - Botão para abrir chat com leads
+ * - Layout totalmente responsivo
  * - Validação de dados antes do envio ao Supabase
  * 
  * Integração com backend:
@@ -48,7 +51,11 @@ export interface KanbanColumn {
   leadIds: string[];
 }
 
-export const KanbanBoard = () => {
+interface KanbanBoardProps {
+  onNavigateToChat?: (leadId: string) => void;
+}
+
+export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
   // Estados do componente
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
@@ -66,6 +73,7 @@ export const KanbanBoard = () => {
     moverLead,
     criarEtapa,
     editarEtapa,
+    excluirEtapa,
     salvarLead,
     buscarConsultasLead
   } = useSupabaseData();
@@ -126,6 +134,13 @@ export const KanbanBoard = () => {
     }
   };
 
+  // Função para abrir chat com lead
+  const handleOpenChat = (lead: Lead) => {
+    if (onNavigateToChat) {
+      onNavigateToChat(lead.id);
+    }
+  };
+
   // Função para criar nova etapa
   const handleCreateEtapa = () => {
     setEditingEtapa(null);
@@ -138,19 +153,9 @@ export const KanbanBoard = () => {
     setIsEtapaModalOpen(true);
   };
 
-  // Função para salvar etapa com validação extra para etapas padrão
+  // Função para salvar etapa
   const handleSaveEtapa = async (nome: string) => {
     try {
-      // Lista de etapas padrão que precisam de confirmação extra
-      const etapasPadrao = ['Novo Lead', 'Em Atendimento', 'Em Negociação', 'Agendado'];
-      
-      if (editingEtapa && etapasPadrao.includes(editingEtapa.nome)) {
-        const confirmacao = confirm(
-          `Você está editando uma etapa padrão "${editingEtapa.nome}". Tem certeza que deseja continuar?`
-        );
-        if (!confirmacao) return;
-      }
-
       if (editingEtapa) {
         await editarEtapa(editingEtapa.id, nome);
       } else {
@@ -160,6 +165,22 @@ export const KanbanBoard = () => {
     } catch (error) {
       console.error('Erro ao salvar etapa:', error);
       throw error; // Propagar erro para o modal
+    }
+  };
+
+  // Função para excluir etapa
+  const handleDeleteEtapa = async (etapa: any) => {
+    const confirmacao = confirm(
+      `Tem certeza que deseja excluir a etapa "${etapa.nome}"?\n\nEsta ação não pode ser desfeita.`
+    );
+
+    if (!confirmacao) return;
+
+    try {
+      await excluirEtapa(etapa.id);
+    } catch (error: any) {
+      console.error('Erro ao excluir etapa:', error);
+      alert(error.message || 'Erro ao excluir etapa. Tente novamente.');
     }
   };
 
@@ -177,8 +198,8 @@ export const KanbanBoard = () => {
 
   return (
     <div className="h-full">
-      {/* Header da página com título e botões */}
-      <div className="flex justify-between items-center mb-6">
+      {/* Header da página com título e botões - Responsivo */}
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">
             Gerenciamento de Leads
@@ -187,10 +208,10 @@ export const KanbanBoard = () => {
             Acompanhe o progresso dos seus leads no funil de vendas
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={handleCreateEtapa}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <Plus size={18} />
             Nova Etapa
@@ -204,8 +225,8 @@ export const KanbanBoard = () => {
         </div>
       </div>
 
-      {/* Board do Kanban */}
-      <div className="flex gap-6 h-full overflow-x-auto pb-6">
+      {/* Board do Kanban - Layout responsivo */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:flex md:gap-6 md:overflow-x-auto pb-6">
         {etapas.map((etapa) => {
           // Filtrar leads desta etapa
           const leadsEtapa = leads.filter(lead => lead.etapa_kanban_id === etapa.id);
@@ -222,14 +243,16 @@ export const KanbanBoard = () => {
               onEditLead={handleEditLead}
               onMoveCard={handleMoveCard}
               onOpenHistory={handleOpenHistory}
+              onOpenChat={handleOpenChat}
               onEditEtapa={() => handleEditEtapa(etapa)}
+              onDeleteEtapa={() => handleDeleteEtapa(etapa)}
             />
           );
         })}
         
         {/* Mensagem quando não há etapas */}
         {etapas.length === 0 && (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="col-span-full flex items-center justify-center py-20">
             <div className="text-center">
               <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <Plus size={32} className="text-gray-400" />
