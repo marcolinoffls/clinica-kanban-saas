@@ -76,6 +76,60 @@ export type Database = {
           },
         ]
       }
+      chat_mensagens: {
+        Row: {
+          anexo_url: string | null
+          clinica_id: string
+          conteudo: string
+          created_at: string | null
+          enviado_por: string
+          id: string
+          lead_id: string
+          lida: boolean | null
+          tipo: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          anexo_url?: string | null
+          clinica_id: string
+          conteudo: string
+          created_at?: string | null
+          enviado_por: string
+          id?: string
+          lead_id: string
+          lida?: boolean | null
+          tipo?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          anexo_url?: string | null
+          clinica_id?: string
+          conteudo?: string
+          created_at?: string | null
+          enviado_por?: string
+          id?: string
+          lead_id?: string
+          lida?: boolean | null
+          tipo?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_mensagens_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_mensagens_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinicas: {
         Row: {
           cnpj: string | null
@@ -274,6 +328,50 @@ export type Database = {
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      respostas_prontas: {
+        Row: {
+          atalho: string | null
+          ativo: boolean | null
+          categoria: string | null
+          clinica_id: string
+          conteudo: string
+          created_at: string | null
+          id: string
+          titulo: string
+          updated_at: string | null
+        }
+        Insert: {
+          atalho?: string | null
+          ativo?: boolean | null
+          categoria?: string | null
+          clinica_id: string
+          conteudo: string
+          created_at?: string | null
+          id?: string
+          titulo: string
+          updated_at?: string | null
+        }
+        Update: {
+          atalho?: string | null
+          ativo?: boolean | null
+          categoria?: string | null
+          clinica_id?: string
+          conteudo?: string
+          created_at?: string | null
+          id?: string
+          titulo?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "respostas_prontas_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
             referencedColumns: ["id"]
           },
         ]

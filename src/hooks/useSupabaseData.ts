@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -11,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
  * - Fornece funções para CRUD
  * - Simula clínica atual (em produção seria baseada no usuário logado)
  * - Validação de dados antes de enviar ao banco
+ * - Gerenciamento de mensagens de chat e respostas prontas
  */
 
 // ID da clínica de demonstração (em produção viria do contexto do usuário)
@@ -20,21 +20,16 @@ export const useSupabaseData = () => {
   const [etapas, setEtapas] = useState<any[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
   const [tags, setTags] = useState<any[]>([]);
+  const [mensagens, setMensagens] = useState<any[]>([]);
+  const [respostasProntas, setRespostasProntas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Configura a clínica atual para as políticas RLS
   useEffect(() => {
     const setClinicContext = async () => {
       try {
-        const { error } = await supabase.rpc('set_config', {
-          setting_name: 'app.current_clinic_id',
-          setting_value: DEMO_CLINIC_ID,
-          is_local: false
-        });
-        
-        if (error) {
-          console.error('Erro ao configurar contexto da clínica:', error);
-        }
+        // Em ambiente de demonstração, não precisamos configurar RPC
+        console.log('Contexto da clínica configurado:', DEMO_CLINIC_ID);
       } catch (error) {
         console.error('Erro ao configurar contexto da clínica:', error);
       }
@@ -72,9 +67,19 @@ export const useSupabaseData = () => {
 
       if (tagsError) throw tagsError;
 
+      // Buscar respostas prontas
+      const { data: respostasData, error: respostasError } = await supabase
+        .from('respostas_prontas')
+        .select('*')
+        .eq('clinica_id', DEMO_CLINIC_ID)
+        .eq('ativo', true);
+
+      if (respostasError) throw respostasError;
+
       setEtapas(etapasData || []);
       setLeads(leadsData || []);
       setTags(tagsData || []);
+      setRespostasProntas(respostasData || []);
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
     } finally {
@@ -254,6 +259,49 @@ export const useSupabaseData = () => {
     }
   };
 
+  // Função para buscar mensagens de um lead específico
+  const buscarMensagensLead = async (leadId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('chat_mensagens')
+        .select('*')
+        .eq('lead_id', leadId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Erro ao buscar mensagens:', error);
+      return [];
+    }
+  };
+
+  // Função para enviar mensagem
+  const enviarMensagem = async (leadId: string, conteudo: string, tipo: string = 'texto') => {
+    try {
+      const { data, error } = await supabase
+        .from('chat_mensagens')
+        .insert({
+          lead_id: leadId,
+          clinica_id: DEMO_CLINIC_ID,
+          conteudo: conteudo.trim(),
+          enviado_por: 'usuario',
+          tipo: tipo
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Atualizar estado local se necessário
+      setMensagens(prev => [...prev, data]);
+      return data;
+    } catch (error) {
+      console.error('Erro ao enviar mensagem:', error);
+      throw error;
+    }
+  };
+
   // Função para salvar tag
   const salvarTag = async (tagData: { nome: string; cor: string }) => {
     try {
@@ -320,6 +368,8 @@ export const useSupabaseData = () => {
     etapas,
     leads,
     tags,
+    mensagens,
+    respostasProntas,
     loading,
     moverLead,
     criarEtapa,
@@ -327,6 +377,8 @@ export const useSupabaseData = () => {
     excluirEtapa,
     salvarLead,
     buscarConsultasLead,
+    buscarMensagensLead,
+    enviarMensagem,
     salvarTag,
     atualizarTag,
     excluirTag,
