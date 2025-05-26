@@ -11,7 +11,6 @@
  * 
  * Props:
  * - leadId: ID do lead para filtrar mensagens
- * - clinicaId: ID da clínica (usado para filtros de segurança)
  */
 
 import { useState, useEffect, useRef } from 'react'
@@ -48,7 +47,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   // Carregar histórico inicial de mensagens
   const carregarMensagens = async () => {
     try {
-      console.log('📥 Carregando mensagens para lead:', leadId)
+      console.log('📥 Carregando mensagens para lead:', leadId, 'clínica:', clinicaId)
       
       const { data, error } = await supabase
         .from('chat_mensagens')
@@ -85,16 +84,19 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
 
   // Configurar Realtime e carregar mensagens iniciais
   useEffect(() => {
-    if (!leadId || !clinicaId) return
+    if (!leadId || !clinicaId) {
+      console.log('⚠️ leadId ou clinicaId não disponível:', { leadId, clinicaId })
+      return
+    }
 
-    console.log('🔄 Configurando chat para lead:', leadId)
+    console.log('🔄 Configurando chat em tempo real para lead:', leadId)
     
     // Carregar mensagens iniciais
     carregarMensagens()
 
-    // Criar canal único para este chat
+    // Criar canal único para este chat específico
     const canalChat = supabase
-      .channel(`chat-lead-${leadId}`)
+      .channel(`chat-mensagens-lead-${leadId}`)
       .on(
         'postgres_changes',
         {
@@ -120,6 +122,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
               // Verificar se a mensagem já existe (evitar duplicatas)
               const jaExiste = mensagensAtuais.some(m => m.id === mensagemFormatada.id)
               if (jaExiste) {
+                console.log('⚠️ Mensagem já existe, ignorando duplicata')
                 return mensagensAtuais
               }
               
@@ -131,23 +134,33 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
               
               return novaLista
             })
+          } else {
+            console.log('⚠️ Mensagem ignorada - clínica diferente:', novaMensagem.clinica_id, 'vs', clinicaId)
           }
         }
       )
       .subscribe((status) => {
-        console.log('🔗 Status da inscrição Realtime:', status)
+        console.log('🔗 Status da subscrição Realtime:', status)
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Subscrição Realtime ativa para lead:', leadId)
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Erro na subscrição Realtime')
+          setErro('Erro na conexão em tempo real')
+        }
       })
 
     // Função de limpeza para remover inscrição
     return () => {
-      console.log('🧹 Removendo inscrição Realtime para lead:', leadId)
+      console.log('🧹 Removendo subscrição Realtime para lead:', leadId)
       supabase.removeChannel(canalChat)
     }
   }, [leadId, clinicaId])
 
   // Rolar para o final sempre que as mensagens mudarem
   useEffect(() => {
-    rolarParaFinal()
+    if (mensagens.length > 0) {
+      rolarParaFinal()
+    }
   }, [mensagens])
 
   // Formatar horário da mensagem
@@ -164,8 +177,8 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-2 text-gray-500">Carregando mensagens...</span>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+          <span className="text-gray-500">Carregando mensagens...</span>
         </div>
       </div>
     )
@@ -183,7 +196,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
               setCarregando(true)
               carregarMensagens()
             }}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
           >
             Tentar Novamente
           </button>
