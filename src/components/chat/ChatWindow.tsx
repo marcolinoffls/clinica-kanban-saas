@@ -7,6 +7,7 @@
  * - Atualiza automaticamente via Supabase Realtime
  * - Diferencia mensagens enviadas e recebidas
  * - Gerencia inscrições de tempo real sem vazamentos de memória
+ * - Controla rolagem automática para as mensagens mais recentes
  * 
  * Props:
  * - leadId: ID do lead para filtrar mensagens
@@ -15,7 +16,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/integrations/supabase/client'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { useClinicaFixa } from '@/hooks/useClinicaFixa'
 
 interface Mensagem {
@@ -38,13 +38,11 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Função para rolar para o final das mensagens
   const rolarParaFinal = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
   // Carregar histórico inicial de mensagens
@@ -147,6 +145,11 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     }
   }, [leadId, clinicaId])
 
+  // Rolar para o final sempre que as mensagens mudarem
+  useEffect(() => {
+    rolarParaFinal()
+  }, [mensagens])
+
   // Formatar horário da mensagem
   const formatarHorario = (timestamp: string) => {
     const data = new Date(timestamp)
@@ -159,9 +162,11 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   // Renderizar estado de carregamento
   if (carregando) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2 text-gray-500">Carregando mensagens...</span>
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-2 text-gray-500">Carregando mensagens...</span>
+        </div>
       </div>
     )
   }
@@ -169,7 +174,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   // Renderizar estado de erro
   if (erro) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-500 mb-2">❌ {erro}</p>
           <button 
@@ -188,9 +193,9 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Área de mensagens com scroll */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+    <div className="h-full flex flex-col">
+      {/* Área de mensagens com rolagem própria */}
+      <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
           {mensagens.length === 0 ? (
             <div className="text-center text-gray-500 py-8">
@@ -244,8 +249,10 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
               </div>
             ))
           )}
+          {/* Elemento invisível para controlar a rolagem */}
+          <div ref={messagesEndRef} />
         </div>
-      </ScrollArea>
+      </div>
     </div>
   )
 }

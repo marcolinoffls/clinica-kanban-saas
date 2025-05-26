@@ -58,20 +58,30 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex w-full">
+    <div className="h-screen bg-gray-50 flex overflow-hidden">
       {/* Barra lateral fixa com navegação */}
       <Sidebar activePage={activePage} onPageChange={setActivePage} />
       
+      {/* Conteúdo principal da aplicação */}
       <div className="flex-1 flex min-w-0">
-        {/* Conteúdo principal da aplicação - Responsivo */}
-        <main className="flex-1 p-4 md:p-6 min-w-0">
-          {renderContent()}
-        </main>
-        
-        {/* Barra lateral direita para gerenciamento de tags - Oculta em telas pequenas */}
-        <aside className="hidden lg:block w-80 bg-white border-l border-gray-200 p-4">
-          <TagManager />
-        </aside>
+        {activePage === 'chat' ? (
+          /* Para a página de chat, não adicionamos padding pois ela controla seu próprio layout */
+          <div className="flex-1 min-w-0">
+            {renderContent()}
+          </div>
+        ) : (
+          /* Para outras páginas, mantemos o layout com padding e sidebar de tags */
+          <>
+            <main className="flex-1 p-4 md:p-6 min-w-0 overflow-auto">
+              {renderContent()}
+            </main>
+            
+            {/* Barra lateral direita para gerenciamento de tags - Oculta em telas pequenas e na página de chat */}
+            <aside className="hidden lg:block w-80 bg-white border-l border-gray-200 p-4 overflow-auto">
+              <TagManager />
+            </aside>
+          </>
+        )}
       </div>
     </div>
   );

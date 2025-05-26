@@ -1,7 +1,7 @@
+
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
-import { LeadInfoSidebar } from './LeadInfoSidebar';
 import { ChatWindow } from './ChatWindow';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useWebhook } from '@/hooks/useWebhook';
@@ -12,7 +12,6 @@ import { useWebhook } from '@/hooks/useWebhook';
  * Funcionalidades:
  * - Lista de conversas na lateral esquerda
  * - Área de mensagens na direita com persistência no Supabase
- * - Barra lateral com informações detalhadas do lead
  * - Entrada de mensagem avançada com respostas prontas
  * - Busca de conversas
  * - Histórico de mensagens persistente
@@ -55,7 +54,6 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const [messageInput, setMessageInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
-  const [showLeadInfo, setShowLeadInfo] = useState(true);
 
   // Atualizar conversa selecionada quando selectedLeadId mudar
   useEffect(() => {
@@ -117,7 +115,6 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   };
 
   const selectedLead = leads.find(l => l.id === selectedConversation);
-  const leadTags = selectedLead ? tags.filter(tag => tag.id === selectedLead.tag_id) : [];
 
   if (loading) {
     return (
@@ -131,11 +128,11 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   }
 
   return (
-    <div className="h-full flex">
+    <div className="h-screen flex overflow-hidden">
       {/* Lista de conversas - Lateral esquerda */}
       <div className="w-full md:w-80 bg-white border-r border-gray-200 flex flex-col">
         {/* Header da lista */}
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-4 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900 mb-3">Conversas</h2>
           
           {/* Barra de busca */}
@@ -151,7 +148,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           </div>
         </div>
 
-        {/* Lista de conversas */}
+        {/* Lista de conversas com rolagem própria */}
         <div className="flex-1 overflow-y-auto">
           {leadsComMensagens.length > 0 ? (
             leadsComMensagens.map((lead) => (
@@ -164,7 +161,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
               >
                 <div className="flex items-center gap-3">
                   {/* Avatar */}
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-blue-600 font-semibold">
                       {lead.nome.charAt(0).toUpperCase()}
                     </span>
@@ -176,7 +173,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                       <h4 className="font-medium text-gray-900 truncate">
                         {lead.nome}
                       </h4>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-500 flex-shrink-0">
                         {formatTime(lead.updated_at)}
                       </span>
                     </div>
@@ -186,7 +183,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                     </p>
                     
                     {lead.telefone && (
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-gray-500 mt-1 truncate">
                         {lead.telefone}
                       </p>
                     )}
@@ -203,62 +200,54 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
         </div>
       </div>
 
-      {/* Área de mensagens - Centro */}
-      <div className="hidden md:flex flex-1 flex-col">
+      {/* Área de mensagens - Centro (agora ocupa todo o espaço restante) */}
+      <div className="flex-1 flex flex-col min-w-0">
         {selectedLead ? (
           <>
             {/* Header da conversa */}
-            <div className="bg-white border-b border-gray-200 p-4 flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+            <div className="bg-white border-b border-gray-200 p-4 flex justify-between items-center flex-shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-blue-600 font-semibold">
                     {selectedLead.nome.charAt(0).toUpperCase()}
                   </span>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-gray-900 truncate">
                     {selectedLead.nome}
                   </h3>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 truncate">
                     {selectedLead.telefone}
                   </p>
                 </div>
               </div>
 
               {/* Botões de ação */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-shrink-0">
                 <button className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
                   <Phone size={20} />
                 </button>
                 <button className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
                   <Video size={20} />
                 </button>
-                <button
-                  onClick={() => setShowLeadInfo(!showLeadInfo)}
-                  className={`p-2 rounded-lg ${
-                    showLeadInfo
-                      ? 'text-blue-600 bg-blue-50'
-                      : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50'
-                  }`}
-                >
-                  <MessageSquare size={20} />
-                </button>
               </div>
             </div>
 
-            {/* Nova área de mensagens com ChatWindow */}
-            <div className="flex-1 bg-gray-50">
+            {/* Área de mensagens com rolagem própria */}
+            <div className="flex-1 bg-gray-50 overflow-hidden">
               <ChatWindow leadId={selectedConversation} />
             </div>
 
-            {/* Input de nova mensagem */}
-            <MessageInput
-              value={messageInput}
-              onChange={setMessageInput}
-              onSend={handleSendMessage}
-              loading={sendingMessage}
-              respostasProntas={respostasProntas}
-            />
+            {/* Input de nova mensagem fixo na parte inferior */}
+            <div className="border-t border-gray-200 bg-white flex-shrink-0">
+              <MessageInput
+                value={messageInput}
+                onChange={setMessageInput}
+                onSend={handleSendMessage}
+                loading={sendingMessage}
+                respostasProntas={respostasProntas}
+              />
+            </div>
           </>
         ) : (
           /* Estado vazio - nenhuma conversa selecionada */
@@ -277,18 +266,6 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           </div>
         )}
       </div>
-
-      {/* Barra lateral com informações do lead */}
-      {selectedLead && showLeadInfo && (
-        <LeadInfoSidebar
-          lead={selectedLead}
-          tags={leadTags}
-          historico={[]}
-          onCallLead={() => console.log('Ligar para:', selectedLead.telefone)}
-          onScheduleAppointment={() => console.log('Agendar consulta para:', selectedLead.nome)}
-          onEditLead={() => console.log('Editar lead:', selectedLead.id)}
-        />
-      )}
     </div>
   );
 };
