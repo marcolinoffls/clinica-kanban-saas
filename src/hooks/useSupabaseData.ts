@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Hook personalizado para gerenciar dados do Supabase
+ * Hook personalizado para gerenciar dados do Supabase com atualizações em tempo real
  * 
  * Funcionalidades:
  * - Conecta com as tabelas do Supabase
@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
  * - Simula clínica atual (em produção seria baseada no usuário logado)
  * - Validação de dados antes de enviar ao banco
  * - Gerenciamento de mensagens de chat e respostas prontas
+ * - Atualizações automáticas via Supabase Realtime para leads e mensagens
  */
 
 // ID da clínica de demonstração (em produção viria do contexto do usuário)
@@ -86,6 +87,114 @@ export const useSupabaseData = () => {
       setLoading(false);
     }
   };
+
+  // Configurar Realtime para leads e mensagens
+  useEffect(() => {
+    console.log('🔄 Configurando subscrições Realtime para leads e mensagens');
+
+    // Canal para escutar novos leads
+    const canalLeads = supabase
+      .channel('leads-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'leads',
+          filter: `clinica_id=eq.${DEMO_CLINIC_ID}`
+        },
+        (payload) => {
+          console.log('📥 Novo lead detectado:', payload.new);
+          const novoLead = payload.new as any;
+          
+          setLeads(leadsAtuais => {
+            // Verificar se o lead já existe (evitar duplicatas)
+            const jaExiste = leadsAtuais.some(lead => lead.id === novoLead.id);
+            if (jaExiste) {
+              console.log('⚠️ Lead já existe, ignorando duplicata');
+              return leadsAtuais;
+            }
+            
+            console.log('✅ Adicionando novo lead à lista');
+            return [...leadsAtuais, novoLead];
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'leads',
+          filter: `clinica_id=eq.${DEMO_CLINIC_ID}`
+        },
+        (payload) => {
+          console.log('📝 Lead atualizado:', payload.new);
+          const leadAtualizado = payload.new as any;
+          
+          setLeads(leadsAtuais => {
+            return leadsAtuais.map(lead =>
+              lead.id === leadAtualizado.id ? { ...lead, ...leadAtualizado } : lead
+            );
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔗 Status da subscrição Realtime (leads):', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Subscrição Realtime ativa para leads');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Erro na subscrição Realtime para leads');
+        }
+      });
+
+    // Canal para escutar novas mensagens (para atualizar data_ultimo_contato dos leads)
+    const canalMensagens = supabase
+      .channel('mensagens-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_mensagens',
+          filter: `clinica_id=eq.${DEMO_CLINIC_ID}`
+        },
+        (payload) => {
+          console.log('📨 Nova mensagem detectada para atualizar leads:', payload.new);
+          const novaMensagem = payload.new as any;
+          
+          // Atualizar o data_ultimo_contato do lead correspondente
+          setLeads(leadsAtuais => {
+            return leadsAtuais.map(lead => {
+              if (lead.id === novaMensagem.lead_id) {
+                console.log('📅 Atualizando data_ultimo_contato do lead:', lead.id);
+                return {
+                  ...lead,
+                  data_ultimo_contato: novaMensagem.created_at,
+                  updated_at: novaMensagem.created_at
+                };
+              }
+              return lead;
+            });
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔗 Status da subscrição Realtime (mensagens):', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Subscrição Realtime ativa para mensagens');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Erro na subscrição Realtime para mensagens');
+        }
+      });
+
+    // Função de limpeza para remover subscrições
+    return () => {
+      console.log('🧹 Removendo subscrições Realtime');
+      supabase.removeChannel(canalLeads);
+      supabase.removeChannel(canalMensagens);
+    };
+  }, []);
 
   useEffect(() => {
     fetchData();
