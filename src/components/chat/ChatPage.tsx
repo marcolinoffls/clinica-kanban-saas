@@ -1,8 +1,8 @@
-
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
 import { LeadInfoSidebar } from './LeadInfoSidebar';
+import { ChatWindow } from './ChatWindow';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useWebhook } from '@/hooks/useWebhook';
 
@@ -43,7 +43,6 @@ interface ChatPageProps {
 export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const {
     leads,
-    buscarMensagensLead,
     enviarMensagem,
     respostasProntas,
     tags,
@@ -55,47 +54,15 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(selectedLeadId || null);
   const [messageInput, setMessageInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [showLeadInfo, setShowLeadInfo] = useState(true);
 
-  // Carregar mensagens quando uma conversa é selecionada
+  // Atualizar conversa selecionada quando selectedLeadId mudar
   useEffect(() => {
-    if (selectedConversation) {
-      carregarMensagens(selectedConversation);
+    if (selectedLeadId) {
+      setSelectedConversation(selectedLeadId);
     }
-  }, [selectedConversation]);
-
-  // Função para carregar mensagens do banco
-  const carregarMensagens = async (leadId: string) => {
-    try {
-      setLoadingMessages(true);
-      const mensagensRaw = await buscarMensagensLead(leadId);
-      
-      // Converter e validar dados do banco para interface Message
-      const mensagensFormatadas: Message[] = (mensagensRaw || []).map(msg => ({
-        id: msg.id,
-        lead_id: msg.lead_id,
-        conteudo: msg.conteudo,
-        created_at: msg.created_at,
-        enviado_por: (msg.enviado_por === 'usuario' || msg.enviado_por === 'lead') 
-          ? msg.enviado_por 
-          : 'usuario', // fallback seguro
-        tipo: (['texto', 'imagem', 'arquivo', 'audio'].includes(msg.tipo)) 
-          ? msg.tipo as 'texto' | 'imagem' | 'arquivo' | 'audio'
-          : 'texto', // fallback seguro
-        lida: Boolean(msg.lida)
-      }));
-      
-      setMessages(mensagensFormatadas);
-    } catch (error) {
-      console.error('Erro ao carregar mensagens:', error);
-      setMessages([]); // fallback para array vazio
-    } finally {
-      setLoadingMessages(false);
-    }
-  };
+  }, [selectedLeadId]);
 
   // Filtrar leads baseado na busca
   const leadsComMensagens = leads.filter(lead =>
@@ -112,27 +79,10 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       setSendingMessage(true);
       const novaMensagemRaw = await enviarMensagem(selectedConversation, messageInput);
       
-      // Converter resposta do banco para interface Message
-      const novaMensagem: Message = {
-        id: novaMensagemRaw.id,
-        lead_id: novaMensagemRaw.lead_id,
-        conteudo: novaMensagemRaw.conteudo,
-        created_at: novaMensagemRaw.created_at,
-        enviado_por: (novaMensagemRaw.enviado_por === 'usuario' || novaMensagemRaw.enviado_por === 'lead') 
-          ? novaMensagemRaw.enviado_por 
-          : 'usuario',
-        tipo: (['texto', 'imagem', 'arquivo', 'audio'].includes(novaMensagemRaw.tipo)) 
-          ? novaMensagemRaw.tipo as 'texto' | 'imagem' | 'arquivo' | 'audio'
-          : 'texto',
-        lida: Boolean(novaMensagemRaw.lida)
-      };
-      
-      // Adicionar mensagem ao estado local
-      setMessages(prev => [...prev, novaMensagem]);
+      // Limpar input
       setMessageInput('');
 
       // Enviar webhook de forma assíncrona (não bloqueia a interface)
-      // Incluindo o estado do botão IA no payload
       const leadSelecionado = leads.find(l => l.id === selectedConversation);
       if (leadSelecionado?.clinica_id && novaMensagemRaw.enviado_por === 'usuario') {
         enviarWebhook(
@@ -142,7 +92,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           novaMensagemRaw.conteudo,
           novaMensagemRaw.tipo || 'texto',
           novaMensagemRaw.created_at,
-          aiEnabled || false // Adicionar estado da IA ao webhook
+          aiEnabled || false
         );
       }
 
@@ -163,7 +113,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   };
 
   const getLastMessage = (leadId: string) => {
-    return 'Clique para iniciar a conversa...';
+    return 'Clique para ver a conversa...';
   };
 
   const selectedLead = leads.find(l => l.id === selectedConversation);
@@ -296,54 +246,16 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
               </div>
             </div>
 
-            {/* Área de mensagens */}
-            <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-              {loadingMessages ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                  <span className="ml-2 text-gray-500">Carregando mensagens...</span>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {messages.length > 0 ? (
-                    messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`flex ${message.enviado_por === 'usuario' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div
-                          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                            message.enviado_por === 'usuario'
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white text-gray-900 border border-gray-200'
-                          }`}
-                        >
-                          <p className="text-sm">{message.conteudo}</p>
-                          <p
-                            className={`text-xs mt-1 ${
-                              message.enviado_por === 'usuario' ? 'text-blue-100' : 'text-gray-500'
-                            }`}
-                          >
-                            {formatTime(message.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8">
-                      <MessageSquare size={32} className="text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500">Nenhuma mensagem ainda. Inicie a conversa!</p>
-                    </div>
-                  )}
-                </div>
-              )}
+            {/* Nova área de mensagens com ChatWindow */}
+            <div className="flex-1 bg-gray-50">
+              <ChatWindow leadId={selectedConversation} />
             </div>
 
-            {/* Input de nova mensagem com estado da IA */}
+            {/* Input de nova mensagem */}
             <MessageInput
               value={messageInput}
               onChange={setMessageInput}
-              onSend={handleSendMessage} // Agora recebe o estado da IA
+              onSend={handleSendMessage}
               loading={sendingMessage}
               respostasProntas={respostasProntas}
             />
@@ -366,7 +278,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
         )}
       </div>
 
-      {/* Barra lateral com informações do lead - Tags integradas aqui */}
+      {/* Barra lateral com informações do lead */}
       {selectedLead && showLeadInfo && (
         <LeadInfoSidebar
           lead={selectedLead}
