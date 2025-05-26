@@ -8,6 +8,7 @@ import {
   Settings 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useClinica } from '@/contexts/ClinicaContext';
 
 /**
  * Componente da barra lateral de navegação
@@ -16,6 +17,7 @@ import { cn } from '@/lib/utils';
  * - Navegação entre as diferentes seções do CRM
  * - Indicação visual da página ativa
  * - Design responsivo e acessível
+ * - Usa o contexto da clínica para exibir informações consistentes
  * 
  * Props:
  * - activePage: string com a página atualmente ativa
@@ -68,6 +70,9 @@ const navigationItems = [
 ];
 
 export const Sidebar = ({ activePage, onPageChange }: SidebarProps) => {
+  // Usar o contexto da clínica para garantir dados consistentes
+  const { clinicaAtiva, isLoading } = useClinica();
+
   return (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
       {/* Header da sidebar com logo da clínica */}
@@ -109,14 +114,18 @@ export const Sidebar = ({ activePage, onPageChange }: SidebarProps) => {
         </ul>
       </nav>
 
-      {/* Footer da sidebar com informações da clínica */}
+      {/* Footer da sidebar com informações da clínica do contexto */}
       <div className="p-4 border-t border-gray-200">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-            <span className="text-blue-600 font-semibold text-sm">C</span>
+            <span className="text-blue-600 font-semibold text-sm">
+              {clinicaAtiva.nome.charAt(0).toUpperCase()}
+            </span>
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-900">Clínica Exemplo</p>
+            <p className="text-sm font-medium text-gray-900">
+              {isLoading ? 'Carregando...' : clinicaAtiva.nome}
+            </p>
             <p className="text-xs text-gray-500">Administrador</p>
           </div>
         </div>
