@@ -81,13 +81,13 @@ export const useSupabaseData = () => {
 
       if (etapasError) throw etapasError;
 
-      // Buscar leads ordenados por data_ultimo_contato (conversas mais recentes primeiro)
+      // Buscar leads ordenados por data_ultimo_contato (mais recentes primeiro)
       const { data: leadsData, error: leadsError } = await supabase
         .from('leads')
         .select('*')
         .eq('clinica_id', DEMO_CLINIC_ID)
-        .order('data_ultimo_contato', { ascending: false, nullsLast: true })
-        .order('created_at', { ascending: false }); // Fallback para leads sem mensagens
+        .order('data_ultimo_contato', { ascending: false })
+        .order('updated_at', { ascending: false });
 
       if (leadsError) throw leadsError;
 

@@ -8,6 +8,7 @@
  * - Diferencia mensagens enviadas e recebidas
  * - Gerencia inscrições de tempo real sem vazamentos de memória
  * - Controla rolagem automática para as mensagens mais recentes
+ * - Posiciona inicialmente no final da conversa para evitar efeito de rolagem
  * 
  * Props:
  * - leadId: ID do lead para filtrar mensagens
@@ -37,11 +38,20 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
+  const [primeiraCarregaCompleta, setPrimeiraCarregaCompleta] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // Função para rolar para o final das mensagens
-  const rolarParaFinal = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  const rolarParaFinal = (comportamento: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior: comportamento })
+  }
+
+  // Função para posicionar imediatamente no final (para carga inicial)
+  const posicionarNoFinal = () => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight
+    }
   }
 
   // Carregar histórico inicial de mensagens
@@ -71,8 +81,12 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
       setMensagens(mensagensFormatadas)
       console.log('✅ Mensagens carregadas:', mensagensFormatadas?.length || 0)
       
-      // Pequeno delay para garantir que o DOM foi atualizado
-      setTimeout(rolarParaFinal, 100)
+      // Para a primeira carga, posicionar imediatamente no final
+      // Usar requestAnimationFrame para garantir que o DOM foi atualizado
+      requestAnimationFrame(() => {
+        posicionarNoFinal()
+        setPrimeiraCarregaCompleta(true)
+      })
       
     } catch (error) {
       console.error('❌ Erro ao carregar mensagens:', error)
@@ -90,6 +104,9 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     }
 
     console.log('🔄 Configurando chat em tempo real para lead:', leadId)
+    
+    // Reset do estado da primeira carga quando mudar de lead
+    setPrimeiraCarregaCompleta(false)
     
     // Carregar mensagens iniciais
     carregarMensagens()
@@ -129,8 +146,10 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
               const novaLista = [...mensagensAtuais, mensagemFormatada]
               console.log('✅ Mensagem adicionada ao estado, total:', novaLista.length)
               
-              // Rolar para o final após adicionar nova mensagem
-              setTimeout(rolarParaFinal, 100)
+              // Para novas mensagens (após primeira carga), usar rolagem suave
+              if (primeiraCarregaCompleta) {
+                setTimeout(() => rolarParaFinal('smooth'), 100)
+              }
               
               return novaLista
             })
@@ -155,13 +174,6 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
       supabase.removeChannel(canalChat)
     }
   }, [leadId, clinicaId])
-
-  // Rolar para o final sempre que as mensagens mudarem
-  useEffect(() => {
-    if (mensagens.length > 0) {
-      rolarParaFinal()
-    }
-  }, [mensagens])
 
   // Formatar horário da mensagem
   const formatarHorario = (timestamp: string) => {
@@ -208,8 +220,11 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   return (
     <div className="h-full flex flex-col">
       {/* Área de mensagens com rolagem própria */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="space-y-4">
+      <div 
+        ref={containerRef}
+        className="flex-1 overflow-y-auto p-4"
+      >
+        <div className="space-y-2">
           {mensagens.length === 0 ? (
             <div className="text-center text-gray-500 py-8">
               <p>Nenhuma mensagem ainda.</p>
