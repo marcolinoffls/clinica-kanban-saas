@@ -1,4 +1,5 @@
 
+
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
@@ -11,19 +12,22 @@ import { useWebhook } from '@/hooks/useWebhook';
  * Página de Chat - Interface similar ao WhatsApp Web com persistência
  * 
  * Funcionalidades:
- * - Lista de conversas na lateral esquerda
+ * - Lista de conversas na lateral esquerda ordenada por atividade recente
+ * - Indicadores visuais de mensagens não lidas
  * - Área de mensagens no centro com persistência no Supabase
  * - Painel de informações do lead na lateral direita
  * - Entrada de mensagem avançada com respostas prontas
  * - Busca de conversas
  * - Histórico de mensagens persistente
  * - Webhook automático para cada mensagem enviada (com estado da IA)
+ * - Marcar mensagens como lidas automaticamente
  * 
  * Integração com Supabase:
  * - Busca mensagens da tabela chat_mensagens
  * - Salva novas mensagens automaticamente
  * - Carrega respostas prontas da tabela respostas_prontas
  * - Sincroniza com dados dos leads
+ * - Contadores de mensagens não lidas em tempo real
  * - Envia webhook para integração externa com informações da IA
  */
 
@@ -47,6 +51,8 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     enviarMensagem,
     respostasProntas,
     tags,
+    mensagensNaoLidas,
+    marcarMensagensComoLidas,
     loading
   } = useSupabaseData();
 
@@ -64,7 +70,15 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     }
   }, [selectedLeadId]);
 
-  // Filtrar leads baseado na busca
+  // Marcar mensagens como lidas quando uma conversa for selecionada
+  useEffect(() => {
+    if (selectedConversation && mensagensNaoLidas[selectedConversation] > 0) {
+      console.log('📖 Marcando mensagens como lidas para conversa selecionada:', selectedConversation);
+      marcarMensagensComoLidas(selectedConversation);
+    }
+  }, [selectedConversation, mensagensNaoLidas, marcarMensagensComoLidas]);
+
+  // Filtrar leads baseado na busca (já ordenados por data_ultimo_contato no hook)
   const leadsComMensagens = leads.filter(lead =>
     lead.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
     lead.telefone?.includes(searchTerm) ||
@@ -153,46 +167,68 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
         {/* Lista de conversas com rolagem própria */}
         <div className="flex-1 overflow-y-auto">
           {leadsComMensagens.length > 0 ? (
-            leadsComMensagens.map((lead) => (
-              <div
-                key={lead.id}
-                onClick={() => setSelectedConversation(lead.id)}
-                className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
-                  selectedConversation === lead.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {/* Avatar */}
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-blue-600 font-semibold">
-                      {lead.nome.charAt(0).toUpperCase()}
-                    </span>
+            leadsComMensagens.map((lead) => {
+              const mensagensNaoLidasCount = mensagensNaoLidas[lead.id] || 0;
+              
+              return (
+                <div
+                  key={lead.id}
+                  onClick={() => setSelectedConversation(lead.id)}
+                  className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 relative ${
+                    selectedConversation === lead.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Avatar */}
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 relative">
+                      <span className="text-blue-600 font-semibold">
+                        {lead.nome.charAt(0).toUpperCase()}
+                      </span>
+                      
+                      {/* Indicador de mensagens não lidas */}
+                      {mensagensNaoLidasCount > 0 && (
+                        <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+                          {mensagensNaoLidasCount > 99 ? '99+' : mensagensNaoLidasCount}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Informações da conversa */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start">
+                        <h4 className={`font-medium truncate ${
+                          mensagensNaoLidasCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-900'
+                        }`}>
+                          {lead.nome}
+                        </h4>
+                        <span className="text-xs text-gray-500 flex-shrink-0">
+                          {lead.data_ultimo_contato ? formatTime(lead.data_ultimo_contato) : formatTime(lead.updated_at)}
+                        </span>
+                      </div>
+                      
+                      <p className={`text-sm truncate mt-1 ${
+                        mensagensNaoLidasCount > 0 ? 'text-gray-700 font-medium' : 'text-gray-600'
+                      }`}>
+                        {getLastMessage(lead.id)}
+                      </p>
+                      
+                      {lead.telefone && (
+                        <p className="text-xs text-gray-500 mt-1 truncate">
+                          {lead.telefone}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Informações da conversa */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start">
-                      <h4 className="font-medium text-gray-900 truncate">
-                        {lead.nome}
-                      </h4>
-                      <span className="text-xs text-gray-500 flex-shrink-0">
-                        {formatTime(lead.updated_at)}
-                      </span>
+                  {/* Indicador extra de conversa não lida (bolinha verde) */}
+                  {mensagensNaoLidasCount > 0 && (
+                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                     </div>
-                    
-                    <p className="text-sm text-gray-600 truncate mt-1">
-                      {getLastMessage(lead.id)}
-                    </p>
-                    
-                    {lead.telefone && (
-                      <p className="text-xs text-gray-500 mt-1 truncate">
-                        {lead.telefone}
-                      </p>
-                    )}
-                  </div>
+                  )}
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="p-8 text-center">
               <MessageSquare size={32} className="text-gray-300 mx-auto mb-4" />

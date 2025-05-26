@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
  * - Validação de dados antes de enviar ao banco
  * - Gerenciamento de mensagens de chat e respostas prontas
  * - Atualizações automáticas via Supabase Realtime para leads e mensagens
+ * - Ordenação por atividade recente e contador de mensagens não lidas
  */
 
 // ID da clínica de demonstração (em produção viria do contexto do usuário)
@@ -23,6 +24,7 @@ export const useSupabaseData = () => {
   const [tags, setTags] = useState<any[]>([]);
   const [mensagens, setMensagens] = useState<any[]>([]);
   const [respostasProntas, setRespostasProntas] = useState<any[]>([]);
+  const [mensagensNaoLidas, setMensagensNaoLidas] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   // Configura a clínica atual para as políticas RLS
@@ -38,6 +40,33 @@ export const useSupabaseData = () => {
     setClinicContext();
   }, []);
 
+  // Função para buscar contador de mensagens não lidas por lead
+  const buscarMensagensNaoLidas = async () => {
+    try {
+      console.log('📊 Buscando contadores de mensagens não lidas');
+      
+      const { data, error } = await supabase
+        .from('chat_mensagens')
+        .select('lead_id')
+        .eq('clinica_id', DEMO_CLINIC_ID)
+        .eq('lida', false)
+        .eq('enviado_por', 'lead'); // Apenas mensagens enviadas pelo lead (não lidas pelo usuário)
+
+      if (error) throw error;
+
+      // Contar mensagens não lidas por lead_id
+      const contadores: Record<string, number> = {};
+      data?.forEach(msg => {
+        contadores[msg.lead_id] = (contadores[msg.lead_id] || 0) + 1;
+      });
+
+      console.log('📊 Contadores de mensagens não lidas:', contadores);
+      setMensagensNaoLidas(contadores);
+    } catch (error) {
+      console.error('Erro ao buscar mensagens não lidas:', error);
+    }
+  };
+
   // Buscar dados iniciais do Supabase
   const fetchData = async () => {
     try {
@@ -52,11 +81,13 @@ export const useSupabaseData = () => {
 
       if (etapasError) throw etapasError;
 
-      // Buscar leads
+      // Buscar leads ordenados por data_ultimo_contato (conversas mais recentes primeiro)
       const { data: leadsData, error: leadsError } = await supabase
         .from('leads')
         .select('*')
-        .eq('clinica_id', DEMO_CLINIC_ID);
+        .eq('clinica_id', DEMO_CLINIC_ID)
+        .order('data_ultimo_contato', { ascending: false, nullsLast: true })
+        .order('created_at', { ascending: false }); // Fallback para leads sem mensagens
 
       if (leadsError) throw leadsError;
 
@@ -81,6 +112,9 @@ export const useSupabaseData = () => {
       setLeads(leadsData || []);
       setTags(tagsData || []);
       setRespostasProntas(respostasData || []);
+
+      // Buscar contadores de mensagens não lidas
+      await buscarMensagensNaoLidas();
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
     } finally {
@@ -116,7 +150,8 @@ export const useSupabaseData = () => {
             }
             
             console.log('✅ Adicionando novo lead à lista');
-            return [...leadsAtuais, novoLead];
+            // Adicionar no topo da lista (mais recente)
+            return [novoLead, ...leadsAtuais];
           });
         }
       )
@@ -133,9 +168,16 @@ export const useSupabaseData = () => {
           const leadAtualizado = payload.new as any;
           
           setLeads(leadsAtuais => {
-            return leadsAtuais.map(lead =>
+            const leadsAtualizados = leadsAtuais.map(lead =>
               lead.id === leadAtualizado.id ? { ...lead, ...leadAtualizado } : lead
             );
+            
+            // Re-ordenar por data_ultimo_contato após atualização
+            return leadsAtualizados.sort((a, b) => {
+              const dataA = a.data_ultimo_contato ? new Date(a.data_ultimo_contato).getTime() : 0;
+              const dataB = b.data_ultimo_contato ? new Date(b.data_ultimo_contato).getTime() : 0;
+              return dataB - dataA; // Mais recente primeiro
+            });
           });
         }
       )
@@ -165,7 +207,7 @@ export const useSupabaseData = () => {
           
           // Atualizar o data_ultimo_contato do lead correspondente
           setLeads(leadsAtuais => {
-            return leadsAtuais.map(lead => {
+            const leadsAtualizados = leadsAtuais.map(lead => {
               if (lead.id === novaMensagem.lead_id) {
                 console.log('📅 Atualizando data_ultimo_contato do lead:', lead.id);
                 return {
@@ -176,7 +218,22 @@ export const useSupabaseData = () => {
               }
               return lead;
             });
+            
+            // Re-ordenar por data_ultimo_contato após nova mensagem
+            return leadsAtualizados.sort((a, b) => {
+              const dataA = a.data_ultimo_contato ? new Date(a.data_ultimo_contato).getTime() : 0;
+              const dataB = b.data_ultimo_contato ? new Date(b.data_ultimo_contato).getTime() : 0;
+              return dataB - dataA; // Mais recente primeiro
+            });
           });
+
+          // Atualizar contador de mensagens não lidas se a mensagem foi enviada pelo lead
+          if (novaMensagem.enviado_por === 'lead' && !novaMensagem.lida) {
+            setMensagensNaoLidas(contadores => ({
+              ...contadores,
+              [novaMensagem.lead_id]: (contadores[novaMensagem.lead_id] || 0) + 1
+            }));
+          }
         }
       )
       .subscribe((status) => {
@@ -199,6 +256,34 @@ export const useSupabaseData = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Função para marcar mensagens como lidas quando o usuário abre uma conversa
+  const marcarMensagensComoLidas = async (leadId: string) => {
+    try {
+      console.log('📖 Marcando mensagens como lidas para lead:', leadId);
+      
+      const { error } = await supabase
+        .from('chat_mensagens')
+        .update({ lida: true })
+        .eq('lead_id', leadId)
+        .eq('clinica_id', DEMO_CLINIC_ID)
+        .eq('enviado_por', 'lead') // Apenas mensagens enviadas pelo lead
+        .eq('lida', false); // Apenas as que ainda não foram lidas
+
+      if (error) throw error;
+
+      // Atualizar o contador local removendo as mensagens não lidas deste lead
+      setMensagensNaoLidas(contadores => {
+        const novosContadores = { ...contadores };
+        delete novosContadores[leadId];
+        return novosContadores;
+      });
+
+      console.log('✅ Mensagens marcadas como lidas');
+    } catch (error) {
+      console.error('Erro ao marcar mensagens como lidas:', error);
+    }
+  };
 
   // Função para mover lead entre etapas
   const moverLead = async (leadId: string, novaEtapaId: string) => {
@@ -479,6 +564,7 @@ export const useSupabaseData = () => {
     tags,
     mensagens,
     respostasProntas,
+    mensagensNaoLidas,
     loading,
     moverLead,
     criarEtapa,
@@ -488,6 +574,7 @@ export const useSupabaseData = () => {
     buscarConsultasLead,
     buscarMensagensLead,
     enviarMensagem,
+    marcarMensagensComoLidas,
     salvarTag,
     atualizarTag,
     excluirTag,
