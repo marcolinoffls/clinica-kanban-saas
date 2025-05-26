@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
 import { ChatWindow } from './ChatWindow';
+import { LeadInfoSidebar } from './LeadInfoSidebar';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useWebhook } from '@/hooks/useWebhook';
 
@@ -11,7 +12,8 @@ import { useWebhook } from '@/hooks/useWebhook';
  * 
  * Funcionalidades:
  * - Lista de conversas na lateral esquerda
- * - Área de mensagens na direita com persistência no Supabase
+ * - Área de mensagens no centro com persistência no Supabase
+ * - Painel de informações do lead na lateral direita
  * - Entrada de mensagem avançada com respostas prontas
  * - Busca de conversas
  * - Histórico de mensagens persistente
@@ -130,7 +132,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   return (
     <div className="h-screen flex overflow-hidden">
       {/* Lista de conversas - Lateral esquerda */}
-      <div className="w-full md:w-80 bg-white border-r border-gray-200 flex flex-col">
+      <div className="w-80 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
         {/* Header da lista */}
         <div className="p-4 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900 mb-3">Conversas</h2>
@@ -200,7 +202,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
         </div>
       </div>
 
-      {/* Área de mensagens - Centro (agora ocupa todo o espaço restante) */}
+      {/* Área de mensagens - Centro */}
       <div className="flex-1 flex flex-col min-w-0">
         {selectedLead ? (
           <>
@@ -266,6 +268,18 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           </div>
         )}
       </div>
+
+      {/* Painel de Informações do Lead - Lateral direita */}
+      {selectedLead && (
+        <LeadInfoSidebar 
+          lead={selectedLead}
+          tags={tags.filter(tag => tag.id === selectedLead.tag_id)}
+          historico={[]}
+          onCallLead={() => console.log('Ligar para lead:', selectedLead.id)}
+          onScheduleAppointment={() => console.log('Agendar para lead:', selectedLead.id)}
+          onEditLead={() => console.log('Editar lead:', selectedLead.id)}
+        />
+      )}
     </div>
   );
 };
