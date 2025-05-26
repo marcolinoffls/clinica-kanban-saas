@@ -16,6 +16,8 @@ const corsHeaders = {
  * - Inclui estado do botão de IA (evento_boolean)
  * - Usa URL fixa para webhook do n8n com multi-tenancy via clinica_id
  * - Inclui autenticação JWT segura usando djwt
+ * - Busca e valida evolution_instance_name da clínica
+ * - Ajusta timestamp para fuso horário de São Paulo
  * - Registra logs para auditoria
  * - Tenta reenvio em caso de falha
  */
@@ -28,6 +30,8 @@ interface WebhookPayload {
   tipo_mensagem: string;
   evento_boolean: boolean;
   clinica_id: string; // Campo explícito para multi-tenancy
+  evolution_instance_name: string; // ID da instância Evolution API
+  telefone_lead: string; // Telefone do lead
 }
 
 serve(async (req) => {
@@ -51,17 +55,17 @@ serve(async (req) => {
       evento_boolean = false // Estado do botão IA
     } = await req.json()
 
-    // Verificar se a clínica existe (sem buscar webhook_usuario)
+    // Buscar dados da clínica incluindo evolution_instance_name
     const { data: clinica, error: clinicaError } = await supabaseClient
       .from('clinicas')
-      .select('id')
+      .select('id, evolution_instance_name')
       .eq('id', clinica_id)
       .single()
 
-    if (clinicaError) {
-      console.error('Erro ao buscar/verificar dados da clínica:', clinicaError)
+    if (clinicaError || !clinica?.evolution_instance_name) {
+      console.error('Erro ao buscar dados da clínica ou instância não configurada:', clinicaError)
       return new Response(
-        JSON.stringify({ error: 'Clínica não encontrada ou erro' }),
+        JSON.stringify({ error: 'Instância Evolution não configurada ou clínica não encontrada' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -72,22 +76,28 @@ serve(async (req) => {
     // URL fixa para webhook do n8n (multi-tenancy via payload)
     const webhookUrl = `https://webhooks.marcolinofernades.site/webhook/crm`
 
-    // Buscar dados do lead para contexto adicional
+    // Buscar dados do lead para contexto adicional (incluindo telefone)
     const { data: lead } = await supabaseClient
       .from('leads')
       .select('nome, telefone')
       .eq('id', lead_id)
       .single()
 
+    // Ajustar timestamp para fuso horário de São Paulo
+    const dataUTC = new Date(created_at);
+    const timestampSP = dataUTC.toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+
     // Criar payload do webhook com clinica_id para multi-tenancy
     const webhookPayload: WebhookPayload = {
-      timestamp: created_at,
+      timestamp: timestampSP, // Timestamp ajustado para SP
       lead_id: lead_id,
       usuario_id: clinica_id, // Mantido para compatibilidade
       mensagem: conteudo,
       tipo_mensagem: tipo || 'texto',
       evento_boolean: evento_boolean,
-      clinica_id: clinica_id // Campo explícito para n8n identificar a clínica
+      clinica_id: clinica_id, // Campo explícito para n8n identificar a clínica
+      evolution_instance_name: clinica.evolution_instance_name, // ID da instância Evolution
+      telefone_lead: lead?.telefone || '' // Telefone do lead
     }
 
     // Gerar JWT seguro usando djwt
@@ -120,6 +130,7 @@ serve(async (req) => {
 
     console.log('Enviando webhook com payload:', JSON.stringify(webhookPayload, null, 2))
     console.log('URL do webhook:', webhookUrl)
+    console.log('Instância Evolution:', clinica.evolution_instance_name)
 
     // Tentar enviar webhook (máximo 3 tentativas com backoff exponencial)
     while (tentativas <= 3 && !sucesso) {

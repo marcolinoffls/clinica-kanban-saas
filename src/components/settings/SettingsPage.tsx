@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Save, Users, Bell, Shield, CreditCard } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { PasswordInput } from '@/components/ui/password-input';
 
 /**
  * Página de Configurações
@@ -10,7 +11,7 @@ import { toast } from 'sonner';
  * - Informações da clínica (incluindo webhook_usuario)
  * - Gerenciamento de usuários e permissões
  * - Configurações de notificações
- * - Integrações externas (agora inclui evolution_instance_name)
+ * - Integrações externas (inclui evolution_instance_name com campo seguro)
  * - Configurações de segurança
  * 
  * Todas as configurações são persistidas no Supabase
@@ -32,7 +33,7 @@ export const SettingsPage = () => {
     state: 'SP',
     zipCode: '',
     webhook_usuario: '', // Campo para webhook
-    evolution_instance_name: '' // Novo campo para instância Evolution API
+    evolution_instance_name: '' // Campo para instância Evolution API
   });
 
   const [notificationSettings, setNotificationSettings] = useState({
@@ -441,21 +442,15 @@ export const SettingsPage = () => {
                     </button>
                   </div>
                   
-                  {/* Novo campo para ID da Instância Evolution API */}
+                  {/* Campo para ID da Instância Evolution API com funcionalidade de senha */}
                   <div className="mt-4 pt-4 border-t border-gray-100">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      ID da Instância Evolution API
-                    </label>
-                    <input
-                      type="text"
+                    <PasswordInput
+                      label="ID da Instância Evolution API"
                       value={clinicData.evolution_instance_name}
-                      onChange={(e) => setClinicData(prev => ({ ...prev, evolution_instance_name: e.target.value }))}
+                      onChange={(value) => setClinicData(prev => ({ ...prev, evolution_instance_name: value }))}
                       placeholder="Cole aqui o nome ou ID da sua instância Evolution (ex: minha_clinica_instance)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      description="Este ID será usado para direcionar as mensagens de WhatsApp através da Evolution API."
                     />
-                    <p className="text-sm text-gray-500 mt-1">
-                      Este ID será usado para direcionar as mensagens de WhatsApp através da Evolution API.
-                    </p>
                   </div>
                 </div>
 
