@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import * as djwt from "https://deno.land/x/djwt@v2.7/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,7 +14,8 @@ const corsHeaders = {
  * Funcionalidades:
  * - Envia webhook automaticamente após nova mensagem no chat
  * - Inclui estado do botão de IA (evento_boolean)
- * - Inclui autenticação JWT no header
+ * - Usa URL fixa para webhook do n8n com multi-tenancy via clinica_id
+ * - Inclui autenticação JWT segura usando djwt
  * - Registra logs para auditoria
  * - Tenta reenvio em caso de falha
  */
@@ -24,7 +26,8 @@ interface WebhookPayload {
   usuario_id: string;
   mensagem: string;
   tipo_mensagem: string;
-  evento_boolean: boolean; // Novo campo para estado da IA
+  evento_boolean: boolean;
+  clinica_id: string; // Campo explícito para multi-tenancy
 }
 
 serve(async (req) => {
@@ -45,20 +48,20 @@ serve(async (req) => {
       conteudo, 
       tipo, 
       created_at,
-      evento_boolean = false // Novo campo do payload
+      evento_boolean = false // Estado do botão IA
     } = await req.json()
 
-    // Buscar dados da clínica para obter o webhook_usuario
+    // Verificar se a clínica existe (sem buscar webhook_usuario)
     const { data: clinica, error: clinicaError } = await supabaseClient
       .from('clinicas')
-      .select('webhook_usuario')
+      .select('id')
       .eq('id', clinica_id)
       .single()
 
-    if (clinicaError || !clinica?.webhook_usuario) {
-      console.error('Erro ao buscar dados da clínica:', clinicaError)
+    if (clinicaError) {
+      console.error('Erro ao buscar/verificar dados da clínica:', clinicaError)
       return new Response(
-        JSON.stringify({ error: 'Webhook usuario não configurado' }),
+        JSON.stringify({ error: 'Clínica não encontrada ou erro' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -66,35 +69,48 @@ serve(async (req) => {
       )
     }
 
-    // Construir URL do webhook
-    const webhookUrl = `https://webhooks.marcolinofernades.site/webhook/${clinica.webhook_usuario}`
+    // URL fixa para webhook do n8n (multi-tenancy via payload)
+    const webhookUrl = `https://webhooks.marcolinofernades.site/webhook/crm`
 
-    // Buscar dados do lead
+    // Buscar dados do lead para contexto adicional
     const { data: lead } = await supabaseClient
       .from('leads')
       .select('nome, telefone')
       .eq('id', lead_id)
       .single()
 
-    // Criar payload do webhook com estado da IA
+    // Criar payload do webhook com clinica_id para multi-tenancy
     const webhookPayload: WebhookPayload = {
       timestamp: created_at,
       lead_id: lead_id,
-      usuario_id: clinica_id, // Usando clinica_id como usuario_id do software
+      usuario_id: clinica_id, // Mantido para compatibilidade
       mensagem: conteudo,
       tipo_mensagem: tipo || 'texto',
-      evento_boolean: evento_boolean // Incluir estado do botão IA
+      evento_boolean: evento_boolean,
+      clinica_id: clinica_id // Campo explícito para n8n identificar a clínica
     }
 
-    // Gerar JWT simples para autenticação (usando secret da API)
-    const secret = Deno.env.get('EVOLUTION_API_KEY') || 'default-secret'
-    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
-    const payload = btoa(JSON.stringify({ 
-      clinica_id, 
-      exp: Math.floor(Date.now() / 1000) + 3600 // 1 hora
-    }))
-    const signature = btoa(secret) // Simplificado para demo
-    const jwt = `${header}.${payload}.${signature}`
+    // Gerar JWT seguro usando djwt
+    const secretKey = Deno.env.get('EVOLUTION_API_KEY') || 'default-secret'
+    
+    // Importar chave criptográfica para HMAC
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw", 
+      new TextEncoder().encode(secretKey), 
+      { name: "HMAC", hash: "SHA-256" },
+      true, 
+      ["sign", "verify"]
+    )
+
+    // Criar JWT com payload seguro
+    const jwt = await djwt.create(
+      { alg: "HS256", typ: "JWT" }, 
+      { 
+        clinica_id,
+        exp: djwt.getNumericDate(60 * 60) // Expira em 1 hora
+      }, 
+      cryptoKey
+    )
 
     let tentativas = 1
     let sucesso = false
@@ -103,15 +119,16 @@ serve(async (req) => {
     let resposta = ''
 
     console.log('Enviando webhook com payload:', JSON.stringify(webhookPayload, null, 2))
+    console.log('URL do webhook:', webhookUrl)
 
-    // Tentar enviar webhook (máximo 3 tentativas)
+    // Tentar enviar webhook (máximo 3 tentativas com backoff exponencial)
     while (tentativas <= 3 && !sucesso) {
       try {
         const webhookResponse = await fetch(webhookUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${jwt}`
+            'Authorization': `Bearer ${jwt}` // JWT seguro para autenticação
           },
           body: JSON.stringify(webhookPayload)
         })
@@ -141,7 +158,7 @@ serve(async (req) => {
       }
     }
 
-    // Registrar log do webhook
+    // Registrar log do webhook para auditoria
     await supabaseClient
       .from('webhook_logs')
       .insert({
