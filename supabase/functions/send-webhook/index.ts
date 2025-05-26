@@ -20,18 +20,31 @@ const corsHeaders = {
  * - Ajusta timestamp para fuso horário de São Paulo
  * - Registra logs para auditoria
  * - Tenta reenvio em caso de falha
+ * - Nova estrutura de payload inspirada na Evolution API
  */
 
 interface WebhookPayload {
-  timestamp: string;
-  lead_id: string;
-  usuario_id: string;
-  mensagem: string;
-  tipo_mensagem: string;
-  evento_boolean: boolean;
-  clinica_id: string; // Campo explícito para multi-tenancy
-  evolution_instance_name: string; // ID da instância Evolution API
-  telefone_lead: string; // Telefone do lead
+  event: string;
+  instance: string;
+  data: {
+    key: {
+      remoteJid: string;
+      fromMe: boolean;
+      id: string;
+    };
+    pushName: string | null;
+    message: {
+      conversation: string;
+    };
+    messageType: string;
+    messageTimestamp: number;
+  };
+  origin: {
+    clinica_id: string;
+    lead_id: string;
+    ai_enabled: boolean;
+  };
+  timestamp_sp: string;
 }
 
 serve(async (req) => {
@@ -76,7 +89,7 @@ serve(async (req) => {
     // URL fixa para webhook do n8n (multi-tenancy via payload)
     const webhookUrl = `https://webhooks.marcolinofernades.site/webhook/crm`
 
-    // Buscar dados do lead para contexto adicional (incluindo telefone)
+    // Buscar dados do lead para contexto adicional (incluindo telefone e nome)
     const { data: lead } = await supabaseClient
       .from('leads')
       .select('nome, telefone')
@@ -87,17 +100,37 @@ serve(async (req) => {
     const dataUTC = new Date(created_at);
     const timestampSP = dataUTC.toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' });
 
-    // Criar payload do webhook com clinica_id para multi-tenancy
+    // Função para limpar e formatar número de telefone
+    const formatarTelefone = (telefone: string | null): string => {
+      if (!telefone) return ''
+      // Remove todos os caracteres não numéricos
+      const numeroLimpo = telefone.replace(/\D/g, '')
+      return `${numeroLimpo}@s.whatsapp.net`
+    }
+
+    // Criar payload do webhook com nova estrutura inspirada na Evolution API
     const webhookPayload: WebhookPayload = {
-      timestamp: timestampSP, // Timestamp ajustado para SP
-      lead_id: lead_id,
-      usuario_id: clinica_id, // Mantido para compatibilidade
-      mensagem: conteudo,
-      tipo_mensagem: tipo || 'texto',
-      evento_boolean: evento_boolean,
-      clinica_id: clinica_id, // Campo explícito para n8n identificar a clínica
-      evolution_instance_name: clinica.evolution_instance_name, // ID da instância Evolution
-      telefone_lead: lead?.telefone || '' // Telefone do lead
+      event: "crm.send.message", // Identificador do evento
+      instance: clinica.evolution_instance_name, // ID da instância Evolution
+      data: {
+        key: {
+          remoteJid: formatarTelefone(lead?.telefone), // Telefone formatado para WhatsApp
+          fromMe: true, // Sempre true para mensagens saindo do CRM
+          id: mensagem_id // ID da mensagem no nosso banco
+        },
+        pushName: lead?.nome || null, // Nome do lead no CRM (pode ser null)
+        message: {
+          conversation: conteudo // Conteúdo da mensagem
+        },
+        messageType: tipo || 'conversation', // Tipo da mensagem
+        messageTimestamp: Math.floor(new Date(created_at).getTime() / 1000) // Timestamp Unix UTC
+      },
+      origin: {
+        clinica_id: clinica_id, // ID da clínica para multi-tenancy
+        lead_id: lead_id, // ID do lead no CRM
+        ai_enabled: evento_boolean // Estado do botão IA
+      },
+      timestamp_sp: timestampSP // Timestamp formatado para São Paulo
     }
 
     // Gerar JWT seguro usando djwt
@@ -128,9 +161,10 @@ serve(async (req) => {
     let statusCode = 0
     let resposta = ''
 
-    console.log('Enviando webhook com payload:', JSON.stringify(webhookPayload, null, 2))
+    console.log('Enviando webhook com novo payload estruturado:', JSON.stringify(webhookPayload, null, 2))
     console.log('URL do webhook:', webhookUrl)
     console.log('Instância Evolution:', clinica.evolution_instance_name)
+    console.log('Telefone formatado:', formatarTelefone(lead?.telefone))
 
     // Tentar enviar webhook (máximo 3 tentativas com backoff exponencial)
     while (tentativas <= 3 && !sucesso) {
