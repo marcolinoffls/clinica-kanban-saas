@@ -10,7 +10,7 @@ import { toast } from 'sonner';
  * - Informações da clínica (incluindo webhook_usuario)
  * - Gerenciamento de usuários e permissões
  * - Configurações de notificações
- * - Integrações externas
+ * - Integrações externas (agora inclui evolution_instance_name)
  * - Configurações de segurança
  * 
  * Todas as configurações são persistidas no Supabase
@@ -31,7 +31,8 @@ export const SettingsPage = () => {
     city: '',
     state: 'SP',
     zipCode: '',
-    webhook_usuario: '' // Novo campo para webhook
+    webhook_usuario: '', // Campo para webhook
+    evolution_instance_name: '' // Novo campo para instância Evolution API
   });
 
   const [notificationSettings, setNotificationSettings] = useState({
@@ -70,7 +71,8 @@ export const SettingsPage = () => {
           city: '', // Não temos cidade separada no banco
           state: 'SP',
           zipCode: '', // Não temos CEP separado no banco
-          webhook_usuario: data.webhook_usuario || ''
+          webhook_usuario: data.webhook_usuario || '',
+          evolution_instance_name: data.evolution_instance_name || '' // Carregar ID da instância Evolution
         });
       }
     } catch (error) {
@@ -93,6 +95,7 @@ export const SettingsPage = () => {
             email: clinicData.email,
             endereco: clinicData.address,
             webhook_usuario: clinicData.webhook_usuario,
+            evolution_instance_name: clinicData.evolution_instance_name, // Salvar ID da instância Evolution
             updated_at: new Date().toISOString()
           })
           .eq('id', clinicaId);
@@ -107,7 +110,8 @@ export const SettingsPage = () => {
             telefone: clinicData.phone,
             email: clinicData.email,
             endereco: clinicData.address,
-            webhook_usuario: clinicData.webhook_usuario
+            webhook_usuario: clinicData.webhook_usuario,
+            evolution_instance_name: clinicData.evolution_instance_name, // Incluir no insert
           })
           .select()
           .single();
@@ -276,7 +280,7 @@ export const SettingsPage = () => {
                   </select>
                 </div>
 
-                {/* Novo campo para usuário do webhook */}
+                {/* Campo para usuário do webhook */}
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Usuário do Webhook
@@ -427,7 +431,7 @@ export const SettingsPage = () => {
               
               <div className="space-y-6">
                 <div className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-4">
                     <div>
                       <h4 className="font-medium text-gray-900">WhatsApp Business</h4>
                       <p className="text-sm text-gray-600">Conecte sua conta do WhatsApp Business</p>
@@ -435,6 +439,23 @@ export const SettingsPage = () => {
                     <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
                       Conectar
                     </button>
+                  </div>
+                  
+                  {/* Novo campo para ID da Instância Evolution API */}
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      ID da Instância Evolution API
+                    </label>
+                    <input
+                      type="text"
+                      value={clinicData.evolution_instance_name}
+                      onChange={(e) => setClinicData(prev => ({ ...prev, evolution_instance_name: e.target.value }))}
+                      placeholder="Cole aqui o nome ou ID da sua instância Evolution (ex: minha_clinica_instance)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-sm text-gray-500 mt-1">
+                      Este ID será usado para direcionar as mensagens de WhatsApp através da Evolution API.
+                    </p>
                   </div>
                 </div>
 

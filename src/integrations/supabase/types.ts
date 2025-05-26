@@ -136,6 +136,7 @@ export type Database = {
           created_at: string | null
           email: string
           endereco: string | null
+          evolution_instance_name: string | null
           id: string
           nome: string
           telefone: string | null
@@ -147,6 +148,7 @@ export type Database = {
           created_at?: string | null
           email: string
           endereco?: string | null
+          evolution_instance_name?: string | null
           id?: string
           nome: string
           telefone?: string | null
@@ -158,6 +160,7 @@ export type Database = {
           created_at?: string | null
           email?: string
           endereco?: string | null
+          evolution_instance_name?: string | null
           id?: string
           nome?: string
           telefone?: string | null
