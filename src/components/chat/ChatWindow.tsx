@@ -1,4 +1,3 @@
-
 /**
  * Componente de janela de chat com atualização em tempo real
  * 
@@ -9,6 +8,7 @@
  * - Gerencia inscrições de tempo real sem vazamentos de memória
  * - Controla rolagem automática para as mensagens mais recentes
  * - Posiciona inicialmente no final da conversa para evitar efeito de rolagem
+ * - Rola automaticamente apenas se o usuário estiver próximo do final
  * 
  * Props:
  * - leadId: ID do lead para filtrar mensagens
@@ -52,6 +52,15 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight
     }
+  }
+
+  // Função para verificar se o usuário está próximo do final da conversa
+  const estaProximoDoFinal = () => {
+    if (!containerRef.current) return true
+    
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current
+    // Considera "próximo do final" se estiver a menos de 100px do final
+    return scrollHeight - scrollTop - clientHeight < 100
   }
 
   // Carregar histórico inicial de mensagens
@@ -146,11 +155,6 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
               const novaLista = [...mensagensAtuais, mensagemFormatada]
               console.log('✅ Mensagem adicionada ao estado, total:', novaLista.length)
               
-              // Para novas mensagens (após primeira carga), usar rolagem suave
-              if (primeiraCarregaCompleta) {
-                setTimeout(() => rolarParaFinal('smooth'), 100)
-              }
-              
               return novaLista
             })
           } else {
@@ -174,6 +178,21 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
       supabase.removeChannel(canalChat)
     }
   }, [leadId, clinicaId])
+
+  // Rolar para o final quando mensagens mudarem (após primeira carga)
+  useEffect(() => {
+    if (mensagens.length > 0 && primeiraCarregaCompleta) {
+      // Verificar se o usuário está próximo do final antes de rolar automaticamente
+      const deveRolar = estaProximoDoFinal()
+      
+      if (deveRolar) {
+        // Usar requestAnimationFrame para garantir que o DOM foi atualizado
+        requestAnimationFrame(() => {
+          setTimeout(() => rolarParaFinal('smooth'), 50)
+        })
+      }
+    }
+  }, [mensagens, primeiraCarregaCompleta])
 
   // Formatar horário da mensagem
   const formatarHorario = (timestamp: string) => {
