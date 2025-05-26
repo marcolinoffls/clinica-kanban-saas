@@ -65,8 +65,14 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
         return
       }
 
-      setMensagens(data || [])
-      console.log('✅ Mensagens carregadas:', data?.length || 0)
+      // Transformar os dados para garantir o tipo correto de enviado_por
+      const mensagensFormatadas = (data || []).map(msg => ({
+        ...msg,
+        enviado_por: msg.enviado_por === 'lead' ? 'lead' as const : 'usuario' as const
+      }))
+
+      setMensagens(mensagensFormatadas)
+      console.log('✅ Mensagens carregadas:', mensagensFormatadas?.length || 0)
       
       // Pequeno delay para garantir que o DOM foi atualizado
       setTimeout(rolarParaFinal, 100)
@@ -102,18 +108,24 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
         (payload) => {
           console.log('📨 Nova mensagem recebida via Realtime:', payload.new)
           
-          const novaMensagem = payload.new as Mensagem
+          const novaMensagem = payload.new as any
           
           // Verificar se é da clínica correta (segurança adicional)
           if (novaMensagem.clinica_id === clinicaId) {
+            // Transformar a nova mensagem para garantir o tipo correto
+            const mensagemFormatada: Mensagem = {
+              ...novaMensagem,
+              enviado_por: novaMensagem.enviado_por === 'lead' ? 'lead' as const : 'usuario' as const
+            }
+            
             setMensagens(mensagensAtuais => {
               // Verificar se a mensagem já existe (evitar duplicatas)
-              const jaExiste = mensagensAtuais.some(m => m.id === novaMensagem.id)
+              const jaExiste = mensagensAtuais.some(m => m.id === mensagemFormatada.id)
               if (jaExiste) {
                 return mensagensAtuais
               }
               
-              const novaLista = [...mensagensAtuais, novaMensagem]
+              const novaLista = [...mensagensAtuais, mensagemFormatada]
               console.log('✅ Mensagem adicionada ao estado, total:', novaLista.length)
               
               // Rolar para o final após adicionar nova mensagem
