@@ -436,6 +436,30 @@ export const useSupabaseData = () => {
     }
   };
 
+  // Função para excluir lead
+  const excluirLead = async (leadId: string) => {
+    try {
+      console.log('🗑️ Excluindo lead:', leadId);
+      
+      // Excluir o lead do Supabase
+      const { error } = await supabase
+        .from('leads')
+        .delete()
+        .eq('id', leadId)
+        .eq('clinica_id', DEMO_CLINIC_ID);
+
+      if (error) throw error;
+
+      // Atualizar estado local removendo o lead da lista
+      setLeads(prev => prev.filter(lead => lead.id !== leadId));
+      
+      console.log('✅ Lead excluído com sucesso');
+    } catch (error) {
+      console.error('Erro ao excluir lead:', error);
+      throw error;
+    }
+  };
+
   // Função para buscar consultas de um lead específico (usando agendamentos)
   const buscarConsultasLead = async (leadId: string) => {
     try {
@@ -571,6 +595,7 @@ export const useSupabaseData = () => {
     editarEtapa,
     excluirEtapa,
     salvarLead,
+    excluirLead,
     buscarConsultasLead,
     buscarMensagensLead,
     enviarMensagem,

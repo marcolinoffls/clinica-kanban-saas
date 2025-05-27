@@ -1,5 +1,6 @@
 
 import { useState } from 'react';
+import { Tags } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
 import { Dashboard } from '@/components/dashboard/Dashboard';
@@ -8,6 +9,8 @@ import { ChatPage } from '@/components/chat/ChatPage';
 import { CalendarPage } from '@/components/calendar/CalendarPage';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { TagManager } from '@/components/tags/TagManager';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 /**
  * Página principal da aplicação CRM para clínicas
@@ -17,11 +20,12 @@ import { TagManager } from '@/components/tags/TagManager';
  * - O estado da página ativa
  * - A integração entre sidebar e conteúdo principal
  * - Navegação automática para chat quando solicitado
+ * - Controle da sidebar de categorias (TagManager) como painel deslizante
  * 
  * Páginas disponíveis:
  * - dashboard: Métricas e indicadores
  * - kanban: Gerenciamento de leads em formato kanban
- * - clients: Lista e CRUD de clientes
+ * - clients: Lista e CRUD de contatos (leads)
  * - chat: Interface de chat para comunicação
  * - calendar: Agenda de consultas
  * - settings: Configurações do sistema
@@ -30,6 +34,7 @@ const Index = () => {
   // Estado que controla qual página está ativa no momento
   const [activePage, setActivePage] = useState('kanban');
   const [selectedLeadId, setSelectedLeadId] = useState<string | undefined>();
+  const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
 
   // Função para navegar para o chat com um lead específico
   const handleNavigateToChat = (leadId: string) => {
@@ -57,6 +62,9 @@ const Index = () => {
     }
   };
 
+  // Determina se o botão de categorias deve ser mostrado
+  const shouldShowCategoriesButton = activePage !== 'chat' && activePage !== 'settings';
+
   return (
     <div className="h-screen bg-gray-50 flex overflow-hidden">
       {/* Barra lateral fixa com navegação */}
@@ -70,17 +78,34 @@ const Index = () => {
             {renderContent()}
           </div>
         ) : (
-          /* Para outras páginas, mantemos o layout com padding e sidebar de tags */
-          <>
-            <main className="flex-1 p-4 md:p-6 min-w-0 overflow-auto">
-              {renderContent()}
-            </main>
+          /* Para outras páginas, mantemos o layout com padding */
+          <main className="flex-1 p-4 md:p-6 min-w-0 overflow-auto relative">
+            {renderContent()}
             
-            {/* Barra lateral direita para gerenciamento de tags - Oculta em telas pequenas e na página de chat */}
-            <aside className="hidden lg:block w-80 bg-white border-l border-gray-200 p-4 overflow-auto">
-              <TagManager />
-            </aside>
-          </>
+            {/* Botão flutuante para abrir categorias - apenas em páginas que fazem sentido */}
+            {shouldShowCategoriesButton && (
+              <Sheet open={isTagManagerOpen} onOpenChange={setIsTagManagerOpen}>
+                <SheetTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="fixed bottom-6 right-6 z-40 shadow-lg border-gray-300 bg-white hover:bg-gray-50"
+                  >
+                    <Tags size={16} className="mr-2" />
+                    Categorias
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-80 p-0">
+                  <SheetHeader className="p-4 border-b">
+                    <SheetTitle>Gerenciar Categorias</SheetTitle>
+                  </SheetHeader>
+                  <div className="p-4 overflow-auto">
+                    <TagManager />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            )}
+          </main>
         )}
       </div>
     </div>

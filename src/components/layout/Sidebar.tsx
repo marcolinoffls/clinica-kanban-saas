@@ -45,9 +45,9 @@ const navigationItems = [
   },
   {
     id: 'clients',
-    label: 'Clientes',
+    label: 'Contatos',
     icon: Users,
-    description: 'Base de clientes'
+    description: 'Base de contatos'
   },
   {
     id: 'chat',

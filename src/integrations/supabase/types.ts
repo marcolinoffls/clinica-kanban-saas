@@ -204,6 +204,7 @@ export type Database = {
       leads: {
         Row: {
           anotacoes: string | null
+          anuncio: string | null
           clinica_id: string | null
           created_at: string | null
           data_ultimo_contato: string | null
@@ -222,6 +223,7 @@ export type Database = {
         }
         Insert: {
           anotacoes?: string | null
+          anuncio?: string | null
           clinica_id?: string | null
           created_at?: string | null
           data_ultimo_contato?: string | null
@@ -240,6 +242,7 @@ export type Database = {
         }
         Update: {
           anotacoes?: string | null
+          anuncio?: string | null
           clinica_id?: string | null
           created_at?: string | null
           data_ultimo_contato?: string | null
