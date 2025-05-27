@@ -4,14 +4,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 /**
- * Hook para gerenciar etapas do kanban
+ * Hook para gerenciar dados de etapas do kanban
  * 
  * Este hook centraliza todas as operações relacionadas às etapas:
  * - Buscar etapas da clínica do usuário
  * - Criar novas etapas
  * - Atualizar etapas existentes
  * - Deletar etapas
- * - Reordenar etapas
  * 
  * Utiliza as políticas RLS para garantir isolamento por clínica
  */
@@ -22,6 +21,13 @@ export interface Etapa {
   ordem: number;
   clinica_id: string | null;
   created_at: string | null;
+}
+
+// Interface para criação de etapa (campos obrigatórios)
+export interface CreateEtapaData {
+  nome: string;
+  ordem: number;
+  clinica_id: string;
 }
 
 // Hook para buscar todas as etapas da clínica do usuário
@@ -44,7 +50,7 @@ export const useEtapas = () => {
       console.log(`✅ ${data?.length || 0} etapas encontradas`);
       return data || [];
     },
-    staleTime: 60000, // Cache por 1 minuto (etapas mudam menos frequentemente)
+    staleTime: 30000, // Cache por 30 segundos
   });
 };
 
@@ -53,7 +59,7 @@ export const useCreateEtapa = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (etapaData: { nome: string; ordem: number }): Promise<Etapa> => {
+    mutationFn: async (etapaData: CreateEtapaData): Promise<Etapa> => {
       console.log('➕ Criando nova etapa:', etapaData.nome);
 
       const { data, error } = await supabase
@@ -137,7 +143,6 @@ export const useDeleteEtapa = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['etapas'] });
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('Etapa deletada com sucesso!');
     },
     onError: (error: Error) => {

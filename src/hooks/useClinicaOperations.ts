@@ -1,9 +1,9 @@
 
 import { useAuthUser } from './useAuthUser';
 import { useClinicaData } from './useClinicaData';
-import { useCreateLead } from './useLeadsData';
-import { useCreateEtapa } from './useEtapasData';
-import { useCreateTag } from './useTagsData';
+import { useCreateLead, CreateLeadData } from './useLeadsData';
+import { useCreateEtapa, CreateEtapaData } from './useEtapasData';
+import { useCreateTag, CreateTagData } from './useTagsData';
 
 /**
  * Hook que facilita operações comuns da clínica
@@ -36,10 +36,12 @@ export const useClinicaOperations = () => {
       throw new Error('Usuário não possui clínica associada');
     }
 
-    return createLeadMutation.mutateAsync({
+    const createData: CreateLeadData = {
       ...leadData,
       clinica_id: clinicaId,
-    });
+    };
+
+    return createLeadMutation.mutateAsync(createData);
   };
 
   // Função para criar etapa automaticamente associada à clínica
@@ -51,13 +53,12 @@ export const useClinicaOperations = () => {
       throw new Error('Usuário não possui clínica associada');
     }
 
-    // Buscar os hooks especializados diretamente para incluir clinica_id
-    const { mutateAsync: createEtapaWithClinica } = useCreateEtapa();
-    
-    return createEtapaWithClinica({
+    const createData: CreateEtapaData = {
       ...etapaData,
       clinica_id: clinicaId,
-    });
+    };
+    
+    return createEtapaMutation.mutateAsync(createData);
   };
 
   // Função para criar tag automaticamente associada à clínica
@@ -69,13 +70,12 @@ export const useClinicaOperations = () => {
       throw new Error('Usuário não possui clínica associada');
     }
 
-    // Buscar os hooks especializados diretamente para incluir clinica_id
-    const { mutateAsync: createTagWithClinica } = useCreateTag();
-    
-    return createTagWithClinica({
+    const createData: CreateTagData = {
       ...tagData,
       clinica_id: clinicaId,
-    });
+    };
+    
+    return createTagMutation.mutateAsync(createData);
   };
 
   // Estados de loading combinados

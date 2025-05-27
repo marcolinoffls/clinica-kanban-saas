@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
@@ -73,7 +72,7 @@ export const TagManager = () => {
         // Editando tag existente
         await updateTagMutation.mutateAsync({ id: editingTag, ...formData });
       } else {
-        // Criando nova tag
+        // Criando nova tag - o clinica_id será adicionado automaticamente pelo hook
         await createTagMutation.mutateAsync(formData);
       }
 

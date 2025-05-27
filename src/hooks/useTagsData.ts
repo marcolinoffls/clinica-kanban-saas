@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 /**
- * Hook para gerenciar tags/categorias
+ * Hook para gerenciar dados de tags
  * 
  * Este hook centraliza todas as operações relacionadas às tags:
  * - Buscar tags da clínica do usuário
@@ -18,10 +18,17 @@ import { toast } from 'sonner';
 export interface Tag {
   id: string;
   nome: string;
-  cor: string | null;
+  cor: string;
   clinica_id: string | null;
   created_at: string | null;
   updated_at: string | null;
+}
+
+// Interface para criação de tag (campos obrigatórios)
+export interface CreateTagData {
+  nome: string;
+  cor?: string;
+  clinica_id: string;
 }
 
 // Hook para buscar todas as tags da clínica do usuário
@@ -44,7 +51,7 @@ export const useTags = () => {
       console.log(`✅ ${data?.length || 0} tags encontradas`);
       return data || [];
     },
-    staleTime: 60000, // Cache por 1 minuto
+    staleTime: 30000, // Cache por 30 segundos
   });
 };
 
@@ -53,15 +60,12 @@ export const useCreateTag = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (tagData: { nome: string; cor?: string }): Promise<Tag> => {
+    mutationFn: async (tagData: CreateTagData): Promise<Tag> => {
       console.log('➕ Criando nova tag:', tagData.nome);
 
       const { data, error } = await supabase
         .from('tags')
-        .insert([{
-          ...tagData,
-          cor: tagData.cor || '#3B82F6', // Cor padrão azul se não especificada
-        }])
+        .insert([tagData])
         .select()
         .single();
 
@@ -129,7 +133,7 @@ export const useDeleteTag = () => {
     mutationFn: async (tagId: string): Promise<void> => {
       console.log('🗑️ Deletando tag:', tagId);
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('tags')
         .delete()
         .eq('id', tagId);
@@ -143,7 +147,6 @@ export const useDeleteTag = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tags'] });
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('Tag deletada com sucesso!');
     },
     onError: (error: Error) => {
