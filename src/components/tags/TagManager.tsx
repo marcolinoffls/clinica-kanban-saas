@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useCreateTag, useUpdateTag, useDeleteTag } from '@/hooks/useTagsData';
 
 /**
  * Componente para gerenciamento de tags na barra lateral direita
@@ -18,7 +19,10 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
  */
 
 export const TagManager = () => {
-  const { tags, salvarTag, atualizarTag, excluirTag } = useSupabaseData();
+  const { tags } = useSupabaseData();
+  const createTagMutation = useCreateTag();
+  const updateTagMutation = useUpdateTag();
+  const deleteTagMutation = useDeleteTag();
   
   // Estados para o formulário de criação/edição
   const [isCreating, setIsCreating] = useState(false);
@@ -51,7 +55,7 @@ export const TagManager = () => {
   const handleStartEdit = (tagId: string) => {
     const tag = tags.find(t => t.id === tagId);
     if (tag) {
-      setFormData({ nome: tag.nome, cor: tag.cor });
+      setFormData({ nome: tag.nome, cor: tag.cor || '#3B82F6' });
       setEditingTag(tagId);
       setIsCreating(false);
     }
@@ -67,10 +71,10 @@ export const TagManager = () => {
     try {
       if (editingTag) {
         // Editando tag existente
-        await atualizarTag(editingTag, formData);
+        await updateTagMutation.mutateAsync({ id: editingTag, ...formData });
       } else {
         // Criando nova tag
-        await salvarTag(formData);
+        await createTagMutation.mutateAsync(formData);
       }
 
       // Reset do formulário
@@ -99,7 +103,7 @@ export const TagManager = () => {
     if (!confirmacao) return;
 
     try {
-      await excluirTag(tagId);
+      await deleteTagMutation.mutateAsync(tagId);
     } catch (error) {
       console.error('Erro ao excluir tag:', error);
       alert('Erro ao excluir tag. Tente novamente.');

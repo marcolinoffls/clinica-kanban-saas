@@ -44,7 +44,7 @@ export const useLeads = () => {
       const { data, error } = await supabase
         .from('leads')
         .select('*')
-        .order('data_ultimo_contato', { ascending: false, nullsLast: true })
+        .order('data_ultimo_contato', { ascending: false, nullsFirst: false })
         .order('updated_at', { ascending: false });
 
       if (error) {
@@ -69,7 +69,7 @@ export const useCreateLead = () => {
 
       const { data, error } = await supabase
         .from('leads')
-        .insert([leadData])
+        .insert(leadData)
         .select()
         .single();
 

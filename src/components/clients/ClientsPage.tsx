@@ -1,8 +1,10 @@
+
 import { useState } from 'react';
 import { Search, Plus, Edit2, Trash2, Eye } from 'lucide-react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useCreateLead, useUpdateLead, useDeleteLead } from '@/hooks/useLeadsData';
 import { LeadModal } from '@/components/kanban/LeadModal';
-import { Lead } from '@/components/kanban/KanbanBoard'; // Importar interface Lead
+import { Lead } from '@/components/kanban/KanbanBoard';
 import { useToast } from '@/hooks/use-toast';
 
 /**
@@ -23,7 +25,10 @@ export const ClientsPage = () => {
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [leadDetails, setLeadDetails] = useState<Lead | null>(null);
   
-  const { leads, tags, salvarLead, excluirLead, loading } = useSupabaseData();
+  const { leads, tags, loading } = useSupabaseData();
+  const createLeadMutation = useCreateLead();
+  const updateLeadMutation = useUpdateLead();
+  const deleteLeadMutation = useDeleteLead();
   const { toast } = useToast();
 
   // Filtra contatos baseado na busca
@@ -69,7 +74,7 @@ export const ClientsPage = () => {
   const handleExcluirLead = async (leadId: string, nomeContato: string) => {
     if (window.confirm(`Tem certeza que deseja excluir o contato "${nomeContato}"?`)) {
       try {
-        await excluirLead(leadId);
+        await deleteLeadMutation.mutateAsync(leadId);
         toast({
           title: "Contato excluído",
           description: `${nomeContato} foi removido com sucesso.`,
@@ -88,7 +93,12 @@ export const ClientsPage = () => {
   // Função para salvar lead
   const handleSalvarLead = async (leadData: Partial<Lead>) => {
     try {
-      await salvarLead(leadData);
+      if (selectedLead) {
+        await updateLeadMutation.mutateAsync({ id: selectedLead.id, ...leadData });
+      } else {
+        await createLeadMutation.mutateAsync(leadData);
+      }
+      
       setIsModalOpen(false);
       toast({
         title: selectedLead ? "Contato atualizado" : "Contato criado",
@@ -179,11 +189,7 @@ export const ClientsPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {leads.filter(lead =>
-                lead.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                lead.telefone?.includes(searchTerm) ||
-                lead.email?.toLowerCase().includes(searchTerm.toLowerCase())
-              ).map((lead) => (
+              {filteredLeads.map((lead) => (
                 <tr key={lead.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>

@@ -1,9 +1,9 @@
 
 import { useAuthUser } from './useAuthUser';
 import { useClinicaData } from './useClinicaData';
-import { useCreateLead } from './useSupabaseLeads';
-import { useCreateEtapa } from './useSupabaseEtapas';
-import { useCreateTag } from './useSupabaseTags';
+import { useCreateLead } from './useLeadsData';
+import { useCreateEtapa } from './useEtapasData';
+import { useCreateTag } from './useTagsData';
 
 /**
  * Hook que facilita operações comuns da clínica

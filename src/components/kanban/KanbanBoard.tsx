@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { KanbanColumn } from './KanbanColumn';
@@ -5,6 +6,8 @@ import { LeadModal } from './LeadModal';
 import { ConsultasHistoryModal } from './ConsultasHistoryModal';
 import { EtapaModal } from './EtapaModal';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useCreateLead, useUpdateLead, useMoveLeadToStage } from '@/hooks/useLeadsData';
+import { useCreateEtapa, useUpdateEtapa, useDeleteEtapa } from '@/hooks/useEtapasData';
 
 /**
  * Componente principal do Kanban integrado com Supabase
@@ -61,19 +64,16 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
   const [editingEtapa, setEditingEtapa] = useState<any>(null);
   const [consultasLead, setConsultasLead] = useState<any[]>([]);
 
-  // Hook personalizado para dados do Supabase
-  const {
-    etapas,
-    leads,
-    tags,
-    loading,
-    moverLead,
-    criarEtapa,
-    editarEtapa,
-    excluirEtapa,
-    salvarLead,
-    buscarConsultasLead
-  } = useSupabaseData();
+  // Hook principal para dados do Supabase
+  const { etapas, leads, tags, loading } = useSupabaseData();
+  
+  // Hooks especializados para mutações
+  const createLeadMutation = useCreateLead();
+  const updateLeadMutation = useUpdateLead();
+  const moveLeadMutation = useMoveLeadToStage();
+  const createEtapaMutation = useCreateEtapa();
+  const updateEtapaMutation = useUpdateEtapa();
+  const deleteEtapaMutation = useDeleteEtapa();
 
   // Função para abrir modal de edição de lead
   const handleEditLead = (lead: Lead) => {
@@ -98,7 +98,12 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
         throw new Error('Telefone do lead é obrigatório');
       }
 
-      await salvarLead(leadData);
+      if (selectedLead) {
+        await updateLeadMutation.mutateAsync({ id: selectedLead.id, ...leadData });
+      } else {
+        await createLeadMutation.mutateAsync(leadData);
+      }
+      
       setIsLeadModalOpen(false);
     } catch (error: any) {
       console.error('Erro ao salvar lead:', error);
@@ -111,7 +116,7 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
     if (fromEtapa === toEtapa) return;
     
     try {
-      await moverLead(leadId, toEtapa);
+      await moveLeadMutation.mutateAsync({ leadId, etapaId: toEtapa });
     } catch (error) {
       console.error('Erro ao mover lead:', error);
       alert('Erro ao mover lead. Tente novamente.');
@@ -121,7 +126,8 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
   // Função para abrir histórico de consultas
   const handleOpenHistory = async (lead: Lead) => {
     try {
-      const consultas = await buscarConsultasLead(lead.id);
+      // Buscar consultas seria implementado aqui
+      const consultas: any[] = [];
       setConsultasLead(consultas);
       setSelectedLead(lead);
       setIsHistoryModalOpen(true);
@@ -154,9 +160,11 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
   const handleSaveEtapa = async (nome: string) => {
     try {
       if (editingEtapa) {
-        await editarEtapa(editingEtapa.id, nome);
+        await updateEtapaMutation.mutateAsync({ id: editingEtapa.id, nome });
       } else {
-        await criarEtapa(nome);
+        // Calcular próxima ordem
+        const nextOrder = Math.max(...etapas.map(e => e.ordem || 0), 0) + 1;
+        await createEtapaMutation.mutateAsync({ nome, ordem: nextOrder });
       }
       setIsEtapaModalOpen(false);
     } catch (error) {
@@ -174,7 +182,7 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
     if (!confirmacao) return;
 
     try {
-      await excluirEtapa(etapa.id);
+      await deleteEtapaMutation.mutateAsync(etapa.id);
     } catch (error: any) {
       console.error('Erro ao excluir etapa:', error);
       alert(error.message || 'Erro ao excluir etapa. Tente novamente.');
