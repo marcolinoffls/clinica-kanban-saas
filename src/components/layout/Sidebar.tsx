@@ -8,6 +8,7 @@ import {
   Settings,
   Shield
 } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useClinica } from '@/contexts/ClinicaContext';
 import { useAuthUser } from '@/hooks/useAuthUser';
@@ -17,23 +18,14 @@ import { LogoutButton } from '@/components/auth/LogoutButton';
  * Componente da barra lateral de navegação
  * 
  * Funcionalidades:
- * - Navegação entre as diferentes seções do CRM
- * - Indicação visual da página ativa
+ * - Navegação entre as diferentes seções do CRM via React Router
+ * - Indicação visual da página ativa baseada na URL atual
  * - Design responsivo e acessível
  * - Usa o contexto da clínica para exibir informações consistentes
  * - Acesso ao painel administrativo para usuários com permissão
  * - Exibição de informações do usuário logado
  * - Botão de logout integrado
- * 
- * Props:
- * - activePage: string com a página atualmente ativa
- * - onPageChange: função para mudar de página
  */
-
-interface SidebarProps {
-  activePage: string;
-  onPageChange: (page: string) => void;
-}
 
 // Array com todas as opções de navegação disponíveis
 const navigationItems = [
@@ -41,41 +33,50 @@ const navigationItems = [
     id: 'dashboard',
     label: 'Dashboard',
     icon: LayoutDashboard,
-    description: 'Métricas e indicadores'
+    description: 'Métricas e indicadores',
+    path: '/dashboard'
   },
   {
-    id: 'kanban',
+    id: 'leads',
     label: 'Leads',
     icon: Kanban,
-    description: 'Gerenciamento de leads'
+    description: 'Gerenciamento de leads',
+    path: '/leads'
   },
   {
-    id: 'clients',
+    id: 'contatos',
     label: 'Contatos',
     icon: Users,
-    description: 'Base de contatos'
+    description: 'Base de contatos',
+    path: '/contatos'
   },
   {
     id: 'chat',
     label: 'Chat',
     icon: MessageSquare,
-    description: 'Comunicação'
+    description: 'Comunicação',
+    path: '/chat'
   },
   {
-    id: 'calendar',
+    id: 'agenda',
     label: 'Agenda',
     icon: CalendarDays,
-    description: 'Agendamentos'
+    description: 'Agendamentos',
+    path: '/agenda'
   },
   {
-    id: 'settings',
+    id: 'configuracoes',
     label: 'Configurações',
     icon: Settings,
-    description: 'Configurações do sistema'
+    description: 'Configurações do sistema',
+    path: '/configuracoes'
   }
 ];
 
-export const Sidebar = ({ activePage, onPageChange }: SidebarProps) => {
+export const Sidebar = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  
   // Usar o contexto da clínica para garantir dados consistentes
   const { clinicaAtiva, isLoading } = useClinica();
   
@@ -84,7 +85,7 @@ export const Sidebar = ({ activePage, onPageChange }: SidebarProps) => {
 
   // Função para navegar para o painel administrativo
   const navegarParaAdmin = () => {
-    window.location.href = '/admin';
+    navigate('/admin');
   };
 
   return (
@@ -104,12 +105,12 @@ export const Sidebar = ({ activePage, onPageChange }: SidebarProps) => {
         <ul className="space-y-2">
           {navigationItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activePage === item.id;
+            const isActive = location.pathname === item.path;
             
             return (
               <li key={item.id}>
-                <button
-                  onClick={() => onPageChange(item.id)}
+                <Link
+                  to={item.path}
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors",
                     "hover:bg-blue-50 hover:text-blue-600",
@@ -121,7 +122,7 @@ export const Sidebar = ({ activePage, onPageChange }: SidebarProps) => {
                 >
                   <Icon size={20} />
                   <span className="font-medium">{item.label}</span>
-                </button>
+                </Link>
               </li>
             );
           })}
