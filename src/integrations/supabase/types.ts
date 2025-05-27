@@ -68,6 +68,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "agendamentos_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "agendamentos_usuario_id_fkey"
             columns: ["usuario_id"]
             isOneToOne: false
@@ -122,6 +129,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "chat_mensagens_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "chat_mensagens_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
@@ -132,36 +146,42 @@ export type Database = {
       }
       clinicas: {
         Row: {
+          admin_prompt: string | null
           cnpj: string | null
           created_at: string | null
           email: string
           endereco: string | null
           evolution_instance_name: string | null
           id: string
+          integracao_instance_id: string | null
           nome: string
           telefone: string | null
           updated_at: string | null
           webhook_usuario: string | null
         }
         Insert: {
+          admin_prompt?: string | null
           cnpj?: string | null
           created_at?: string | null
           email: string
           endereco?: string | null
           evolution_instance_name?: string | null
           id?: string
+          integracao_instance_id?: string | null
           nome: string
           telefone?: string | null
           updated_at?: string | null
           webhook_usuario?: string | null
         }
         Update: {
+          admin_prompt?: string | null
           cnpj?: string | null
           created_at?: string | null
           email?: string
           endereco?: string | null
           evolution_instance_name?: string | null
           id?: string
+          integracao_instance_id?: string | null
           nome?: string
           telefone?: string | null
           updated_at?: string | null
@@ -197,6 +217,13 @@ export type Database = {
             columns: ["clinica_id"]
             isOneToOne: false
             referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etapas_kanban_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
             referencedColumns: ["id"]
           },
         ]
@@ -274,6 +301,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "leads_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "leads_etapa_kanban_id_fkey"
             columns: ["etapa_kanban_id"]
             isOneToOne: false
@@ -339,6 +373,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "mensagens_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mensagens_usuario_id_fkey"
             columns: ["usuario_id"]
             isOneToOne: false
@@ -389,6 +430,13 @@ export type Database = {
             referencedRelation: "clinicas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "respostas_prontas_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
         ]
       }
       tags: {
@@ -422,6 +470,55 @@ export type Database = {
             columns: ["clinica_id"]
             isOneToOne: false
             referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tags_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_profiles: {
+        Row: {
+          clinica_id: string | null
+          created_at: string | null
+          id: string
+          profile_type: Database["public"]["Enums"]["user_profile_type"]
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          clinica_id?: string | null
+          created_at?: string | null
+          id?: string
+          profile_type?: Database["public"]["Enums"]["user_profile_type"]
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          clinica_id?: string | null
+          created_at?: string | null
+          id?: string
+          profile_type?: Database["public"]["Enums"]["user_profile_type"]
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_profiles_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_profiles_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
             referencedColumns: ["id"]
           },
         ]
@@ -463,6 +560,13 @@ export type Database = {
             columns: ["clinica_id"]
             isOneToOne: false
             referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "usuarios_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
             referencedColumns: ["id"]
           },
         ]
@@ -516,6 +620,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "webhook_logs_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "webhook_logs_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
@@ -533,13 +644,48 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      clinicas_stats: {
+        Row: {
+          admin_prompt: string | null
+          email: string | null
+          evolution_instance_name: string | null
+          id: string | null
+          integracao_instance_id: string | null
+          leads_anuncios_count: number | null
+          nome: string | null
+          telefone: string | null
+          tempo_medio_resposta_minutos: number | null
+        }
+        Insert: {
+          admin_prompt?: string | null
+          email?: string | null
+          evolution_instance_name?: string | null
+          id?: string | null
+          integracao_instance_id?: string | null
+          leads_anuncios_count?: never
+          nome?: string | null
+          telefone?: string | null
+          tempo_medio_resposta_minutos?: never
+        }
+        Update: {
+          admin_prompt?: string | null
+          email?: string | null
+          evolution_instance_name?: string | null
+          id?: string | null
+          integracao_instance_id?: string | null
+          leads_anuncios_count?: never
+          nome?: string | null
+          telefone?: string | null
+          tempo_medio_resposta_minutos?: never
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      user_profile_type: "admin" | "clinica" | "usuario"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -654,6 +800,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      user_profile_type: ["admin", "clinica", "usuario"],
+    },
   },
 } as const
