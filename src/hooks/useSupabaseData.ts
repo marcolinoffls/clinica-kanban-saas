@@ -394,6 +394,7 @@ export const useSupabaseData = () => {
 
       console.log('💾 Salvando lead com dados:', leadData);
 
+      // CORREÇÃO: Verificar corretamente se é edição (deve ter ID no leadData)
       if (leadData.id) {
         // Atualizar lead existente
         console.log('📝 Atualizando lead existente com ID:', leadData.id);
@@ -411,20 +412,33 @@ export const useSupabaseData = () => {
 
         console.log('📝 Dados para atualização:', updateData);
 
+        // CORREÇÃO: Usar o ID correto para atualizar o registro específico
         const { error } = await supabase
           .from('leads')
           .update(updateData)
-          .eq('id', leadData.id)
+          .eq('id', leadData.id) // Usar o ID do lead que está sendo editado
           .eq('clinica_id', DEMO_CLINIC_ID);
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Erro na atualização:', error);
+          throw error;
+        }
 
         console.log('✅ Lead atualizado com sucesso');
 
-        // Atualizar estado local
-        setLeads(prev => prev.map(lead => 
-          lead.id === leadData.id ? { ...lead, ...updateData } : lead
-        ));
+        // Atualizar estado local mantendo a ordenação
+        setLeads(prev => {
+          const leadsAtualizados = prev.map(lead => 
+            lead.id === leadData.id ? { ...lead, ...updateData } : lead
+          );
+          
+          // Re-ordenar por data_ultimo_contato após atualização
+          return leadsAtualizados.sort((a, b) => {
+            const dataA = a.data_ultimo_contato ? new Date(a.data_ultimo_contato).getTime() : 0;
+            const dataB = b.data_ultimo_contato ? new Date(b.data_ultimo_contato).getTime() : 0;
+            return dataB - dataA; // Mais recente primeiro
+          });
+        });
       } else {
         // Criar novo lead
         console.log('➕ Criando novo lead');
@@ -449,7 +463,10 @@ export const useSupabaseData = () => {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Erro na inserção:', error);
+          throw error;
+        }
 
         console.log('✅ Novo lead criado com sucesso:', data);
 

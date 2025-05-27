@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { X, User, Phone, Mail, MessageSquare, Building, Stethoscope } from 'lucide-react';
 import { Lead } from './KanbanBoard';
@@ -78,6 +77,7 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: Lead
   // Preenche o formulário quando um lead é selecionado para edição
   useEffect(() => {
     if (lead) {
+      console.log('📝 Carregando dados do lead para edição:', lead);
       setFormData({
         nome: lead.nome || '',
         telefone: lead.telefone || '',
@@ -88,6 +88,7 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: Lead
       });
     } else {
       // Limpa o formulário para criação
+      console.log('➕ Formulário limpo para criação de novo lead');
       setFormData({
         nome: '',
         telefone: '',
@@ -143,7 +144,17 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: Lead
     
     setIsLoading(true);
     try {
-      await onSave(formData);
+      // CORREÇÃO: Incluir o ID do lead nos dados quando estiver editando
+      const leadDataToSave = {
+        ...formData,
+        // Se estiver editando (lead existe), incluir o ID
+        ...(lead && { id: lead.id })
+      };
+      
+      console.log('💾 Dados que serão enviados para salvamento:', leadDataToSave);
+      console.log('🔍 Modo de operação:', lead ? 'EDIÇÃO' : 'CRIAÇÃO');
+      
+      await onSave(leadDataToSave);
       onClose();
     } catch (error) {
       console.error('Erro ao salvar lead:', error);
