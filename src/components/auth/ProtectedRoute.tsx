@@ -24,11 +24,11 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { user, loading } = useAuth();
+  const { user, loading, initialAuthChecked } = useAuth();
   const location = useLocation();
 
-  // Mostrar loading enquanto verifica autenticação
-  if (loading) {
+  // Mostrar loading enquanto verifica autenticação inicial
+  if (loading || !initialAuthChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Card className="w-full max-w-md">
