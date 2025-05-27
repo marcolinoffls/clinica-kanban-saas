@@ -1,12 +1,13 @@
 
 import { useState, useEffect } from 'react';
-import { Shield, Building2, MessageSquare, Clock, Settings } from 'lucide-react';
+import { Shield, Building2, MessageSquare, Clock, Settings, UserCog } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
 import { AdminClinicDetails } from './AdminClinicDetails';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useToast } from '@/hooks/use-toast';
 
 /**
  * Componente principal do Painel Administrativo
@@ -16,22 +17,33 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  * - Exibe contagem de leads de anúncios
  * - Permite acessar detalhes de cada clínica
  * - Controle de acesso apenas para administradores
+ * - Configuração inicial de permissões de admin
  */
 
 export const AdminPanel = () => {
   const {
     loading,
     clinicas,
+    obterUserIdAtual,
+    configurarComoAdmin,
     verificarPermissaoAdmin,
     buscarEstatisticasClinicas
   } = useSupabaseAdmin();
 
+  const { toast } = useToast();
   const [isAdmin, setIsAdmin] = useState(false);
   const [selectedClinicId, setSelectedClinicId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [configuringAdmin, setConfiguringAdmin] = useState(false);
 
   // Verificar permissões e carregar dados iniciais
   useEffect(() => {
     const inicializar = async () => {
+      // Obter user_id atual
+      const userId = await obterUserIdAtual();
+      setCurrentUserId(userId);
+      
+      // Verificar se já é admin
       const temPermissao = await verificarPermissaoAdmin();
       setIsAdmin(temPermissao);
       
@@ -42,6 +54,34 @@ export const AdminPanel = () => {
     
     inicializar();
   }, []);
+
+  // Função para configurar o usuário atual como administrador
+  const handleConfigurarComoAdmin = async () => {
+    try {
+      setConfiguringAdmin(true);
+      await configurarComoAdmin();
+      
+      toast({
+        title: "Sucesso!",
+        description: "Usuário configurado como administrador. Recarregue a página para acessar o painel.",
+      });
+      
+      // Recarregar a página para aplicar as novas permissões
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Erro ao configurar admin:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível configurar as permissões de administrador.",
+        variant: "destructive",
+      });
+    } finally {
+      setConfiguringAdmin(false);
+    }
+  };
 
   // Função para formatar tempo em minutos para texto legível
   const formatarTempoResposta = (minutos: number) => {
@@ -56,18 +96,43 @@ export const AdminPanel = () => {
     return `${minutosRestantes}min`;
   };
 
-  // Se o usuário não for admin, mostrar acesso negado
+  // Se não tem permissão de admin, mostrar tela de configuração
   if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <Shield className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <CardTitle className="text-red-600">Acesso Negado</CardTitle>
+            <Shield className="w-12 h-12 text-blue-500 mx-auto mb-4" />
+            <CardTitle className="text-blue-600">Configuração de Administrador</CardTitle>
             <CardDescription>
-              Você não tem permissão para acessar o painel administrativo.
+              Para acessar o painel administrativo, você precisa configurar suas permissões.
             </CardDescription>
           </CardHeader>
+          <CardContent className="space-y-4">
+            {currentUserId && (
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">Seu User ID:</p>
+                <p className="text-xs font-mono bg-white p-2 rounded border break-all">
+                  {currentUserId}
+                </p>
+              </div>
+            )}
+            
+            <Button 
+              onClick={handleConfigurarComoAdmin}
+              disabled={configuringAdmin || !currentUserId}
+              className="w-full flex items-center gap-2"
+            >
+              <UserCog className="w-4 h-4" />
+              {configuringAdmin ? 'Configurando...' : 'Configurar como Administrador'}
+            </Button>
+            
+            {!currentUserId && (
+              <p className="text-sm text-red-600 text-center">
+                Você precisa estar logado para configurar as permissões.
+              </p>
+            )}
+          </CardContent>
         </Card>
       </div>
     );

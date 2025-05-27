@@ -9,11 +9,52 @@ import { supabase } from '@/integrations/supabase/client';
  * - Buscar estatísticas de clínicas
  * - Atualizar dados administrativos das clínicas
  * - Verificar permissões de administrador
+ * - Configurar usuário como administrador
  */
 
 export const useSupabaseAdmin = () => {
   const [loading, setLoading] = useState(false);
   const [clinicas, setClinicas] = useState<any[]>([]);
+
+  // Função para obter o user_id atual
+  const obterUserIdAtual = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      return user?.id || null;
+    } catch (error) {
+      console.error('Erro ao obter user_id:', error);
+      return null;
+    }
+  };
+
+  // Função para configurar o usuário atual como administrador
+  const configurarComoAdmin = async () => {
+    try {
+      const userId = await obterUserIdAtual();
+      
+      if (!userId) {
+        throw new Error('Usuário não está autenticado');
+      }
+
+      console.log('🔧 Configurando usuário como admin:', userId);
+
+      const { error } = await supabase
+        .from('user_profiles')
+        .upsert({
+          user_id: userId,
+          profile_type: 'admin',
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      console.log('✅ Usuário configurado como admin com sucesso');
+      return true;
+    } catch (error) {
+      console.error('Erro ao configurar usuário como admin:', error);
+      throw error;
+    }
+  };
 
   // Função para verificar se o usuário atual é administrador
   const verificarPermissaoAdmin = async () => {
@@ -136,6 +177,8 @@ export const useSupabaseAdmin = () => {
   return {
     loading,
     clinicas,
+    obterUserIdAtual,
+    configurarComoAdmin,
     verificarPermissaoAdmin,
     buscarEstatisticasClinicas,
     buscarDetalhesClinica,
