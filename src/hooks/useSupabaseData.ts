@@ -2,53 +2,62 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseChat } from './useSupabaseChat';
+import { useLeads } from './useLeadsData';
+import { useEtapas } from './useEtapasData';
+import { useTags } from './useTagsData';
 
 /**
  * Hook principal para gerenciar dados do Supabase
  * 
- * Combina todos os hooks especializados e gerencia:
- * - Carregamento inicial de dados
- * - Subscrições Realtime
- * - Coordenação entre diferentes entidades
+ * Este hook combina todos os hooks especializados e gerencia:
+ * - Integração dos dados de diferentes entidades (leads, etapas, tags, chat)
+ * - Subscrições Realtime para atualizações em tempo real
+ * - Coordenação entre diferentes hooks especializados
+ * 
+ * Utiliza os hooks especializados para cada domínio:
+ * - useLeads: para dados de leads
+ * - useEtapas: para etapas do kanban
+ * - useTags: para tags/categorias
+ * - useSupabaseChat: para mensagens e chat
  */
-
-// ID da clínica de demonstração (em produção viria do contexto do usuário)
-const DEMO_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
 
 export const useSupabaseData = () => {
   const [loading, setLoading] = useState(true);
 
+  // Hooks especializados para cada domínio
+  const { data: leads = [], isLoading: leadsLoading } = useLeads();
+  const { data: etapas = [], isLoading: etapasLoading } = useEtapas();
+  const { data: tags = [], isLoading: tagsLoading } = useTags();
+  
   // Hook especializado para chat
   const chatHook = useSupabaseChat();
 
-  // Configura a clínica atual para as políticas RLS
+  // Verificar se ainda está carregando dados iniciais
   useEffect(() => {
-    const setClinicContext = async () => {
+    const isStillLoading = leadsLoading || etapasLoading || tagsLoading;
+    setLoading(isStillLoading);
+  }, [leadsLoading, etapasLoading, tagsLoading]);
+
+  // Buscar dados iniciais do chat
+  useEffect(() => {
+    const fetchChatData = async () => {
       try {
-        console.log('Contexto da clínica configurado:', DEMO_CLINIC_ID);
+        console.log('🔄 Carregando dados iniciais do chat...');
+        
+        // Buscar respostas prontas do chat
+        await chatHook.buscarRespostasProntas();
+
+        // Buscar contadores de mensagens não lidas
+        await chatHook.buscarMensagensNaoLidas();
+        
+        console.log('✅ Dados do chat carregados');
       } catch (error) {
-        console.error('Erro ao configurar contexto da clínica:', error);
+        console.error('❌ Erro ao carregar dados do chat:', error);
       }
     };
-    setClinicContext();
+
+    fetchChatData();
   }, []);
-
-  // Buscar dados iniciais do Supabase
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      
-      // Buscar respostas prontas do chat
-      await chatHook.buscarRespostasProntas();
-
-      // Buscar contadores de mensagens não lidas
-      await chatHook.buscarMensagensNaoLidas();
-    } catch (error) {
-      console.error('Erro ao buscar dados:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Configurar Realtime para leads e mensagens
   useEffect(() => {
@@ -118,23 +127,23 @@ export const useSupabaseData = () => {
     };
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   return {
-    // Estados
+    // Dados principais das entidades
+    leads,
+    etapas,
+    tags,
+    
+    // Estados do chat
     mensagens: chatHook.mensagens,
     respostasProntas: chatHook.respostasProntas,
     mensagensNaoLidas: chatHook.mensagensNaoLidas,
+    
+    // Estado de loading geral
     loading,
 
     // Funções de chat
     buscarMensagensLead: chatHook.buscarMensagensLead,
     enviarMensagem: chatHook.enviarMensagem,
     marcarMensagensComoLidas: chatHook.marcarMensagensComoLidas,
-
-    // Função de refresh
-    refetch: fetchData
   };
 };

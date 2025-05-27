@@ -1,5 +1,3 @@
-
-
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
@@ -48,9 +46,9 @@ interface ChatPageProps {
 export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const {
     leads,
+    tags,
     enviarMensagem,
     respostasProntas,
-    tags,
     mensagensNaoLidas,
     marcarMensagensComoLidas,
     loading
