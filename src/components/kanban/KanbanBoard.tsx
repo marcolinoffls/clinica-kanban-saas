@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { KanbanColumn } from './KanbanColumn';
@@ -6,8 +5,9 @@ import { LeadModal } from './LeadModal';
 import { ConsultasHistoryModal } from './ConsultasHistoryModal';
 import { EtapaModal } from './EtapaModal';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { useCreateLead, useUpdateLead, useMoveLeadToStage } from '@/hooks/useLeadsData';
-import { useCreateEtapa, useUpdateEtapa, useDeleteEtapa } from '@/hooks/useEtapasData';
+import { useUpdateLead, useMoveLeadToStage } from '@/hooks/useLeadsData';
+import { useUpdateEtapa, useDeleteEtapa } from '@/hooks/useEtapasData';
+import { useClinicaOperations } from '@/hooks/useClinicaOperations';
 
 /**
  * Componente principal do Kanban integrado com Supabase
@@ -67,11 +67,12 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
   // Hook principal para dados do Supabase
   const { etapas, leads, tags, loading } = useSupabaseData();
   
+  // Hook para operações da clínica
+  const { createLead, createEtapa } = useClinicaOperations();
+  
   // Hooks especializados para mutações
-  const createLeadMutation = useCreateLead();
   const updateLeadMutation = useUpdateLead();
   const moveLeadMutation = useMoveLeadToStage();
-  const createEtapaMutation = useCreateEtapa();
   const updateEtapaMutation = useUpdateEtapa();
   const deleteEtapaMutation = useDeleteEtapa();
 
@@ -88,20 +89,28 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
   };
 
   // Função para salvar lead (criar ou editar) com validação
-  const handleSaveLead = async (leadData: Partial<Lead>) => {
+  const handleSaveLead = async (leadData: Partial<Lead> & { nome: string }) => {
     try {
       // Validação local antes de enviar para o Supabase
       if (!leadData.nome?.trim()) {
         throw new Error('Nome do lead é obrigatório');
       }
-      if (!leadData.telefone?.trim()) {
-        throw new Error('Telefone do lead é obrigatório');
-      }
 
       if (selectedLead) {
+        // Editando lead existente
         await updateLeadMutation.mutateAsync({ id: selectedLead.id, ...leadData });
       } else {
-        await createLeadMutation.mutateAsync(leadData);
+        // Criando novo lead - usar hook de operações da clínica
+        await createLead({
+          nome: leadData.nome,
+          telefone: leadData.telefone || undefined,
+          email: leadData.email || undefined,
+          etapa_kanban_id: leadData.etapa_kanban_id || undefined,
+          tag_id: leadData.tag_id || undefined,
+          anotacoes: leadData.anotacoes || undefined,
+          origem_lead: leadData.origem_lead || undefined,
+          servico_interesse: leadData.servico_interesse || undefined,
+        });
       }
       
       setIsLeadModalOpen(false);
@@ -164,7 +173,7 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
       } else {
         // Calcular próxima ordem
         const nextOrder = Math.max(...etapas.map(e => e.ordem || 0), 0) + 1;
-        await createEtapaMutation.mutateAsync({ nome, ordem: nextOrder });
+        await createEtapa({ nome, ordem: nextOrder });
       }
       setIsEtapaModalOpen(false);
     } catch (error) {

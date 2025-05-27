@@ -1,8 +1,8 @@
-
 import { useState } from 'react';
 import { Search, Plus, Edit2, Trash2, Eye } from 'lucide-react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { useCreateLead, useUpdateLead, useDeleteLead } from '@/hooks/useLeadsData';
+import { useUpdateLead, useDeleteLead } from '@/hooks/useLeadsData';
+import { useClinicaOperations } from '@/hooks/useClinicaOperations';
 import { LeadModal } from '@/components/kanban/LeadModal';
 import { Lead } from '@/components/kanban/KanbanBoard';
 import { useToast } from '@/hooks/use-toast';
@@ -26,7 +26,7 @@ export const ClientsPage = () => {
   const [leadDetails, setLeadDetails] = useState<Lead | null>(null);
   
   const { leads, tags, loading } = useSupabaseData();
-  const createLeadMutation = useCreateLead();
+  const { createLead } = useClinicaOperations();
   const updateLeadMutation = useUpdateLead();
   const deleteLeadMutation = useDeleteLead();
   const { toast } = useToast();
@@ -91,12 +91,23 @@ export const ClientsPage = () => {
   };
 
   // Função para salvar lead
-  const handleSalvarLead = async (leadData: Partial<Lead>) => {
+  const handleSalvarLead = async (leadData: Partial<Lead> & { nome: string }) => {
     try {
       if (selectedLead) {
+        // Editando lead existente
         await updateLeadMutation.mutateAsync({ id: selectedLead.id, ...leadData });
       } else {
-        await createLeadMutation.mutateAsync(leadData);
+        // Criando novo lead - usar hook de operações da clínica
+        await createLead({
+          nome: leadData.nome,
+          telefone: leadData.telefone || undefined,
+          email: leadData.email || undefined,
+          etapa_kanban_id: leadData.etapa_kanban_id || undefined,
+          tag_id: leadData.tag_id || undefined,
+          anotacoes: leadData.anotacoes || undefined,
+          origem_lead: leadData.origem_lead || undefined,
+          servico_interesse: leadData.servico_interesse || undefined,
+        });
       }
       
       setIsModalOpen(false);

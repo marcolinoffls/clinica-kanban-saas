@@ -1,38 +1,36 @@
-import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+
+import { useState } from 'react';
+import { Plus, Edit, Trash2, Tag } from 'lucide-react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { useCreateTag, useUpdateTag, useDeleteTag } from '@/hooks/useTagsData';
+import { useUpdateTag, useDeleteTag } from '@/hooks/useTagsData';
+import { useClinicaOperations } from '@/hooks/useClinicaOperations';
 
 /**
- * Componente para gerenciamento de tags na barra lateral direita
+ * Componente para gerenciar tags/categorias de leads
  * 
  * Funcionalidades:
- * - Lista todas as tags criadas (persiste no Supabase)
- * - Permite criar novas tags com nome e cor
- * - Edição e exclusão de tags existentes
- * - Preview da cor da tag
- * - Sincronização com banco de dados
- * 
- * Este componente fica sempre visível na lateral direita da aplicação
- * para facilitar a gestão das categorias de leads.
+ * - Criar novas tags com cores personalizadas
+ * - Editar tags existentes
+ * - Excluir tags
+ * - Visualizar tags em uma grade organizada
+ * - Integração completa com Supabase e RLS
  */
 
 export const TagManager = () => {
-  const { tags } = useSupabaseData();
-  const createTagMutation = useCreateTag();
+  const { tags, loading } = useSupabaseData();
+  const { createTag } = useClinicaOperations();
   const updateTagMutation = useUpdateTag();
   const deleteTagMutation = useDeleteTag();
-  
-  // Estados para o formulário de criação/edição
+
   const [isCreating, setIsCreating] = useState(false);
-  const [editingTag, setEditingTag] = useState<string | null>(null);
+  const [editingTag, setEditingTag] = useState<any>(null);
   const [formData, setFormData] = useState({
     nome: '',
     cor: '#3B82F6'
   });
 
-  // Cores predefinidas para facilitar a seleção
-  const presetColors = [
+  // Cores predefinidas para seleção
+  const coresPredefinidas = [
     '#3B82F6', // Azul
     '#10B981', // Verde
     '#F59E0B', // Amarelo
@@ -40,43 +38,49 @@ export const TagManager = () => {
     '#8B5CF6', // Roxo
     '#F97316', // Laranja
     '#06B6D4', // Ciano
-    '#84CC16'  // Lima
+    '#84CC16', // Lima
+    '#EC4899', // Rosa
+    '#6B7280'  // Cinza
   ];
 
   // Função para iniciar criação de nova tag
-  const handleStartCreate = () => {
+  const handleNovaTag = () => {
     setFormData({ nome: '', cor: '#3B82F6' });
-    setIsCreating(true);
     setEditingTag(null);
+    setIsCreating(true);
   };
 
-  // Função para iniciar edição de tag existente
-  const handleStartEdit = (tagId: string) => {
-    const tag = tags.find(t => t.id === tagId);
-    if (tag) {
-      setFormData({ nome: tag.nome, cor: tag.cor || '#3B82F6' });
-      setEditingTag(tagId);
-      setIsCreating(false);
-    }
+  // Função para iniciar edição de tag
+  const handleEditarTag = (tag: any) => {
+    setFormData({ nome: tag.nome, cor: tag.cor });
+    setEditingTag(tag);
+    setIsCreating(true);
   };
 
   // Função para salvar tag (criar ou editar)
-  const handleSave = async () => {
-    if (!formData.nome.trim()) {
-      alert('Nome da tag é obrigatório');
-      return;
-    }
-
+  const handleSalvarTag = async () => {
     try {
-      if (editingTag) {
-        // Editando tag existente
-        await updateTagMutation.mutateAsync({ id: editingTag, ...formData });
-      } else {
-        // Criando nova tag - o clinica_id será adicionado automaticamente pelo hook
-        await createTagMutation.mutateAsync(formData);
+      if (!formData.nome.trim()) {
+        alert('Nome da tag é obrigatório');
+        return;
       }
 
-      // Reset do formulário
+      if (editingTag) {
+        // Editando tag existente
+        await updateTagMutation.mutateAsync({
+          id: editingTag.id,
+          nome: formData.nome,
+          cor: formData.cor
+        });
+      } else {
+        // Criando nova tag - usar hook de operações da clínica
+        await createTag({
+          nome: formData.nome,
+          cor: formData.cor
+        });
+      }
+
+      // Limpar formulário e fechar modal
       setFormData({ nome: '', cor: '#3B82F6' });
       setIsCreating(false);
       setEditingTag(null);
@@ -86,160 +90,187 @@ export const TagManager = () => {
     }
   };
 
-  // Função para cancelar edição/criação
-  const handleCancel = () => {
-    setFormData({ nome: '', cor: '#3B82F6' });
-    setIsCreating(false);
-    setEditingTag(null);
-  };
-
   // Função para excluir tag
-  const handleDelete = async (tagId: string) => {
-    const tag = tags.find(t => t.id === tagId);
-    if (!tag) return;
-
+  const handleExcluirTag = async (tag: any) => {
     const confirmacao = confirm(`Tem certeza que deseja excluir a tag "${tag.nome}"?`);
+    
     if (!confirmacao) return;
 
     try {
-      await deleteTagMutation.mutateAsync(tagId);
+      await deleteTagMutation.mutateAsync(tag.id);
     } catch (error) {
       console.error('Erro ao excluir tag:', error);
       alert('Erro ao excluir tag. Tente novamente.');
     }
   };
 
+  // Função para cancelar criação/edição
+  const handleCancelar = () => {
+    setFormData({ nome: '', cor: '#3B82F6' });
+    setIsCreating(false);
+    setEditingTag(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-500">Carregando tags...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full">
-      {/* Header da seção de tags */}
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">
-          Categorias
-        </h3>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Gerenciar Tags</h2>
+          <p className="text-gray-600 mt-1">
+            Organize seus leads com tags personalizadas
+          </p>
+        </div>
         <button
-          onClick={handleStartCreate}
-          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-          title="Adicionar nova categoria"
+          onClick={handleNovaTag}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
         >
-          <Plus size={18} />
+          <Plus size={20} />
+          Nova Tag
         </button>
       </div>
 
-      {/* Lista de tags existentes */}
-      <div className="space-y-2 mb-6">
-        {tags.map((tag) => (
-          <div
-            key={tag.id}
-            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-          >
-            <div className="flex items-center gap-3">
-              {/* Preview da cor da tag */}
-              <div
-                className="w-4 h-4 rounded-full"
-                style={{ backgroundColor: tag.cor }}
-              />
-              <span className="text-sm font-medium text-gray-900">
-                {tag.nome}
-              </span>
-            </div>
-            
-            {/* Botões de ação */}
-            <div className="flex gap-1">
-              <button
-                onClick={() => handleStartEdit(tag.id)}
-                className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
-                title="Editar categoria"
-              >
-                <Edit2 size={14} />
-              </button>
-              <button
-                onClick={() => handleDelete(tag.id)}
-                className="p-1 text-gray-500 hover:text-red-600 transition-colors"
-                title="Remover categoria"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
       {/* Formulário de criação/edição */}
-      {(isCreating || editingTag) && (
-        <div className="border-t pt-4">
-          <h4 className="text-sm font-medium text-gray-900 mb-3">
-            {editingTag ? 'Editar Categoria' : 'Nova Categoria'}
-          </h4>
+      {isCreating && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold mb-4">
+            {editingTag ? 'Editar Tag' : 'Nova Tag'}
+          </h3>
           
-          {/* Campo nome */}
-          <div className="mb-3">
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Nome
-            </label>
-            <input
-              type="text"
-              value={formData.nome}
-              onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Nome da categoria"
-            />
-          </div>
-
-          {/* Seletor de cor */}
-          <div className="mb-4">
-            <label className="block text-xs font-medium text-gray-700 mb-2">
-              Cor
-            </label>
-            <div className="grid grid-cols-4 gap-2">
-              {presetColors.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => setFormData(prev => ({ ...prev, cor: color }))}
-                  className={`w-8 h-8 rounded-md border-2 transition-all ${
-                    formData.cor === color
-                      ? 'border-gray-900 scale-110'
-                      : 'border-gray-300 hover:scale-105'
-                  }`}
-                  style={{ backgroundColor: color }}
-                  title={color}
-                />
-              ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nome da Tag
+              </label>
+              <input
+                type="text"
+                value={formData.nome}
+                onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Digite o nome da tag"
+              />
             </div>
             
-            {/* Input customizado para cor */}
-            <div className="mt-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Cor da Tag
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {coresPredefinidas.map((cor) => (
+                  <button
+                    key={cor}
+                    onClick={() => setFormData(prev => ({ ...prev, cor }))}
+                    className={`w-8 h-8 rounded-full border-2 ${
+                      formData.cor === cor ? 'border-gray-800' : 'border-gray-300'
+                    }`}
+                    style={{ backgroundColor: cor }}
+                  />
+                ))}
+              </div>
               <input
                 type="color"
                 value={formData.cor}
                 onChange={(e) => setFormData(prev => ({ ...prev, cor: e.target.value }))}
-                className="w-full h-8 rounded border border-gray-300"
+                className="mt-2 w-16 h-8 border border-gray-300 rounded cursor-pointer"
               />
             </div>
           </div>
 
-          {/* Botões de ação */}
-          <div className="flex gap-2">
+          <div className="flex gap-3 mt-6">
             <button
-              onClick={handleCancel}
-              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              onClick={handleCancelar}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancelar
             </button>
             <button
-              onClick={handleSave}
-              className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              onClick={handleSalvarTag}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              {editingTag ? 'Atualizar' : 'Criar'}
+              {editingTag ? 'Salvar Alterações' : 'Criar Tag'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Informações sobre o uso das tags */}
-      <div className="mt-6 p-3 bg-blue-50 rounded-lg">
-        <p className="text-xs text-blue-700">
-          <strong>Dica:</strong> Use categorias para organizar seus leads por tipo de procedimento, urgência ou origem.
-        </p>
+      {/* Lista de tags */}
+      <div className="bg-white rounded-lg border border-gray-200">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Tags Existentes</h3>
+          
+          {tags.length === 0 ? (
+            <div className="text-center py-8">
+              <Tag size={48} className="text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">Nenhuma tag criada ainda</p>
+              <p className="text-gray-400 text-sm">Crie sua primeira tag para organizar os leads</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {tags.map((tag) => (
+                <div
+                  key={tag.id}
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-4 h-4 rounded-full"
+                      style={{ backgroundColor: tag.cor }}
+                    />
+                    <span className="font-medium">{tag.nome}</span>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEditarTag(tag)}
+                      className="text-blue-600 hover:text-blue-800 p-1"
+                      title="Editar tag"
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleExcluirTag(tag)}
+                      className="text-red-600 hover:text-red-800 p-1"
+                      title="Excluir tag"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Estatísticas */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold mb-4">Estatísticas</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600">{tags.length}</div>
+            <div className="text-sm text-gray-600">Total de Tags</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600">
+              {coresPredefinidas.filter(cor => tags.some(tag => tag.cor === cor)).length}
+            </div>
+            <div className="text-sm text-gray-600">Cores Usadas</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600">
+              {tags.filter(tag => !coresPredefinidas.includes(tag.cor)).length}
+            </div>
+            <div className="text-sm text-gray-600">Cores Personalizadas</div>
+          </div>
+        </div>
       </div>
     </div>
   );
