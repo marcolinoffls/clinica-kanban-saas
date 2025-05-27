@@ -1,28 +1,28 @@
 
 import { useState, useEffect } from 'react';
-import { Shield, Building2, MessageSquare, Clock, Settings, UserCog, Users, TrendingUp, Filter } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { Shield } from 'lucide-react';
 import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
 import { AdminClinicDetails } from './AdminClinicDetails';
+import { AdminConfigSetup } from './AdminConfigSetup';
+import { AdminDashboard } from './AdminDashboard';
+import { AdminClinicsTable } from './AdminClinicsTable';
+import { AdminPagination } from './AdminPagination';
 import { TimeRangeFilter } from './TimeRangeFilter';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 /**
  * Componente principal do Painel Administrativo
  * 
- * Funcionalidades:
+ * Coordena todos os componentes do painel admin e gerencia o estado global.
+ * Verifica permissões de acesso, carrega dados das clínicas e KPIs,
+ * e controla a navegação entre diferentes telas do painel.
+ * 
+ * Funcionalidades principais:
+ * - Verificação de permissões de administrador
  * - Dashboard com KPIs globais do sistema
  * - Filtro de tempo global para análises
- * - Lista todas as clínicas com estatísticas detalhadas
- * - Permite acessar detalhes de cada clínica
- * - Controle de acesso apenas para administradores
- * - Busca e paginação na tabela de clínicas
+ * - Tabela de clínicas com busca e paginação
+ * - Navegação para detalhes de clínicas específicas
  */
 
 export const AdminPanel = () => {
@@ -38,7 +38,7 @@ export const AdminPanel = () => {
 
   const { toast } = useToast();
   
-  // Estados do componente
+  // Estados de controle principal
   const [isAdmin, setIsAdmin] = useState(false);
   const [selectedClinicId, setSelectedClinicId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -57,7 +57,7 @@ export const AdminPanel = () => {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   
-  // Estados da tabela
+  // Estados da tabela e paginação
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -134,69 +134,30 @@ export const AdminPanel = () => {
     }
   };
 
-  // Função para formatar tempo em minutos para texto legível
-  const formatarTempoResposta = (minutos: number) => {
-    if (minutos === 0) return 'Sem dados';
-    
-    const horas = Math.floor(minutos / 60);
-    const minutosRestantes = Math.floor(minutos % 60);
-    
-    if (horas > 0) {
-      return `${horas}h ${minutosRestantes}min`;
-    }
-    return `${minutosRestantes}min`;
-  };
-
-  // Filtrar clínicas baseado na busca
+  // Lógica de busca e paginação
   const clinicasFiltradas = clinicas.filter(clinica =>
     clinica.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     clinica.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Paginação
   const totalPages = Math.ceil(clinicasFiltradas.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const clinicasPaginadas = clinicasFiltradas.slice(startIndex, startIndex + itemsPerPage);
 
+  // Função para lidar com mudança na busca
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1); // Reset para primeira página
+  };
+
   // Se não tem permissão de admin, mostrar tela de configuração
   if (!isAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <Shield className="w-12 h-12 text-blue-500 mx-auto mb-4" />
-            <CardTitle className="text-blue-600">Configuração de Administrador</CardTitle>
-            <CardDescription>
-              Para acessar o painel administrativo, você precisa configurar suas permissões.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {currentUserId && (
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600">Seu User ID:</p>
-                <p className="text-xs font-mono bg-white p-2 rounded border break-all">
-                  {currentUserId}
-                </p>
-              </div>
-            )}
-            
-            <Button 
-              onClick={handleConfigurarComoAdmin}
-              disabled={configuringAdmin || !currentUserId}
-              className="w-full flex items-center gap-2"
-            >
-              <UserCog className="w-4 h-4" />
-              {configuringAdmin ? 'Configurando...' : 'Configurar como Administrador'}
-            </Button>
-            
-            {!currentUserId && (
-              <p className="text-sm text-red-600 text-center">
-                Você precisa estar logado para configurar as permissões.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <AdminConfigSetup
+        currentUserId={currentUserId}
+        configuringAdmin={configuringAdmin}
+        onConfigurarComoAdmin={handleConfigurarComoAdmin}
+      />
     );
   }
 
@@ -210,6 +171,7 @@ export const AdminPanel = () => {
     );
   }
 
+  // Tela principal do painel administrativo
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -232,197 +194,28 @@ export const AdminPanel = () => {
           currentFilter={currentFilter}
         />
 
-        {/* KPIs Globais */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Clínicas Ativas</CardTitle>
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{kpisGlobais.clinicasAtivas}</div>
-              <p className="text-xs text-muted-foreground">
-                Clientes com status ativo
-              </p>
-            </CardContent>
-          </Card>
+        {/* Dashboard com KPIs */}
+        <AdminDashboard kpisGlobais={kpisGlobais} />
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Leads</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{kpisGlobais.totalLeads}</div>
-              <p className="text-xs text-muted-foreground">
-                Leads totais no sistema
-              </p>
-            </CardContent>
-          </Card>
+        {/* Tabela de clínicas */}
+        <AdminClinicsTable
+          clinicas={clinicas}
+          clinicasPaginadas={clinicasPaginadas}
+          searchTerm={searchTerm}
+          loading={loading}
+          onSearchChange={handleSearchChange}
+          onSelectClinica={setSelectedClinicId}
+        />
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Novos Leads no Período</CardTitle>
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">{kpisGlobais.novosLeads}</div>
-              <p className="text-xs text-muted-foreground">
-                Leads criados no período selecionado
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Usuários do Sistema</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{kpisGlobais.totalUsuarios}</div>
-              <p className="text-xs text-muted-foreground">
-                Equipe das clínicas cadastradas
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Tabela de clínicas com busca */}
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="w-5 h-5" />
-                  Clínicas Cadastradas ({clinicas.length})
-                </CardTitle>
-                <CardDescription>
-                  Lista de todas as clínicas com estatísticas detalhadas de performance
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="Buscar clínicas..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setCurrentPage(1); // Reset para primeira página
-                  }}
-                  className="max-w-sm"
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-            ) : (
-              <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Clínica</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Cadastro</TableHead>
-                      <TableHead>Total de Leads</TableHead>
-                      <TableHead>Leads de Anúncios</TableHead>
-                      <TableHead>Taxa de Conversão</TableHead>
-                      <TableHead>Usuários</TableHead>
-                      <TableHead>Tempo Médio</TableHead>
-                      <TableHead>Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {clinicasPaginadas.map((clinica) => (
-                      <TableRow key={clinica.id}>
-                        <TableCell className="font-medium">
-                          <div>
-                            <div className="font-semibold">{clinica.nome}</div>
-                            <div className="text-xs text-gray-500">{clinica.email}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={
-                            clinica.status === 'ativo' ? 'default' : 
-                            clinica.status === 'inativo' ? 'destructive' : 
-                            'secondary'
-                          }>
-                            {clinica.status || 'ativo'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {clinica.created_at ? format(new Date(clinica.created_at), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
-                        </TableCell>
-                        <TableCell>{clinica.total_leads || 0}</TableCell>
-                        <TableCell>
-                          <Badge variant={clinica.leads_anuncios_count > 0 ? "default" : "secondary"}>
-                            {clinica.leads_anuncios_count || 0}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`font-medium ${
-                            clinica.taxa_conversao > 30 ? 'text-green-600' :
-                            clinica.taxa_conversao > 15 ? 'text-yellow-600' :
-                            'text-red-600'
-                          }`}>
-                            {clinica.taxa_conversao?.toFixed(1) || '0.0'}%
-                          </span>
-                        </TableCell>
-                        <TableCell>{clinica.total_usuarios || 0}</TableCell>
-                        <TableCell>
-                          {formatarTempoResposta(clinica.tempo_medio_resposta_minutos || 0)}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedClinicId(clinica.id)}
-                            className="flex items-center gap-2"
-                          >
-                            <Settings className="w-4 h-4" />
-                            Detalhes
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-
-                {/* Paginação */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between mt-4">
-                    <p className="text-sm text-gray-600">
-                      Mostrando {startIndex + 1} a {Math.min(startIndex + itemsPerPage, clinicasFiltradas.length)} de {clinicasFiltradas.length} clínicas
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                        disabled={currentPage === 1}
-                      >
-                        Anterior
-                      </Button>
-                      <span className="px-3 py-2 text-sm bg-blue-50 text-blue-600 rounded">
-                        {currentPage} de {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                        disabled={currentPage === totalPages}
-                      >
-                        Próxima
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+        {/* Paginação */}
+        <AdminPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          itemsPerPage={itemsPerPage}
+          totalItems={clinicasFiltradas.length}
+          startIndex={startIndex}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );
