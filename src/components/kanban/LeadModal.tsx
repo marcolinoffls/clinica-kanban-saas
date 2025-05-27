@@ -41,6 +41,7 @@ const origensLead = [
   'Instagram',
   'Facebook',
   'Google Ads',
+  'Meta Ads',
   'WhatsApp',
   'Busca Google',
   'Outros'
