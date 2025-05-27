@@ -83,20 +83,29 @@ export const LeadCard = ({ lead, onEdit, onOpenHistory, onOpenChat, columnId }: 
         <p className="text-xs text-gray-500 mb-2">{lead.email}</p>
       )}
       
+      {/* Origem do lead se existir */}
+      {lead.origem_lead && (
+        <div className="mb-2">
+          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+            {lead.origem_lead}
+          </span>
+        </div>
+      )}
+
+      {/* Serviço de interesse se existir */}
+      {lead.servico_interesse && (
+        <div className="mb-2">
+          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+            {lead.servico_interesse}
+          </span>
+        </div>
+      )}
+      
       {/* Notas do lead (preview) */}
       {lead.anotacoes && (
         <p className="text-xs text-gray-500 mt-2 line-clamp-2">
           {lead.anotacoes}
         </p>
-      )}
-
-      {/* LTV se existir */}
-      {lead.ltv && lead.ltv > 0 && (
-        <div className="mt-2 pt-2 border-t border-gray-100">
-          <span className="text-xs font-medium text-green-600">
-            LTV: R$ {Number(lead.ltv).toFixed(2)}
-          </span>
-        </div>
       )}
     </div>
   );

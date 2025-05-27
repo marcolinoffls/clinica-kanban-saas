@@ -215,7 +215,9 @@ export type Database = {
           name: string | null
           nome: string
           notes: string | null
+          origem_lead: string | null
           phone: string | null
+          servico_interesse: string | null
           tag_id: string | null
           tag_id_alias: string | null
           telefone: string | null
@@ -234,7 +236,9 @@ export type Database = {
           name?: string | null
           nome: string
           notes?: string | null
+          origem_lead?: string | null
           phone?: string | null
+          servico_interesse?: string | null
           tag_id?: string | null
           tag_id_alias?: string | null
           telefone?: string | null
@@ -253,7 +257,9 @@ export type Database = {
           name?: string | null
           nome?: string
           notes?: string | null
+          origem_lead?: string | null
           phone?: string | null
+          servico_interesse?: string | null
           tag_id?: string | null
           tag_id_alias?: string | null
           telefone?: string | null
