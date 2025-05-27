@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { KanbanColumn } from './KanbanColumn';
@@ -30,19 +29,17 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 export interface Lead {
   id: string;
   nome: string;
-  telefone: string;
-  email?: string;
-  anotacoes?: string;
-  etapa_kanban_id: string;
-  tag_id?: string;
-  ltv?: number;
-  data_ultimo_contato?: string;
+  telefone: string | null;
+  email: string | null;
+  anotacoes: string | null;
+  etapa_kanban_id: string | null;
+  tag_id: string | null;
+  data_ultimo_contato: string | null;
   created_at: string;
-  updated_at: string;
-  // Campos gerados para compatibilidade
-  name?: string;
-  phone?: string;
-  notes?: string;
+  updated_at: string | null;
+  clinica_id: string | null;
+  origem_lead: string | null;
+  servico_interesse: string | null;
 }
 
 export interface KanbanColumn {

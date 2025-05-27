@@ -82,6 +82,7 @@ export const useSupabaseData = () => {
       if (etapasError) throw etapasError;
 
       // Buscar leads ordenados por data_ultimo_contato (mais recentes primeiro)
+      // Incluir os novos campos origem_lead e servico_interesse
       const { data: leadsData, error: leadsError } = await supabase
         .from('leads')
         .select('*')
@@ -391,47 +392,72 @@ export const useSupabaseData = () => {
         throw new Error('Telefone do lead é obrigatório');
       }
 
+      console.log('💾 Salvando lead com dados:', leadData);
+
       if (leadData.id) {
         // Atualizar lead existente
+        console.log('📝 Atualizando lead existente com ID:', leadData.id);
+        
+        const updateData = {
+          nome: leadData.nome.trim(),
+          telefone: leadData.telefone.trim(),
+          email: leadData.email?.trim() || null,
+          anotacoes: leadData.anotacoes?.trim() || null,
+          tag_id: leadData.tag_id || null,
+          origem_lead: leadData.origem_lead || null,
+          servico_interesse: leadData.servico_interesse || null,
+          updated_at: new Date().toISOString()
+        };
+
+        console.log('📝 Dados para atualização:', updateData);
+
         const { error } = await supabase
           .from('leads')
-          .update({
-            nome: leadData.nome.trim(),
-            telefone: leadData.telefone.trim(),
-            email: leadData.email?.trim() || null,
-            anotacoes: leadData.anotacoes?.trim() || null,
-            tag_id: leadData.tag_id || null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', leadData.id);
+          .update(updateData)
+          .eq('id', leadData.id)
+          .eq('clinica_id', DEMO_CLINIC_ID);
 
         if (error) throw error;
 
+        console.log('✅ Lead atualizado com sucesso');
+
+        // Atualizar estado local
         setLeads(prev => prev.map(lead => 
-          lead.id === leadData.id ? { ...lead, ...leadData } : lead
+          lead.id === leadData.id ? { ...lead, ...updateData } : lead
         ));
       } else {
         // Criar novo lead
+        console.log('➕ Criando novo lead');
+        
+        const insertData = {
+          nome: leadData.nome.trim(),
+          telefone: leadData.telefone.trim(),
+          email: leadData.email?.trim() || null,
+          anotacoes: leadData.anotacoes?.trim() || null,
+          tag_id: leadData.tag_id || null,
+          origem_lead: leadData.origem_lead || null,
+          servico_interesse: leadData.servico_interesse || null,
+          clinica_id: DEMO_CLINIC_ID,
+          etapa_kanban_id: etapas[0]?.id || null // Primeira etapa por padrão
+        };
+
+        console.log('➕ Dados para inserção:', insertData);
+
         const { data, error } = await supabase
           .from('leads')
-          .insert({
-            nome: leadData.nome.trim(),
-            telefone: leadData.telefone.trim(),
-            email: leadData.email?.trim() || null,
-            anotacoes: leadData.anotacoes?.trim() || null,
-            tag_id: leadData.tag_id || null,
-            clinica_id: DEMO_CLINIC_ID,
-            etapa_kanban_id: etapas[0]?.id // Primeira etapa por padrão
-          })
+          .insert(insertData)
           .select()
           .single();
 
         if (error) throw error;
 
-        setLeads(prev => [...prev, data]);
+        console.log('✅ Novo lead criado com sucesso:', data);
+
+        // Adicionar ao estado local
+        setLeads(prev => [data, ...prev]);
       }
     } catch (error) {
-      console.error('Erro ao salvar lead:', error);
+      console.error('❌ Erro ao salvar lead:', error);
       throw error;
     }
   };

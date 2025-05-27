@@ -1,8 +1,8 @@
-
 import { useState } from 'react';
 import { Search, Plus, Edit2, Trash2, Eye } from 'lucide-react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { LeadModal } from '@/components/kanban/LeadModal';
+import { Lead } from '@/components/kanban/KanbanBoard'; // Importar interface Lead
 import { useToast } from '@/hooks/use-toast';
 
 /**
@@ -14,31 +14,14 @@ import { useToast } from '@/hooks/use-toast';
  * - CRUD completo (criar, visualizar, editar, excluir)
  * - Exibição de informações como data do último contato
  * - Integração com dados reais do Supabase
- * 
- * Os dados dos contatos incluem:
- * - Informações básicas (nome, telefone, email)
- * - Data do último contato
- * - Anotações importantes
- * - Status ativo/inativo
  */
-
-interface LeadDetalhes {
-  id: string;
-  nome: string;
-  telefone: string;
-  email: string;
-  data_ultimo_contato: string | null;
-  anotacoes: string;
-  tag_id: string | null;
-  created_at: string;
-}
 
 export const ClientsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedLead, setSelectedLead] = useState<LeadDetalhes | null>(null);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
-  const [leadDetails, setLeadDetails] = useState<LeadDetalhes | null>(null);
+  const [leadDetails, setLeadDetails] = useState<Lead | null>(null);
   
   const { leads, tags, salvarLead, excluirLead, loading } = useSupabaseData();
   const { toast } = useToast();
@@ -77,7 +60,7 @@ export const ClientsPage = () => {
   };
 
   // Função para abrir modal de edição
-  const handleEditarLead = (lead: any) => {
+  const handleEditarLead = (lead: Lead) => {
     setSelectedLead(lead);
     setIsModalOpen(true);
   };
@@ -103,7 +86,7 @@ export const ClientsPage = () => {
   };
 
   // Função para salvar lead
-  const handleSalvarLead = async (leadData: any) => {
+  const handleSalvarLead = async (leadData: Partial<Lead>) => {
     try {
       await salvarLead(leadData);
       setIsModalOpen(false);
@@ -124,7 +107,7 @@ export const ClientsPage = () => {
   };
 
   // Função para mostrar detalhes do contato
-  const handleVerDetalhes = (lead: any) => {
+  const handleVerDetalhes = (lead: Lead) => {
     setLeadDetails(lead);
     setShowLeadDetails(true);
   };
@@ -196,7 +179,11 @@ export const ClientsPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredLeads.map((lead) => (
+              {leads.filter(lead =>
+                lead.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                lead.telefone?.includes(searchTerm) ||
+                lead.email?.toLowerCase().includes(searchTerm.toLowerCase())
+              ).map((lead) => (
                 <tr key={lead.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
@@ -340,6 +327,20 @@ export const ClientsPage = () => {
                 <label className="block text-sm font-medium text-gray-700">Email</label>
                 <p className="text-sm text-gray-900">{leadDetails.email || 'Não informado'}</p>
               </div>
+
+              {leadDetails.origem_lead && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Origem</label>
+                  <p className="text-sm text-gray-900">{leadDetails.origem_lead}</p>
+                </div>
+              )}
+
+              {leadDetails.servico_interesse && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Serviço de Interesse</label>
+                  <p className="text-sm text-gray-900">{leadDetails.servico_interesse}</p>
+                </div>
+              )}
               
               <div>
                 <label className="block text-sm font-medium text-gray-700">Último Contato</label>
