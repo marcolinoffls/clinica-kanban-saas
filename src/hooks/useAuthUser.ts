@@ -22,7 +22,7 @@ interface UserProfile {
   id: string;
   user_id: string;
   nome_completo: string | null;
-  profile_type: 'admin' | 'usuario';
+  profile_type: 'admin' | 'clinica' | 'usuario'; // Incluindo o tipo 'clinica'
   status_usuario: string;
   clinica_id: string | null;
   created_at: string;
@@ -76,9 +76,14 @@ export const useAuthUser = () => {
     return 'Usuário';
   };
 
-  // Função para verificar se é administrador
+  // Função para verificar se é administrador do sistema
   const isAdmin = () => {
     return userProfile?.profile_type === 'admin';
+  };
+
+  // Função para verificar se é administrador de clínica
+  const isClinicAdmin = () => {
+    return userProfile?.profile_type === 'clinica';
   };
 
   // Função para obter iniciais do nome
@@ -104,6 +109,7 @@ export const useAuthUser = () => {
     getDisplayName,
     getInitials,
     isAdmin,
+    isClinicAdmin,
     signOut
   };
 };
