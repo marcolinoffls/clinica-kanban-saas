@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useClinica } from '@/contexts/ClinicaContext';
+import { useAuthUser } from '@/hooks/useAuthUser';
+import { LogoutButton } from '@/components/auth/LogoutButton';
 
 /**
  * Componente da barra lateral de navegação
@@ -20,6 +22,8 @@ import { useClinica } from '@/contexts/ClinicaContext';
  * - Design responsivo e acessível
  * - Usa o contexto da clínica para exibir informações consistentes
  * - Acesso ao painel administrativo para usuários com permissão
+ * - Exibição de informações do usuário logado
+ * - Botão de logout integrado
  * 
  * Props:
  * - activePage: string com a página atualmente ativa
@@ -74,6 +78,9 @@ const navigationItems = [
 export const Sidebar = ({ activePage, onPageChange }: SidebarProps) => {
   // Usar o contexto da clínica para garantir dados consistentes
   const { clinicaAtiva, isLoading } = useClinica();
+  
+  // Usar o hook customizado de autenticação
+  const { user, getDisplayName, getInitials } = useAuthUser();
 
   // Função para navegar para o painel administrativo
   const navegarParaAdmin = () => {
@@ -133,21 +140,46 @@ export const Sidebar = ({ activePage, onPageChange }: SidebarProps) => {
         </ul>
       </nav>
 
-      {/* Footer da sidebar com informações da clínica do contexto */}
-      <div className="p-4 border-t border-gray-200">
+      {/* Footer da sidebar com informações do usuário e logout */}
+      <div className="p-4 border-t border-gray-200 space-y-4">
+        {/* Informações da clínica */}
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
             <span className="text-blue-600 font-semibold text-sm">
               {clinicaAtiva.nome.charAt(0).toUpperCase()}
             </span>
           </div>
-          <div>
-            <p className="text-sm font-medium text-gray-900">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">
               {isLoading ? 'Carregando...' : clinicaAtiva.nome}
             </p>
-            <p className="text-xs text-gray-500">Administrador</p>
+            <p className="text-xs text-gray-500">Clínica</p>
           </div>
         </div>
+
+        {/* Informações do usuário */}
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+            <span className="text-green-600 font-semibold text-sm">
+              {getInitials()}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {getDisplayName()}
+            </p>
+            <p className="text-xs text-gray-500 truncate">
+              {user?.email}
+            </p>
+          </div>
+        </div>
+
+        {/* Botão de logout */}
+        <LogoutButton 
+          variant="outline" 
+          size="sm" 
+          className="w-full justify-center"
+        />
       </div>
     </aside>
   );
