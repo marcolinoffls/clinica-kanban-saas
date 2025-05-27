@@ -9,6 +9,54 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      activity_logs: {
+        Row: {
+          action_type: string
+          actor_description: string
+          clinica_id: string | null
+          created_at: string | null
+          details: string | null
+          id: string
+          timestamp: string
+          user_id: string | null
+        }
+        Insert: {
+          action_type: string
+          actor_description: string
+          clinica_id?: string | null
+          created_at?: string | null
+          details?: string | null
+          id?: string
+          timestamp?: string
+          user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          actor_description?: string
+          clinica_id?: string | null
+          created_at?: string | null
+          details?: string | null
+          id?: string
+          timestamp?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_logs_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_logs_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agendamentos: {
         Row: {
           cliente_id: string | null
@@ -151,10 +199,14 @@ export type Database = {
           created_at: string | null
           email: string
           endereco: string | null
+          endereco_completo: string | null
           evolution_instance_name: string | null
           id: string
           integracao_instance_id: string | null
           nome: string
+          plano_contratado: string | null
+          razao_social: string | null
+          status: string | null
           telefone: string | null
           updated_at: string | null
           webhook_usuario: string | null
@@ -165,10 +217,14 @@ export type Database = {
           created_at?: string | null
           email: string
           endereco?: string | null
+          endereco_completo?: string | null
           evolution_instance_name?: string | null
           id?: string
           integracao_instance_id?: string | null
           nome: string
+          plano_contratado?: string | null
+          razao_social?: string | null
+          status?: string | null
           telefone?: string | null
           updated_at?: string | null
           webhook_usuario?: string | null
@@ -179,10 +235,14 @@ export type Database = {
           created_at?: string | null
           email?: string
           endereco?: string | null
+          endereco_completo?: string | null
           evolution_instance_name?: string | null
           id?: string
           integracao_instance_id?: string | null
           nome?: string
+          plano_contratado?: string | null
+          razao_social?: string | null
+          status?: string | null
           telefone?: string | null
           updated_at?: string | null
           webhook_usuario?: string | null
@@ -233,6 +293,7 @@ export type Database = {
           anotacoes: string | null
           anuncio: string | null
           clinica_id: string | null
+          convertido: boolean | null
           created_at: string | null
           data_ultimo_contato: string | null
           email: string | null
@@ -245,6 +306,7 @@ export type Database = {
           origem_lead: string | null
           phone: string | null
           servico_interesse: string | null
+          status_conversao: string | null
           tag_id: string | null
           tag_id_alias: string | null
           telefone: string | null
@@ -254,6 +316,7 @@ export type Database = {
           anotacoes?: string | null
           anuncio?: string | null
           clinica_id?: string | null
+          convertido?: boolean | null
           created_at?: string | null
           data_ultimo_contato?: string | null
           email?: string | null
@@ -266,6 +329,7 @@ export type Database = {
           origem_lead?: string | null
           phone?: string | null
           servico_interesse?: string | null
+          status_conversao?: string | null
           tag_id?: string | null
           tag_id_alias?: string | null
           telefone?: string | null
@@ -275,6 +339,7 @@ export type Database = {
           anotacoes?: string | null
           anuncio?: string | null
           clinica_id?: string | null
+          convertido?: boolean | null
           created_at?: string | null
           data_ultimo_contato?: string | null
           email?: string | null
@@ -287,6 +352,7 @@ export type Database = {
           origem_lead?: string | null
           phone?: string | null
           servico_interesse?: string | null
+          status_conversao?: string | null
           tag_id?: string | null
           tag_id_alias?: string | null
           telefone?: string | null
@@ -486,7 +552,9 @@ export type Database = {
           clinica_id: string | null
           created_at: string | null
           id: string
+          nome_completo: string | null
           profile_type: Database["public"]["Enums"]["user_profile_type"]
+          status_usuario: string | null
           updated_at: string | null
           user_id: string
         }
@@ -494,7 +562,9 @@ export type Database = {
           clinica_id?: string | null
           created_at?: string | null
           id?: string
+          nome_completo?: string | null
           profile_type?: Database["public"]["Enums"]["user_profile_type"]
+          status_usuario?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -502,7 +572,9 @@ export type Database = {
           clinica_id?: string | null
           created_at?: string | null
           id?: string
+          nome_completo?: string | null
           profile_type?: Database["public"]["Enums"]["user_profile_type"]
+          status_usuario?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -647,42 +719,32 @@ export type Database = {
       clinicas_stats: {
         Row: {
           admin_prompt: string | null
+          created_at: string | null
           email: string | null
+          endereco_completo: string | null
           evolution_instance_name: string | null
           id: string | null
           integracao_instance_id: string | null
           leads_anuncios_count: number | null
+          leads_convertidos: number | null
           nome: string | null
+          plano_contratado: string | null
+          razao_social: string | null
+          status: string | null
+          taxa_conversao: number | null
           telefone: string | null
           tempo_medio_resposta_minutos: number | null
-        }
-        Insert: {
-          admin_prompt?: string | null
-          email?: string | null
-          evolution_instance_name?: string | null
-          id?: string | null
-          integracao_instance_id?: string | null
-          leads_anuncios_count?: never
-          nome?: string | null
-          telefone?: string | null
-          tempo_medio_resposta_minutos?: never
-        }
-        Update: {
-          admin_prompt?: string | null
-          email?: string | null
-          evolution_instance_name?: string | null
-          id?: string | null
-          integracao_instance_id?: string | null
-          leads_anuncios_count?: never
-          nome?: string | null
-          telefone?: string | null
-          tempo_medio_resposta_minutos?: never
+          total_leads: number | null
+          total_usuarios: number | null
         }
         Relationships: []
       }
     }
     Functions: {
-      [_ in never]: never
+      is_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
       user_profile_type: "admin" | "clinica" | "usuario"
