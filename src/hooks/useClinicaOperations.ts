@@ -51,7 +51,10 @@ export const useClinicaOperations = () => {
       throw new Error('Usuário não possui clínica associada');
     }
 
-    return createEtapaMutation.mutateAsync({
+    // Buscar os hooks especializados diretamente para incluir clinica_id
+    const { mutateAsync: createEtapaWithClinica } = useCreateEtapa();
+    
+    return createEtapaWithClinica({
       ...etapaData,
       clinica_id: clinicaId,
     });
@@ -66,7 +69,10 @@ export const useClinicaOperations = () => {
       throw new Error('Usuário não possui clínica associada');
     }
 
-    return createTagMutation.mutateAsync({
+    // Buscar os hooks especializados diretamente para incluir clinica_id
+    const { mutateAsync: createTagWithClinica } = useCreateTag();
+    
+    return createTagWithClinica({
       ...tagData,
       clinica_id: clinicaId,
     });

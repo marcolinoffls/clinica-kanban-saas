@@ -34,6 +34,19 @@ export interface Lead {
   updated_at: string | null;
 }
 
+// Interface para criação de lead (campos obrigatórios)
+export interface CreateLeadData {
+  nome: string;
+  telefone?: string;
+  email?: string;
+  clinica_id: string;
+  etapa_kanban_id?: string;
+  tag_id?: string;
+  anotacoes?: string;
+  origem_lead?: string;
+  servico_interesse?: string;
+}
+
 // Hook para buscar todos os leads da clínica do usuário
 export const useLeads = () => {
   return useQuery({
@@ -64,12 +77,12 @@ export const useCreateLead = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (leadData: Partial<Lead>): Promise<Lead> => {
+    mutationFn: async (leadData: CreateLeadData): Promise<Lead> => {
       console.log('➕ Criando novo lead:', leadData.nome);
 
       const { data, error } = await supabase
         .from('leads')
-        .insert(leadData)
+        .insert([leadData])
         .select()
         .single();
 
