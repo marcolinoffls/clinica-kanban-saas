@@ -1,211 +1,248 @@
 
-import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 /**
  * Hook para gerenciar leads no Supabase
  * 
- * Funcionalidades:
- * - Buscar, criar, atualizar e excluir leads
- * - Mover leads entre etapas do kanban
- * - Buscar consultas de um lead específico
- * - Validação de dados antes de enviar ao banco
+ * Este hook gerencia todas as operações CRUD relacionadas aos leads:
+ * - Buscar leads da clínica do usuário autenticado
+ * - Criar novos leads
+ * - Atualizar leads existentes
+ * - Deletar leads
+ * 
+ * Com as políticas RLS implementadas, os leads são automaticamente
+ * filtrados pela clínica do usuário logado, garantindo isolamento de dados.
  */
 
-// ID da clínica de demonstração (em produção viria do contexto do usuário)
-const DEMO_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
+export interface Lead {
+  id: string;
+  nome: string;
+  telefone: string | null;
+  email: string | null;
+  etapa_kanban_id: string | null;
+  tag_id: string | null;
+  anotacoes: string | null;
+  origem_lead: string | null;
+  servico_interesse: string | null;
+  status_conversao: string | null;
+  convertido: boolean | null;
+  ltv: number | null;
+  data_ultimo_contato: string | null;
+  clinica_id: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
 
-export const useSupabaseLeads = () => {
-  const [leads, setLeads] = useState<any[]>([]);
+export interface CreateLeadData {
+  nome: string;
+  telefone?: string;
+  email?: string;
+  etapa_kanban_id?: string;
+  tag_id?: string;
+  anotacoes?: string;
+  origem_lead?: string;
+  servico_interesse?: string;
+  clinica_id: string; // Obrigatório para associar à clínica correta
+}
 
-  // Função para mover lead entre etapas
-  const moverLead = async (leadId: string, novaEtapaId: string) => {
-    try {
-      const { error } = await supabase
+export interface UpdateLeadData extends Partial<CreateLeadData> {
+  id: string;
+}
+
+// Hook para buscar todos os leads da clínica do usuário
+export const useLeads = () => {
+  return useQuery({
+    queryKey: ['leads'],
+    queryFn: async (): Promise<Lead[]> => {
+      console.log('Buscando leads da clínica do usuário...');
+
+      const { data, error } = await supabase
         .from('leads')
-        .update({ 
-          etapa_kanban_id: novaEtapaId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', leadId);
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      if (error) throw error;
-
-      // Atualizar estado local
-      setLeads(prev => prev.map(lead => 
-        lead.id === leadId 
-          ? { ...lead, etapa_kanban_id: novaEtapaId }
-          : lead
-      ));
-    } catch (error) {
-      console.error('Erro ao mover lead:', error);
-      throw error;
-    }
-  };
-
-  // Função para salvar lead com validação
-  const salvarLead = async (leadData: any) => {
-    try {
-      // Validação local antes de enviar
-      if (!leadData.nome?.trim()) {
-        throw new Error('Nome do lead é obrigatório');
-      }
-      if (!leadData.telefone?.trim()) {
-        throw new Error('Telefone do lead é obrigatório');
+      if (error) {
+        console.error('Erro ao buscar leads:', error);
+        throw new Error(`Erro ao buscar leads: ${error.message}`);
       }
 
-      console.log('💾 Salvando lead com dados:', leadData);
+      console.log(`${data?.length || 0} leads encontrados`);
+      return data || [];
+    },
+    staleTime: 30000, // Cache por 30 segundos
+  });
+};
 
-      // Verificar corretamente se é edição (deve ter ID no leadData)
-      if (leadData.id) {
-        // Atualizar lead existente
-        console.log('📝 Atualizando lead existente com ID:', leadData.id);
-        
-        const updateData = {
-          nome: leadData.nome.trim(),
-          telefone: leadData.telefone.trim(),
-          email: leadData.email?.trim() || null,
-          anotacoes: leadData.anotacoes?.trim() || null,
-          tag_id: leadData.tag_id || null,
-          origem_lead: leadData.origem_lead || null,
-          servico_interesse: leadData.servico_interesse || null,
-          updated_at: new Date().toISOString()
-        };
+// Hook para buscar leads por etapa kanban
+export const useLeadsByEtapa = (etapaId: string | null) => {
+  return useQuery({
+    queryKey: ['leads', 'etapa', etapaId],
+    queryFn: async (): Promise<Lead[]> => {
+      if (!etapaId) return [];
 
-        console.log('📝 Dados para atualização:', updateData);
+      console.log('Buscando leads da etapa:', etapaId);
 
-        const { error } = await supabase
-          .from('leads')
-          .update(updateData)
-          .eq('id', leadData.id)
-          .eq('clinica_id', DEMO_CLINIC_ID);
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('etapa_kanban_id', etapaId)
+        .order('created_at', { ascending: false });
 
-        if (error) {
-          console.error('❌ Erro na atualização:', error);
-          throw error;
-        }
-
-        console.log('✅ Lead atualizado com sucesso');
-
-        // Atualizar estado local mantendo a ordenação
-        setLeads(prev => {
-          const leadsAtualizados = prev.map(lead => 
-            lead.id === leadData.id ? { ...lead, ...updateData } : lead
-          );
-          
-          // Re-ordenar por data_ultimo_contato após atualização
-          return leadsAtualizados.sort((a, b) => {
-            const dataA = a.data_ultimo_contato ? new Date(a.data_ultimo_contato).getTime() : 0;
-            const dataB = b.data_ultimo_contato ? new Date(b.data_ultimo_contato).getTime() : 0;
-            return dataB - dataA; // Mais recente primeiro
-          });
-        });
-      } else {
-        // Criar novo lead
-        console.log('➕ Criando novo lead');
-        
-        const insertData = {
-          nome: leadData.nome.trim(),
-          telefone: leadData.telefone.trim(),
-          email: leadData.email?.trim() || null,
-          anotacoes: leadData.anotacoes?.trim() || null,
-          tag_id: leadData.tag_id || null,
-          origem_lead: leadData.origem_lead || null,
-          servico_interesse: leadData.servico_interesse || null,
-          clinica_id: DEMO_CLINIC_ID,
-          etapa_kanban_id: null // Será definido no hook principal
-        };
-
-        console.log('➕ Dados para inserção:', insertData);
-
-        const { data, error } = await supabase
-          .from('leads')
-          .insert(insertData)
-          .select()
-          .single();
-
-        if (error) {
-          console.error('❌ Erro na inserção:', error);
-          throw error;
-        }
-
-        console.log('✅ Novo lead criado com sucesso:', data);
-
-        // Adicionar ao estado local
-        setLeads(prev => [data, ...prev]);
+      if (error) {
+        console.error('Erro ao buscar leads por etapa:', error);
+        throw new Error(`Erro ao buscar leads: ${error.message}`);
       }
-    } catch (error) {
-      console.error('❌ Erro ao salvar lead:', error);
-      throw error;
-    }
-  };
 
-  // Função para excluir lead
-  const excluirLead = async (leadId: string) => {
-    try {
-      console.log('🗑️ Excluindo lead:', leadId);
-      
+      return data || [];
+    },
+    enabled: !!etapaId,
+    staleTime: 30000,
+  });
+};
+
+// Hook para criar novo lead
+export const useCreateLead = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (leadData: CreateLeadData): Promise<Lead> => {
+      console.log('Criando novo lead:', leadData);
+
+      const { data, error } = await supabase
+        .from('leads')
+        .insert([leadData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Erro ao criar lead:', error);
+        throw new Error(`Erro ao criar lead: ${error.message}`);
+      }
+
+      console.log('Lead criado com sucesso:', data);
+      return data;
+    },
+    onSuccess: () => {
+      // Invalidar cache dos leads para refletir a mudança
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('Lead criado com sucesso!');
+    },
+    onError: (error: Error) => {
+      console.error('Erro na criação do lead:', error);
+      toast.error(`Erro ao criar lead: ${error.message}`);
+    },
+  });
+};
+
+// Hook para atualizar lead existente
+export const useUpdateLead = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (leadData: UpdateLeadData): Promise<Lead> => {
+      const { id, ...updateData } = leadData;
+      console.log('Atualizando lead:', id, updateData);
+
+      // Adicionar timestamp de atualização
+      const dataWithTimestamp = {
+        ...updateData,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('leads')
+        .update(dataWithTimestamp)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Erro ao atualizar lead:', error);
+        throw new Error(`Erro ao atualizar lead: ${error.message}`);
+      }
+
+      console.log('Lead atualizado com sucesso:', data);
+      return data;
+    },
+    onSuccess: () => {
+      // Invalidar cache dos leads para refletir a mudança
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('Lead atualizado com sucesso!');
+    },
+    onError: (error: Error) => {
+      console.error('Erro na atualização do lead:', error);
+      toast.error(`Erro ao atualizar lead: ${error.message}`);
+    },
+  });
+};
+
+// Hook para deletar lead
+export const useDeleteLead = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (leadId: string): Promise<void> => {
+      console.log('Deletando lead:', leadId);
+
       const { error } = await supabase
         .from('leads')
         .delete()
-        .eq('id', leadId)
-        .eq('clinica_id', DEMO_CLINIC_ID);
+        .eq('id', leadId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro ao deletar lead:', error);
+        throw new Error(`Erro ao deletar lead: ${error.message}`);
+      }
 
-      // Atualizar estado local removendo o lead da lista
-      setLeads(prev => prev.filter(lead => lead.id !== leadId));
-      
-      console.log('✅ Lead excluído com sucesso');
-    } catch (error) {
-      console.error('Erro ao excluir lead:', error);
-      throw error;
-    }
-  };
+      console.log('Lead deletado com sucesso');
+    },
+    onSuccess: () => {
+      // Invalidar cache dos leads para refletir a mudança
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('Lead deletado com sucesso!');
+    },
+    onError: (error: Error) => {
+      console.error('Erro na exclusão do lead:', error);
+      toast.error(`Erro ao deletar lead: ${error.message}`);
+    },
+  });
+};
 
-  // Função para buscar consultas de um lead específico
-  const buscarConsultasLead = async (leadId: string) => {
-    try {
+// Hook para mover lead para outra etapa
+export const useMoveLeadToEtapa = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ leadId, etapaId }: { leadId: string; etapaId: string }) => {
+      console.log('Movendo lead para etapa:', leadId, etapaId);
+
       const { data, error } = await supabase
-        .from('agendamentos')
-        .select('*')
-        .eq('cliente_id', leadId)
-        .order('data_inicio', { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('Erro ao buscar consultas:', error);
-      return [];
-    }
-  };
-
-  // Função para buscar leads
-  const buscarLeads = async () => {
-    try {
-      const { data: leadsData, error: leadsError } = await supabase
         .from('leads')
-        .select('*')
-        .eq('clinica_id', DEMO_CLINIC_ID)
-        .order('data_ultimo_contato', { ascending: false })
-        .order('updated_at', { ascending: false });
+        .update({ 
+          etapa_kanban_id: etapaId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', leadId)
+        .select()
+        .single();
 
-      if (leadsError) throw leadsError;
-      setLeads(leadsData || []);
-      return leadsData || [];
-    } catch (error) {
-      console.error('Erro ao buscar leads:', error);
-      return [];
-    }
-  };
+      if (error) {
+        console.error('Erro ao mover lead:', error);
+        throw new Error(`Erro ao mover lead: ${error.message}`);
+      }
 
-  return {
-    leads,
-    setLeads,
-    moverLead,
-    salvarLead,
-    excluirLead,
-    buscarConsultasLead,
-    buscarLeads
-  };
+      return data;
+    },
+    onSuccess: () => {
+      // Invalidar cache dos leads para refletir a mudança
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('Lead movido com sucesso!');
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao mover lead:', error);
+      toast.error(`Erro ao mover lead: ${error.message}`);
+    },
+  });
 };

@@ -741,6 +741,10 @@ export type Database = {
       }
     }
     Functions: {
+      get_user_clinica_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       is_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
