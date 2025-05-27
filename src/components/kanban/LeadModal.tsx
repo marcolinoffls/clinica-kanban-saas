@@ -1,16 +1,22 @@
 
 import { useState, useEffect } from 'react';
-import { X, History } from 'lucide-react';
+import { X, User, Phone, Mail, MessageSquare, Building, Stethoscope } from 'lucide-react';
 import { Lead } from './KanbanBoard';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 /**
- * Modal para criação e edição de leads
+ * Modal moderno para criação e edição de leads
  * 
- * Funcionalidades:
- * - Formulário completo para dados do lead
- * - Validação de campos obrigatórios
- * - Suporte a criação e edição
- * - Botão para visualizar histórico
+ * Design atualizado com:
+ * - Interface mais limpa e organizada
+ * - Campos específicos para CRM médico (origem, serviço de interesse)
+ * - Validação visual melhorada
+ * - Ícones funcionais para melhor UX
+ * - Seções organizadas logicamente
  * 
  * Props:
  * - isOpen: controla se o modal está visível
@@ -28,17 +34,45 @@ interface LeadModalProps {
   onOpenHistory?: () => void;
 }
 
+// Opções para origem do lead
+const origensLead = [
+  'Indicação',
+  'Site',
+  'Instagram',
+  'Facebook',
+  'Google Ads',
+  'WhatsApp',
+  'Busca Google',
+  'Outros'
+];
+
+// Opções para serviços de interesse
+const servicosInteresse = [
+  'Consulta de Avaliação',
+  'Implantes Dentários',
+  'Ortodontia',
+  'Clareamento Dental',
+  'Limpeza e Profilaxia',
+  'Restaurações',
+  'Próteses',
+  'Cirurgia Oral',
+  'Endodontia',
+  'Periodontia'
+];
+
 export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: LeadModalProps) => {
   // Estados do formulário
   const [formData, setFormData] = useState({
     nome: '',
     telefone: '',
     email: '',
-    anotacoes: '',
-    tag_id: ''
+    origem_lead: '',
+    servico_interesse: '',
+    anotacoes: ''
   });
   
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [isLoading, setIsLoading] = useState(false);
 
   // Preenche o formulário quando um lead é selecionado para edição
   useEffect(() => {
@@ -47,8 +81,9 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: Lead
         nome: lead.nome || '',
         telefone: lead.telefone || '',
         email: lead.email || '',
-        anotacoes: lead.anotacoes || '',
-        tag_id: lead.tag_id || ''
+        origem_lead: lead.origem_lead || '',
+        servico_interesse: lead.servico_interesse || '',
+        anotacoes: lead.anotacoes || ''
       });
     } else {
       // Limpa o formulário para criação
@@ -56,8 +91,9 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: Lead
         nome: '',
         telefone: '',
         email: '',
-        anotacoes: '',
-        tag_id: ''
+        origem_lead: '',
+        servico_interesse: '',
+        anotacoes: ''
       });
     }
     setErrors({});
@@ -72,7 +108,7 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: Lead
     }
   };
 
-  // Validação local do formulário
+  // Validação do formulário
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
     
@@ -84,6 +120,14 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: Lead
       newErrors.telefone = 'Telefone é obrigatório';
     }
     
+    if (!formData.origem_lead) {
+      newErrors.origem_lead = 'Origem do lead é obrigatória';
+    }
+    
+    if (!formData.servico_interesse) {
+      newErrors.servico_interesse = 'Serviço de interesse é obrigatório';
+    }
+    
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Email deve ter formato válido';
     }
@@ -93,124 +137,233 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: Lead
   };
 
   // Função para salvar o lead
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validateForm()) return;
     
-    onSave(formData);
+    setIsLoading(true);
+    try {
+      await onSave(formData);
+      onClose();
+    } catch (error) {
+      console.error('Erro ao salvar lead:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Função para formatar telefone
+  const formatPhone = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    const match = cleaned.match(/^(\d{2})(\d{5})(\d{4})$/);
+    if (match) {
+      return `(${match[1]}) ${match[2]}-${match[3]}`;
+    }
+    return value;
   };
 
   // Não renderiza nada se o modal estiver fechado
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
         {/* Header do modal */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <h3 className="text-lg font-semibold">
-              {lead ? 'Editar Lead' : 'Novo Lead'}
-            </h3>
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <User className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900">
+                {lead ? 'Editar Lead' : 'Novo Lead'}
+              </h3>
+              <p className="text-sm text-gray-500">
+                {lead ? 'Atualize as informações do lead' : 'Adicione um novo lead ao sistema'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Conteúdo do modal */}
+        <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+          <div className="space-y-8">
+            {/* Seção: Informações Básicas */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                <User className="w-4 h-4 text-gray-500" />
+                <h4 className="text-lg font-medium text-gray-900">Informações do Lead</h4>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Nome Completo */}
+                <div className="md:col-span-2">
+                  <Label htmlFor="nome" className="text-sm font-medium text-gray-700">
+                    Nome Completo <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="nome"
+                    type="text"
+                    value={formData.nome}
+                    onChange={(e) => handleInputChange('nome', e.target.value)}
+                    className={`mt-1 ${errors.nome ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
+                    placeholder="Nome completo do lead"
+                  />
+                  {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
+                </div>
+
+                {/* Telefone */}
+                <div>
+                  <Label htmlFor="telefone" className="text-sm font-medium text-gray-700">
+                    Telefone <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative mt-1">
+                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      id="telefone"
+                      type="tel"
+                      value={formData.telefone}
+                      onChange={(e) => {
+                        const formatted = formatPhone(e.target.value);
+                        handleInputChange('telefone', formatted);
+                      }}
+                      className={`pl-10 ${errors.telefone ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
+                      placeholder="(11) 99999-9999"
+                    />
+                  </div>
+                  {errors.telefone && <p className="text-red-500 text-xs mt-1">{errors.telefone}</p>}
+                </div>
+
+                {/* Email */}
+                <div>
+                  <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                    Email
+                  </Label>
+                  <div className="relative mt-1">
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      className={`pl-10 ${errors.email ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
+                      placeholder="email@exemplo.com"
+                    />
+                  </div>
+                  {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+                </div>
+
+                {/* Origem do Lead */}
+                <div>
+                  <Label htmlFor="origem" className="text-sm font-medium text-gray-700">
+                    Origem do Lead <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative mt-1">
+                    <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+                    <Select value={formData.origem_lead} onValueChange={(value) => handleInputChange('origem_lead', value)}>
+                      <SelectTrigger className={`pl-10 ${errors.origem_lead ? 'border-red-300' : ''}`}>
+                        <SelectValue placeholder="Selecione a origem" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {origensLead.map((origem) => (
+                          <SelectItem key={origem} value={origem}>
+                            {origem}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {errors.origem_lead && <p className="text-red-500 text-xs mt-1">{errors.origem_lead}</p>}
+                </div>
+
+                {/* Serviço de Interesse */}
+                <div>
+                  <Label htmlFor="servico" className="text-sm font-medium text-gray-700">
+                    Serviço de Interesse <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative mt-1">
+                    <Stethoscope className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+                    <Select value={formData.servico_interesse} onValueChange={(value) => handleInputChange('servico_interesse', value)}>
+                      <SelectTrigger className={`pl-10 ${errors.servico_interesse ? 'border-red-300' : ''}`}>
+                        <SelectValue placeholder="Selecione o serviço" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {servicosInteresse.map((servico) => (
+                          <SelectItem key={servico} value={servico}>
+                            {servico}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {errors.servico_interesse && <p className="text-red-500 text-xs mt-1">{errors.servico_interesse}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* Seção: Detalhes Adicionais */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                <MessageSquare className="w-4 h-4 text-gray-500" />
+                <h4 className="text-lg font-medium text-gray-900">Detalhes Adicionais</h4>
+              </div>
+              
+              <div>
+                <Label htmlFor="observacoes" className="text-sm font-medium text-gray-700">
+                  Observações
+                </Label>
+                <Textarea
+                  id="observacoes"
+                  value={formData.anotacoes}
+                  onChange={(e) => handleInputChange('anotacoes', e.target.value)}
+                  rows={4}
+                  className="mt-1 resize-none"
+                  placeholder="Anotações sobre o lead, primeiro contato, necessidades específicas..."
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer do modal */}
+        <div className="flex justify-between items-center p-6 border-t border-gray-100 bg-gray-50">
+          <div className="flex items-center gap-3">
             {lead && onOpenHistory && (
-              <button
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
                 onClick={onOpenHistory}
-                className="flex items-center gap-1 px-2 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                className="text-blue-600 border-blue-200 hover:bg-blue-50"
               >
-                <History size={14} />
-                Histórico
-              </button>
+                Ver Histórico
+              </Button>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Formulário */}
-        <div className="space-y-4">
-          {/* Campo Nome */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nome *
-            </label>
-            <input
-              type="text"
-              value={formData.nome}
-              onChange={(e) => handleInputChange('nome', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                errors.nome ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
-              }`}
-              placeholder="Nome completo"
-            />
-            {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
+          
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isLoading}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={isLoading}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isLoading ? 'Salvando...' : (lead ? 'Salvar Alterações' : 'Criar Lead')}
+            </Button>
           </div>
-
-          {/* Campo Telefone */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Telefone *
-            </label>
-            <input
-              type="tel"
-              value={formData.telefone}
-              onChange={(e) => handleInputChange('telefone', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                errors.telefone ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
-              }`}
-              placeholder="(11) 99999-9999"
-            />
-            {errors.telefone && <p className="text-red-500 text-xs mt-1">{errors.telefone}</p>}
-          </div>
-
-          {/* Campo Email */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => handleInputChange('email', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                errors.email ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
-              }`}
-              placeholder="email@exemplo.com"
-            />
-            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-          </div>
-
-          {/* Campo Notas */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Observações
-            </label>
-            <textarea
-              value={formData.anotacoes}
-              onChange={(e) => handleInputChange('anotacoes', e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Anotações sobre o lead..."
-            />
-          </div>
-        </div>
-
-        {/* Botões de ação */}
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            {lead ? 'Atualizar' : 'Criar'}
-          </button>
         </div>
       </div>
     </div>
