@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Componente de detalhes individuais da clínica no painel administrativo
@@ -17,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
  * - Exibe informações detalhadas da clínica
  * - Permite editar o prompt administrativo
  * - Gerencia Nome da Instância Evolution
- * - Gerencia API Key da Evolution
+ * - Gerencia API Key da Evolution via Supabase Vault (seguro)
  * - Mostra estatísticas específicas da clínica
  */
 
@@ -30,8 +31,7 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
   const {
     buscarDetalhesClinica,
     atualizarPromptClinica,
-    atualizarNomeInstanciaEvolution,
-    atualizarApiKeyEvolution
+    atualizarNomeInstanciaEvolution
   } = useSupabaseAdmin();
 
   const { toast } = useToast();
@@ -53,7 +53,8 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
         setClinica(dados);
         setAdminPrompt(dados.admin_prompt || '');
         setEvolutionInstanceName(dados.evolution_instance_name || '');
-        setEvolutionApiKey(dados.evolution_api_key || '');
+        // Não carregamos evolution_api_key do banco pois agora está no Vault
+        setEvolutionApiKey('');
       } catch (error) {
         console.error('Erro ao carregar detalhes da clínica:', error);
         toast({
@@ -113,21 +114,36 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
     }
   };
 
-  // Função para salvar a API Key da Evolution
+  // Função para salvar a API Key da Evolution no Supabase Vault
   const salvarEvolutionApiKey = async () => {
     try {
       setSavingApiKey(true);
-      await atualizarApiKeyEvolution(clinicaId, evolutionApiKey);
+      
+      // Chamar Edge Function para armazenar a API Key no Vault
+      const { data, error } = await supabase.functions.invoke('set-clinic-evolution-secret', {
+        body: {
+          clinica_id: clinicaId,
+          api_key: evolutionApiKey
+        }
+      });
+
+      if (error) {
+        console.error('Erro ao salvar API Key no Vault:', error);
+        throw error;
+      }
       
       toast({
         title: "Sucesso",
-        description: "API Key da Evolution salva com sucesso.",
+        description: "API Key da Evolution salva com segurança no Vault.",
       });
+
+      // Limpar o campo após salvar (já que não podemos ler de volta do Vault)
+      setEvolutionApiKey('');
     } catch (error) {
       console.error('Erro ao salvar API Key:', error);
       toast({
         title: "Erro",
-        description: "Não foi possível salvar a API Key.",
+        description: "Não foi possível salvar a API Key da Evolution.",
         variant: "destructive",
       });
     } finally {
@@ -339,7 +355,7 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
               </p>
             </div>
 
-            {/* API Key da Evolution */}
+            {/* API Key da Evolution - Agora via Supabase Vault */}
             <div>
               <Label htmlFor="evolution-api-key">
                 API Key da Evolution
@@ -360,11 +376,14 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
                   className="flex items-center gap-2"
                 >
                   <Key className="w-4 h-4" />
-                  {savingApiKey ? 'Salvando...' : 'Salvar API Key'}
+                  {savingApiKey ? 'Salvando...' : 'Definir API Key'}
                 </Button>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Chave de autenticação para acesso à Evolution API
+                Chave de autenticação armazenada com segurança no Supabase Vault
+              </p>
+              <p className="text-xs text-yellow-600 mt-1">
+                Por motivos de segurança, a API Key não é exibida após ser salva
               </p>
             </div>
           </CardContent>
