@@ -1,12 +1,12 @@
-
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Building2, Clock, MessageSquare, Save, Link2 } from 'lucide-react';
+import { ArrowLeft, Building2, Clock, MessageSquare, Save, Link2, Key } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
 import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
 import { useToast } from '@/hooks/use-toast';
 
@@ -16,7 +16,8 @@ import { useToast } from '@/hooks/use-toast';
  * Funcionalidades:
  * - Exibe informações detalhadas da clínica
  * - Permite editar o prompt administrativo
- * - Gerencia ID da instância de integração
+ * - Gerencia Nome da Instância Evolution
+ * - Gerencia API Key da Evolution
  * - Mostra estatísticas específicas da clínica
  */
 
@@ -29,7 +30,8 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
   const {
     buscarDetalhesClinica,
     atualizarPromptClinica,
-    atualizarInstanciaIntegracao
+    atualizarNomeInstanciaEvolution,
+    atualizarApiKeyEvolution
   } = useSupabaseAdmin();
 
   const { toast } = useToast();
@@ -37,8 +39,10 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
   const [clinica, setClinica] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingApiKey, setSavingApiKey] = useState(false);
   const [adminPrompt, setAdminPrompt] = useState('');
-  const [instanceId, setInstanceId] = useState('');
+  const [evolutionInstanceName, setEvolutionInstanceName] = useState('');
+  const [evolutionApiKey, setEvolutionApiKey] = useState('');
 
   // Carregar dados da clínica ao inicializar
   useEffect(() => {
@@ -48,7 +52,8 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
         const dados = await buscarDetalhesClinica(clinicaId);
         setClinica(dados);
         setAdminPrompt(dados.admin_prompt || '');
-        setInstanceId(dados.integracao_instance_id || '');
+        setEvolutionInstanceName(dados.evolution_instance_name || '');
+        setEvolutionApiKey(dados.evolution_api_key || '');
       } catch (error) {
         console.error('Erro ao carregar detalhes da clínica:', error);
         toast({
@@ -86,25 +91,47 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
     }
   };
 
-  // Função para salvar o ID da instância de integração
-  const salvarInstanceId = async () => {
+  // Função para salvar o nome da instância Evolution
+  const salvarEvolutionInstanceName = async () => {
     try {
       setSaving(true);
-      await atualizarInstanciaIntegracao(clinicaId, instanceId);
+      await atualizarNomeInstanciaEvolution(clinicaId, evolutionInstanceName);
       
       toast({
         title: "Sucesso",
-        description: "ID da instância de integração salvo com sucesso.",
+        description: "Nome da instância Evolution salvo com sucesso.",
       });
     } catch (error) {
-      console.error('Erro ao salvar instance ID:', error);
+      console.error('Erro ao salvar nome da instância:', error);
       toast({
         title: "Erro",
-        description: "Não foi possível salvar o ID da instância.",
+        description: "Não foi possível salvar o nome da instância.",
         variant: "destructive",
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Função para salvar a API Key da Evolution
+  const salvarEvolutionApiKey = async () => {
+    try {
+      setSavingApiKey(true);
+      await atualizarApiKeyEvolution(clinicaId, evolutionApiKey);
+      
+      toast({
+        title: "Sucesso",
+        description: "API Key da Evolution salva com sucesso.",
+      });
+    } catch (error) {
+      console.error('Erro ao salvar API Key:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar a API Key.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingApiKey(false);
     }
   };
 
@@ -275,39 +302,71 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
           </CardContent>
         </Card>
 
-        {/* ID da Instância de Integração */}
+        {/* Configurações da Evolution API */}
         <Card>
           <CardHeader>
-            <CardTitle>Configurações de Integração</CardTitle>
+            <CardTitle>Configurações da Evolution API</CardTitle>
             <CardDescription>
-              Configurações técnicas de integração com APIs externas
+              Configurações de integração com a Evolution API para WhatsApp
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
+            {/* Nome da Instância Evolution */}
             <div>
-              <Label htmlFor="instance-id">
-                ID da Instância de Integração
+              <Label htmlFor="evolution-instance-name">
+                Nome da Instância Evolution
               </Label>
-              <Input
-                id="instance-id"
-                placeholder="Digite o ID da instância (ex: WhatsApp API, Evolution API)"
-                value={instanceId}
-                onChange={(e) => setInstanceId(e.target.value)}
-                className="mt-2"
-              />
+              <div className="flex gap-2 mt-2">
+                <Input
+                  id="evolution-instance-name"
+                  placeholder="Digite o nome da instância (ex: minha-clinica-instance)"
+                  value={evolutionInstanceName}
+                  onChange={(e) => setEvolutionInstanceName(e.target.value)}
+                  className="flex-1"
+                />
+                <Button 
+                  onClick={salvarEvolutionInstanceName} 
+                  disabled={saving}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <Link2 className="w-4 h-4" />
+                  {saving ? 'Salvando...' : 'Salvar'}
+                </Button>
+              </div>
               <p className="text-xs text-gray-500 mt-1">
-                Este ID será usado para configurações de integração com APIs externas
+                Nome único da sua instância na Evolution API
               </p>
             </div>
-            <Button 
-              onClick={salvarInstanceId} 
-              disabled={saving}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              {saving ? 'Salvando...' : 'Salvar ID da Instância'}
-            </Button>
+
+            {/* API Key da Evolution */}
+            <div>
+              <Label htmlFor="evolution-api-key">
+                API Key da Evolution
+              </Label>
+              <div className="flex gap-2 mt-2">
+                <PasswordInput
+                  value={evolutionApiKey}
+                  onChange={setEvolutionApiKey}
+                  placeholder="Digite a API Key da Evolution"
+                  className="flex-1"
+                  label=""
+                  description=""
+                />
+                <Button 
+                  onClick={salvarEvolutionApiKey} 
+                  disabled={savingApiKey}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <Key className="w-4 h-4" />
+                  {savingApiKey ? 'Salvando...' : 'Salvar API Key'}
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Chave de autenticação para acesso à Evolution API
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -200,6 +200,7 @@ export type Database = {
           email: string
           endereco: string | null
           endereco_completo: string | null
+          evolution_api_key: string | null
           evolution_instance_name: string | null
           id: string
           integracao_instance_id: string | null
@@ -218,6 +219,7 @@ export type Database = {
           email: string
           endereco?: string | null
           endereco_completo?: string | null
+          evolution_api_key?: string | null
           evolution_instance_name?: string | null
           id?: string
           integracao_instance_id?: string | null
@@ -236,6 +238,7 @@ export type Database = {
           email?: string
           endereco?: string | null
           endereco_completo?: string | null
+          evolution_api_key?: string | null
           evolution_instance_name?: string | null
           id?: string
           integracao_instance_id?: string | null
