@@ -5,29 +5,7 @@ import { ChatWindow } from './ChatWindow';
 import { LeadInfoSidebar } from './LeadInfoSidebar';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useWebhook } from '@/hooks/useWebhook';
-
-/**
- * Página de Chat - Interface similar ao WhatsApp Web com persistência
- * 
- * Funcionalidades:
- * - Lista de conversas na lateral esquerda ordenada por atividade recente
- * - Indicadores visuais de mensagens não lidas
- * - Área de mensagens no centro com persistência no Supabase
- * - Painel de informações do lead na lateral direita
- * - Entrada de mensagem avançada com respostas prontas
- * - Busca de conversas
- * - Histórico de mensagens persistente
- * - Webhook automático para cada mensagem enviada (com estado da IA)
- * - Marcar mensagens como lidas automaticamente
- * 
- * Integração com Supabase:
- * - Busca mensagens da tabela chat_mensagens
- * - Salva novas mensagens automaticamente
- * - Carrega respostas prontas da tabela respostas_prontas
- * - Sincroniza com dados dos leads
- * - Contadores de mensagens não lidas em tempo real
- * - Envia webhook para integração externa com informações da IA
- */
+import { useClinicaData } from '@/hooks/useClinicaData';
 
 interface Message {
   id: string;
@@ -44,6 +22,9 @@ interface ChatPageProps {
 }
 
 export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
+  // Adicionar hook useClinicaData para acesso direto ao clinicaId
+  const { clinicaId: clinicaIdDireto } = useClinicaData();
+  
   const {
     leads,
     tags,
@@ -83,33 +64,60 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     lead.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Função para enviar mensagem com webhook (incluindo estado da IA)
+  // Função para enviar mensagem com webhook (incluindo estado da IA) - ATUALIZADA
   const handleSendMessage = async (aiEnabled?: boolean) => {
     if (!messageInput.trim() || !selectedConversation || sendingMessage) return;
     
     try {
       setSendingMessage(true);
+      
+      // Log detalhado antes do envio
+      console.log('📝 [ChatPage] Preparando envio de mensagem:');
+      console.log('- selectedConversation (leadId):', selectedConversation);
+      console.log('- messageInput:', messageInput.substring(0, 50) + '...');
+      console.log('- clinicaIdDireto:', clinicaIdDireto);
+      
       const novaMensagemRaw = await enviarMensagem(selectedConversation, messageInput);
+      
+      console.log('✅ [ChatPage] Mensagem salva, dados recebidos:', novaMensagemRaw);
       
       // Limpar input
       setMessageInput('');
 
       // Enviar webhook de forma assíncrona (não bloqueia a interface)
       const leadSelecionado = leads.find(l => l.id === selectedConversation);
-      if (leadSelecionado?.clinica_id && novaMensagemRaw.enviado_por === 'usuario') {
+      
+      console.log('🔍 [ChatPage] Verificando dados para webhook:');
+      console.log('- leadSelecionado:', leadSelecionado);
+      console.log('- leadSelecionado.clinica_id:', leadSelecionado?.clinica_id);
+      console.log('- novaMensagemRaw.enviado_por:', novaMensagemRaw.enviado_por);
+      console.log('- clinicaIdDireto (fallback):', clinicaIdDireto);
+      
+      // Usar clinica_id do lead ou fallback para clinicaIdDireto
+      const clinicaIdParaWebhook = leadSelecionado?.clinica_id || clinicaIdDireto;
+      
+      if (clinicaIdParaWebhook && novaMensagemRaw.enviado_por === 'usuario') {
+        console.log('🚀 [ChatPage] Enviando webhook com dados:');
+        console.log('- clinicaIdParaWebhook:', clinicaIdParaWebhook);
+        console.log('- aiEnabled:', aiEnabled || false);
+        
         enviarWebhook(
           novaMensagemRaw.id,
           novaMensagemRaw.lead_id,
-          leadSelecionado.clinica_id,
+          clinicaIdParaWebhook,
           novaMensagemRaw.conteudo,
           novaMensagemRaw.tipo || 'texto',
           novaMensagemRaw.created_at,
           aiEnabled || false
         );
+      } else {
+        console.warn('⚠️ [ChatPage] Webhook não enviado:');
+        console.warn('- clinicaIdParaWebhook:', clinicaIdParaWebhook);
+        console.warn('- enviado_por:', novaMensagemRaw.enviado_por);
       }
 
     } catch (error) {
-      console.error('Erro ao enviar mensagem:', error);
+      console.error('❌ [ChatPage] Erro ao enviar mensagem:', error);
     } finally {
       setSendingMessage(false);
     }

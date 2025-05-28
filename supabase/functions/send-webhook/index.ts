@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import * as djwt from "https://deno.land/x/djwt@v2.7/mod.ts"
@@ -53,10 +52,19 @@ serve(async (req) => {
   }
 
   try {
+    // Log da requisição recebida
+    console.log('🔍 [send-webhook] Requisição recebida');
+    console.log('- Method:', req.method);
+    console.log('- Headers:', Object.fromEntries(req.headers.entries()));
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
     )
+
+    const requestBody = await req.json()
+    console.log('📋 [send-webhook] Payload recebido:');
+    console.log(JSON.stringify(requestBody, null, 2));
 
     const { 
       mensagem_id, 
@@ -66,25 +74,107 @@ serve(async (req) => {
       tipo, 
       created_at,
       evento_boolean = false // Estado do botão IA
-    } = await req.json()
+    } = requestBody
 
-    // Buscar dados da clínica incluindo evolution_instance_name
-    const { data: clinica, error: clinicaError } = await supabaseClient
-      .from('clinicas')
-      .select('id, evolution_instance_name')
-      .eq('id', clinica_id)
-      .single()
+    // Validações detalhadas do payload
+    console.log('✅ [send-webhook] Validando parâmetros:');
+    console.log('- mensagem_id:', mensagem_id, 'type:', typeof mensagem_id);
+    console.log('- lead_id:', lead_id, 'type:', typeof lead_id);
+    console.log('- clinica_id:', clinica_id, 'type:', typeof clinica_id);
+    console.log('- conteudo length:', conteudo?.length);
+    console.log('- tipo:', tipo);
+    console.log('- created_at:', created_at);
+    console.log('- evento_boolean:', evento_boolean);
 
-    if (clinicaError || !clinica?.evolution_instance_name) {
-      console.error('Erro ao buscar dados da clínica ou instância não configurada:', clinicaError)
+    if (!clinica_id) {
+      console.error('❌ [send-webhook] ERRO: clinica_id não fornecido');
       return new Response(
-        JSON.stringify({ error: 'Instância Evolution não configurada ou clínica não encontrada' }),
+        JSON.stringify({ error: 'clinica_id é obrigatório' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
     }
+
+    // Buscar dados da clínica com logs detalhados
+    console.log('🔍 [send-webhook] Buscando dados da clínica...');
+    console.log('- Executando query: SELECT id, evolution_instance_name FROM clinicas WHERE id =', clinica_id);
+
+    const { data: clinica, error: clinicaError } = await supabaseClient
+      .from('clinicas')
+      .select('id, evolution_instance_name')
+      .eq('id', clinica_id)
+      .single()
+
+    console.log('📊 [send-webhook] Resultado da query:');
+    console.log('- data:', clinica);
+    console.log('- error:', clinicaError);
+
+    if (clinicaError) {
+      console.error('❌ [send-webhook] Erro na query da clínica:', clinicaError);
+      console.error('- Code:', clinicaError.code);
+      console.error('- Message:', clinicaError.message);
+      console.error('- Details:', clinicaError.details);
+      console.error('- Hint:', clinicaError.hint);
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erro ao buscar dados da clínica',
+          details: clinicaError.message,
+          code: clinicaError.code
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    if (!clinica) {
+      console.error('❌ [send-webhook] Clínica não encontrada para ID:', clinica_id);
+      console.log('- Verificando se o ID existe na tabela...');
+      
+      // Query adicional para verificar se existe alguma clínica
+      const { data: todasClinicas, error: errorTodasClinicas } = await supabaseClient
+        .from('clinicas')
+        .select('id, nome')
+        .limit(5)
+
+      console.log('📋 [send-webhook] Primeiras 5 clínicas na tabela:');
+      console.log('- data:', todasClinicas);
+      console.log('- error:', errorTodasClinicas);
+
+      return new Response(
+        JSON.stringify({ 
+          error: 'Clínica não encontrada',
+          clinica_id_procurado: clinica_id,
+          clinicas_existentes: todasClinicas?.map(c => ({ id: c.id, nome: c.nome })) || []
+        }),
+        { 
+          status: 404, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    if (!clinica.evolution_instance_name) {
+      console.error('❌ [send-webhook] evolution_instance_name não configurado para clínica:', clinica_id);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Instância Evolution não configurada para esta clínica',
+          clinica_id: clinica_id
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    console.log('✅ [send-webhook] Clínica encontrada:');
+    console.log('- ID:', clinica.id);
+    console.log('- Evolution Instance:', clinica.evolution_instance_name);
 
     // URL fixa para webhook do n8n (multi-tenancy via payload)
     const webhookUrl = `https://webhooks.marcolinofernades.site/webhook/crm`
@@ -240,9 +330,13 @@ serve(async (req) => {
     }
 
   } catch (error) {
-    console.error('Erro na função webhook:', error)
+    console.error('❌ [send-webhook] Erro geral na função:', error);
+    console.error('- Stack:', error.stack);
     return new Response(
-      JSON.stringify({ error: 'Erro interno do servidor' }),
+      JSON.stringify({ 
+        error: 'Erro interno do servidor',
+        message: error.message
+      }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
