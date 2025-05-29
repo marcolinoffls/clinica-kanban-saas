@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Save, Users, Bell, Shield, CreditCard } from 'lucide-react';
+import { Save, Users, Bell, Shield, CreditCard, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PasswordInput } from '@/components/ui/password-input';
+import { ClinicServicesManager } from './ClinicServicesManager';
 
 /**
  * Página de Configurações
@@ -12,6 +13,7 @@ import { PasswordInput } from '@/components/ui/password-input';
  * - Gerenciamento de usuários e permissões
  * - Configurações de notificações
  * - Integrações externas (inclui evolution_instance_name com campo seguro)
+ * - Serviços da clínica (nova seção para gerenciar procedimentos)
  * - Configurações de segurança
  * 
  * Todas as configurações são persistidas no Supabase
@@ -130,9 +132,10 @@ export const SettingsPage = () => {
     }
   };
 
-  // Tabs de navegação
+  // Tabs de navegação (adicionando nova aba "Serviços")
   const tabs = [
     { id: 'clinic', label: 'Clínica', icon: Shield },
+    { id: 'services', label: 'Serviços', icon: Settings },
     { id: 'users', label: 'Usuários', icon: Users },
     { id: 'notifications', label: 'Notificações', icon: Bell },
     { id: 'integrations', label: 'Integrações', icon: CreditCard }
@@ -301,6 +304,13 @@ export const SettingsPage = () => {
                   </p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Nova aba de Serviços */}
+          {activeTab === 'services' && (
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+              <ClinicServicesManager />
             </div>
           )}
 

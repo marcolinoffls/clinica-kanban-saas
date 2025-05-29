@@ -192,6 +192,48 @@ export type Database = {
           },
         ]
       }
+      clinica_servicos: {
+        Row: {
+          ativo: boolean
+          clinica_id: string
+          created_at: string | null
+          id: string
+          nome_servico: string
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          clinica_id: string
+          created_at?: string | null
+          id?: string
+          nome_servico: string
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          clinica_id?: string
+          created_at?: string | null
+          id?: string
+          nome_servico?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinica_servicos_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinica_servicos_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinicas: {
         Row: {
           admin_prompt: string | null
