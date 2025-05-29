@@ -11,8 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
  * - Configurar usuário como administrador
  * - Buscar KPIs globais do sistema
  * - Gerenciar usuários das clínicas
- * - Gerenciar configurações da Evolution API (Nome da Instância)
- * - API Keys agora são gerenciadas via Supabase Vault (seguro)
+ * - Gerenciar configurações da Evolution API (Nome da Instância e API Key)
  */
 
 export const useSupabaseAdmin = () => {
@@ -279,6 +278,32 @@ export const useSupabaseAdmin = () => {
     }
   };
 
+  // Função para atualizar o ID da instância de integração
+  const atualizarInstanciaIntegracao = async (clinicaId: string, instanceId: string) => {
+    try {
+      console.log('🔗 Atualizando instância de integração da clínica:', clinicaId);
+
+      const { error } = await supabase
+        .from('clinicas')
+        .update({ integracao_instance_id: instanceId })
+        .eq('id', clinicaId);
+
+      if (error) throw error;
+
+      // Atualizar o estado local
+      setClinicas(prev => prev.map(clinica => 
+        clinica.id === clinicaId 
+          ? { ...clinica, integracao_instance_id: instanceId }
+          : clinica
+      ));
+
+      console.log('✅ Instância de integração atualizada com sucesso');
+    } catch (error) {
+      console.error('Erro ao atualizar instância de integração:', error);
+      throw error;
+    }
+  };
+
   // Função para atualizar o nome da instância Evolution de uma clínica
   const atualizarNomeInstanciaEvolution = async (clinicaId: string, nomeInstancia: string) => {
     try {
@@ -305,6 +330,32 @@ export const useSupabaseAdmin = () => {
     }
   };
 
+  // Função para atualizar a API Key da Evolution de uma clínica
+  const atualizarApiKeyEvolution = async (clinicaId: string, apiKey: string) => {
+    try {
+      console.log('🔑 Atualizando API Key da Evolution da clínica:', clinicaId);
+
+      const { error } = await supabase
+        .from('clinicas')
+        .update({ evolution_api_key: apiKey })
+        .eq('id', clinicaId);
+
+      if (error) throw error;
+
+      // Atualizar o estado local
+      setClinicas(prev => prev.map(clinica => 
+        clinica.id === clinicaId 
+          ? { ...clinica, evolution_api_key: apiKey }
+          : clinica
+      ));
+
+      console.log('✅ API Key da Evolution atualizada com sucesso');
+    } catch (error) {
+      console.error('Erro ao atualizar API Key da Evolution:', error);
+      throw error;
+    }
+  };
+
   return {
     loading,
     clinicas,
@@ -317,6 +368,7 @@ export const useSupabaseAdmin = () => {
     atualizarInformacoesClinica,
     buscarUsuariosClinica,
     atualizarPromptClinica,
-    atualizarNomeInstanciaEvolution
+    atualizarNomeInstanciaEvolution,
+    atualizarApiKeyEvolution
   };
 };
