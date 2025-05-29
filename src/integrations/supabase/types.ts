@@ -393,6 +393,7 @@ export type Database = {
           ltv: number | null
           name: string | null
           nome: string
+          nome_clinica: string | null
           notes: string | null
           origem_lead: string | null
           phone: string | null
@@ -417,6 +418,7 @@ export type Database = {
           ltv?: number | null
           name?: string | null
           nome: string
+          nome_clinica?: string | null
           notes?: string | null
           origem_lead?: string | null
           phone?: string | null
@@ -441,6 +443,7 @@ export type Database = {
           ltv?: number | null
           name?: string | null
           nome?: string
+          nome_clinica?: string | null
           notes?: string | null
           origem_lead?: string | null
           phone?: string | null

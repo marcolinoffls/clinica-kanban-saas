@@ -24,8 +24,8 @@ interface ChatPageProps {
 }
 
 export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
-  // Adicionar hook useClinicaData para acesso direto ao clinicaId
-  const { clinicaId: clinicaIdDireto } = useClinicaData();
+  // Hook para acesso direto ao clinicaId e dados da clínica
+  const { clinicaId: clinicaIdDireto, clinica: clinicaCompleta } = useClinicaData();
   
   const {
     leads,
@@ -48,7 +48,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   // Buscar o lead selecionado
   const selectedLead = leads.find(l => l.id === selectedConversation) || null;
 
-  // NOVO: Hook para controlar a IA da conversa
+  // Hook para controlar a IA da conversa
   const { aiEnabled, toggleAI, isInitializing } = useAIConversationControl({
     selectedLead,
     updateLeadAiConversationStatus
@@ -76,61 +76,119 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     lead.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Função para enviar mensagem com webhook (incluindo estado da IA) - ATUALIZADA
+  // Função para validar se um clinica_id existe e é válido
+  const validarClinicaId = (clinicaId: string | null): boolean => {
+    if (!clinicaId) {
+      console.error('❌ [ChatPage] clinica_id é nulo ou vazio');
+      return false;
+    }
+
+    // Verificar formato UUID básico
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(clinicaId)) {
+      console.error('❌ [ChatPage] clinica_id não tem formato UUID válido:', clinicaId);
+      return false;
+    }
+
+    return true;
+  };
+
+  // Função para enviar mensagem com webhook e validação robusta do clinica_id
   const handleSendMessage = async (aiEnabledForMessage?: boolean) => {
     if (!messageInput.trim() || !selectedConversation || sendingMessage) return;
     
     try {
       setSendingMessage(true);
       
-      // Log detalhado antes do envio
-      console.log('📝 [ChatPage] Preparando envio de mensagem:');
+      // Logs detalhados ANTES do envio para diagnóstico
+      console.log('🔍 [ChatPage] DIAGNÓSTICO COMPLETO - Preparando envio de mensagem:');
       console.log('- selectedConversation (leadId):', selectedConversation);
       console.log('- messageInput:', messageInput.substring(0, 50) + '...');
-      console.log('- clinicaIdDireto:', clinicaIdDireto);
-      console.log('- aiEnabledForMessage:', aiEnabledForMessage);
+      console.log('- leads.length:', leads.length);
       
+      // Buscar o lead selecionado com logs detalhados
+      const leadSelecionado = leads.find(l => l.id === selectedConversation);
+      console.log('- leadSelecionado encontrado:', !!leadSelecionado);
+      if (leadSelecionado) {
+        console.log('- leadSelecionado.id:', leadSelecionado.id);
+        console.log('- leadSelecionado.nome:', leadSelecionado.nome);
+        console.log('- leadSelecionado.clinica_id:', leadSelecionado.clinica_id);
+        console.log('- leadSelecionado.clinica_id é válido?', validarClinicaId(leadSelecionado.clinica_id));
+      } else {
+        console.error('❌ [ChatPage] Lead selecionado não encontrado na lista de leads!');
+      }
+      
+      // Logs dos dados da clínica
+      console.log('- clinicaIdDireto (useClinicaData):', clinicaIdDireto);
+      console.log('- clinicaIdDireto é válido?', validarClinicaId(clinicaIdDireto));
+      console.log('- clinicaCompleta:', clinicaCompleta ? {
+        id: clinicaCompleta.id,
+        nome: clinicaCompleta.nome,
+        evolution_instance_name: clinicaCompleta.evolution_instance_name
+      } : 'null');
+      
+      // Determinação robusta do clinica_id para webhook
+      let clinicaIdParaWebhook: string | null = null;
+      
+      // Prioridade 1: clinica_id do lead se for válido
+      if (leadSelecionado?.clinica_id && validarClinicaId(leadSelecionado.clinica_id)) {
+        clinicaIdParaWebhook = leadSelecionado.clinica_id;
+        console.log('✅ [ChatPage] Usando clinica_id do lead:', clinicaIdParaWebhook);
+      }
+      // Prioridade 2: clinica_id direto do contexto se for válido
+      else if (clinicaIdDireto && validarClinicaId(clinicaIdDireto)) {
+        clinicaIdParaWebhook = clinicaIdDireto;
+        console.log('✅ [ChatPage] Usando clinica_id direto (fallback):', clinicaIdParaWebhook);
+      }
+      // Prioridade 3: clinica_id da clínica completa se for válido
+      else if (clinicaCompleta?.id && validarClinicaId(clinicaCompleta.id)) {
+        clinicaIdParaWebhook = clinicaCompleta.id;
+        console.log('✅ [ChatPage] Usando clinica_id da clínica completa (fallback 2):', clinicaIdParaWebhook);
+      }
+      
+      // Validação final antes do envio
+      if (!clinicaIdParaWebhook) {
+        console.error('❌ [ChatPage] ERRO CRÍTICO: Não foi possível determinar um clinica_id válido para o webhook!');
+        console.error('- leadSelecionado?.clinica_id:', leadSelecionado?.clinica_id);
+        console.error('- clinicaIdDireto:', clinicaIdDireto);
+        console.error('- clinicaCompleta?.id:', clinicaCompleta?.id);
+        throw new Error('Não foi possível determinar a clínica para envio do webhook');
+      }
+      
+      console.log('🚀 [ChatPage] clinica_id FINAL para webhook:', clinicaIdParaWebhook);
+      console.log('- aiEnabledForMessage:', aiEnabledForMessage || false);
+      
+      // Enviar mensagem para o Supabase
       const novaMensagemRaw = await enviarMensagem(selectedConversation, messageInput);
-      
-      console.log('✅ [ChatPage] Mensagem salva, dados recebidos:', novaMensagemRaw);
+      console.log('✅ [ChatPage] Mensagem salva no Supabase:', novaMensagemRaw.id);
       
       // Limpar input
       setMessageInput('');
 
-      // Enviar webhook de forma assíncrona (não bloqueia a interface)
-      const leadSelecionado = leads.find(l => l.id === selectedConversation);
-      
-      console.log('🔍 [ChatPage] Verificando dados para webhook:');
-      console.log('- leadSelecionado:', leadSelecionado);
-      console.log('- leadSelecionado.clinica_id:', leadSelecionado?.clinica_id);
-      console.log('- novaMensagemRaw.enviado_por:', novaMensagemRaw.enviado_por);
-      console.log('- clinicaIdDireto (fallback):', clinicaIdDireto);
-      
-      // Usar clinica_id do lead ou fallback para clinicaIdDireto
-      const clinicaIdParaWebhook = leadSelecionado?.clinica_id || clinicaIdDireto;
-      
-      if (clinicaIdParaWebhook && novaMensagemRaw.enviado_por === 'usuario') {
-        console.log('🚀 [ChatPage] Enviando webhook com dados:');
-        console.log('- clinicaIdParaWebhook:', clinicaIdParaWebhook);
-        console.log('- aiEnabledForMessage:', aiEnabledForMessage || false);
+      // Enviar webhook apenas se for mensagem do usuário e temos clinica_id válido
+      if (novaMensagemRaw.enviado_por === 'usuario') {
+        console.log('🚀 [ChatPage] Enviando webhook com dados validados:');
+        console.log('- mensagem_id:', novaMensagemRaw.id);
+        console.log('- lead_id:', novaMensagemRaw.lead_id);
+        console.log('- clinica_id:', clinicaIdParaWebhook);
+        console.log('- aiEnabled:', aiEnabledForMessage || false);
         
-        enviarWebhook(
+        await enviarWebhook(
           novaMensagemRaw.id,
           novaMensagemRaw.lead_id,
           clinicaIdParaWebhook,
           novaMensagemRaw.conteudo,
           novaMensagemRaw.tipo || 'texto',
           novaMensagemRaw.created_at,
-          aiEnabledForMessage || false // Usar o estado da IA no momento do envio
+          aiEnabledForMessage || false
         );
       } else {
-        console.warn('⚠️ [ChatPage] Webhook não enviado:');
-        console.warn('- clinicaIdParaWebhook:', clinicaIdParaWebhook);
-        console.warn('- enviado_por:', novaMensagemRaw.enviado_por);
+        console.log('ℹ️ [ChatPage] Webhook não enviado (mensagem não é do usuário)');
       }
 
     } catch (error) {
-      console.error('❌ [ChatPage] Erro ao enviar mensagem:', error);
+      console.error('❌ [ChatPage] Erro completo no envio da mensagem:', error);
+      console.error('- Error stack:', error.stack);
     } finally {
       setSendingMessage(false);
     }

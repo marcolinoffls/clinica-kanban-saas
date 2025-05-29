@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import * as djwt from "https://deno.land/x/djwt@v2.7/mod.ts"
@@ -8,18 +9,19 @@ const corsHeaders = {
 }
 
 /**
- * Edge Function para envio de webhooks
+ * Edge Function para envio de webhooks - VERSÃO ROBUSTA
  * 
  * Funcionalidades:
  * - Envia webhook automaticamente após nova mensagem no chat
  * - Inclui estado do botão de IA (evento_boolean)
  * - Usa URL fixa para webhook do n8n com multi-tenancy via clinica_id
  * - Inclui autenticação JWT segura usando djwt
- * - Busca e valida evolution_instance_name da clínica
+ * - Busca e valida evolution_instance_name da clínica com tratamento robusto de erro
  * - Ajusta timestamp para fuso horário de São Paulo
  * - Registra logs para auditoria
  * - Tenta reenvio em caso de falha
  * - Nova estrutura de payload inspirada na Evolution API
+ * - CORREÇÃO: Tratamento robusto para clínicas não encontradas
  */
 
 interface WebhookPayload {
@@ -97,18 +99,34 @@ serve(async (req) => {
       )
     }
 
-    // Buscar dados da clínica com logs detalhados
+    // Validação de formato UUID do clinica_id
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(clinica_id)) {
+      console.error('❌ [send-webhook] clinica_id com formato inválido:', clinica_id);
+      return new Response(
+        JSON.stringify({ 
+          error: 'clinica_id deve ter formato UUID válido',
+          clinica_id_fornecido: clinica_id
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    // CORREÇÃO: Buscar dados da clínica com tratamento robusto
     console.log('🔍 [send-webhook] Buscando dados da clínica...');
     console.log('- Executando query: SELECT id, evolution_instance_name FROM clinicas WHERE id =', clinica_id);
 
-    const { data: clinica, error: clinicaError } = await supabaseClient
+    // Usar array ao invés de .single() para tratamento mais robusto
+    const { data: clinicasEncontradas, error: clinicaError } = await supabaseClient
       .from('clinicas')
       .select('id, evolution_instance_name')
       .eq('id', clinica_id)
-      .single()
 
     console.log('📊 [send-webhook] Resultado da query:');
-    console.log('- data:', clinica);
+    console.log('- data:', clinicasEncontradas);
     console.log('- error:', clinicaError);
 
     if (clinicaError) {
@@ -125,13 +143,14 @@ serve(async (req) => {
           code: clinicaError.code
         }),
         { 
-          status: 400, 
+          status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
     }
 
-    if (!clinica) {
+    // Verificar se nenhuma clínica foi encontrada
+    if (!clinicasEncontradas || clinicasEncontradas.length === 0) {
       console.error('❌ [send-webhook] Clínica não encontrada para ID:', clinica_id);
       console.log('- Verificando se o ID existe na tabela...');
       
@@ -149,7 +168,8 @@ serve(async (req) => {
         JSON.stringify({ 
           error: 'Clínica não encontrada',
           clinica_id_procurado: clinica_id,
-          clinicas_existentes: todasClinicas?.map(c => ({ id: c.id, nome: c.nome })) || []
+          clinicas_existentes: todasClinicas?.map(c => ({ id: c.id, nome: c.nome })) || [],
+          sugestao: 'Verifique se o clinica_id do lead está correto e aponta para uma clínica existente'
         }),
         { 
           status: 404, 
@@ -158,12 +178,32 @@ serve(async (req) => {
       )
     }
 
+    // Verificar se múltiplas clínicas foram encontradas (não deveria acontecer)
+    if (clinicasEncontradas.length > 1) {
+      console.error('❌ [send-webhook] Múltiplas clínicas encontradas para ID:', clinica_id);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Múltiplas clínicas encontradas para o mesmo ID',
+          clinica_id_procurado: clinica_id,
+          quantidade_encontrada: clinicasEncontradas.length
+        }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    // Usar a clínica encontrada
+    const clinica = clinicasEncontradas[0];
+
     if (!clinica.evolution_instance_name) {
       console.error('❌ [send-webhook] evolution_instance_name não configurado para clínica:', clinica_id);
       return new Response(
         JSON.stringify({ 
           error: 'Instância Evolution não configurada para esta clínica',
-          clinica_id: clinica_id
+          clinica_id: clinica_id,
+          clinica_nome: clinica.nome || 'Nome não disponível'
         }),
         { 
           status: 400, 
@@ -172,7 +212,7 @@ serve(async (req) => {
       )
     }
 
-    console.log('✅ [send-webhook] Clínica encontrada:');
+    console.log('✅ [send-webhook] Clínica encontrada com sucesso:');
     console.log('- ID:', clinica.id);
     console.log('- Evolution Instance:', clinica.evolution_instance_name);
 
@@ -251,7 +291,7 @@ serve(async (req) => {
     let statusCode = 0
     let resposta = ''
 
-    console.log('Enviando webhook com novo payload estruturado:', JSON.stringify(webhookPayload, null, 2))
+    console.log('Enviando webhook com payload validado:', JSON.stringify(webhookPayload, null, 2))
     console.log('URL do webhook:', webhookUrl)
     console.log('Instância Evolution:', clinica.evolution_instance_name)
     console.log('Telefone formatado:', formatarTelefone(lead?.telefone))
