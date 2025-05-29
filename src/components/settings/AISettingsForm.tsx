@@ -47,34 +47,43 @@ interface AISettings {
   admin_prompt: string;
 }
 
+/**
+ * Configurações padrão da IA
+ * Define valores iniciais para exibir o formulário rapidamente,
+ * antes mesmo dos dados chegarem do Supabase
+ */
+const defaultAISettings: AISettings = {
+  ai_active_for_all_new_leads: false,
+  ai_active_for_ad_leads_only: false,
+  ai_chat_suggestions_active: false,
+  ai_business_hours_start_weekday: '08:00',
+  ai_business_hours_end_weekday: '18:00',
+  ai_active_saturday: false,
+  ai_saturday_hours_start: '08:00',
+  ai_saturday_hours_end: '12:00',
+  ai_active_sunday: false,
+  ai_sunday_hours_start: '08:00',
+  ai_sunday_hours_end: '12:00',
+  ai_operating_mode: '24/7',
+  ai_name: '',
+  ai_clinica_prompt: '',
+  ai_restricted_topics_prompt: '',
+  admin_prompt: ''
+};
+
 export const AISettingsForm = () => {
   const { clinicaAtiva } = useClinica();
   const queryClient = useQueryClient();
   
-  // Estado local para os valores do formulário
-  const [settings, setSettings] = useState<AISettings>({
-    ai_active_for_all_new_leads: false,
-    ai_active_for_ad_leads_only: false,
-    ai_chat_suggestions_active: false,
-    ai_business_hours_start_weekday: '08:00',
-    ai_business_hours_end_weekday: '18:00',
-    ai_active_saturday: false,
-    ai_saturday_hours_start: '08:00',
-    ai_saturday_hours_end: '12:00',
-    ai_active_sunday: false,
-    ai_sunday_hours_start: '08:00',
-    ai_sunday_hours_end: '12:00',
-    ai_operating_mode: '24/7',
-    ai_name: '',
-    ai_clinica_prompt: '',
-    ai_restricted_topics_prompt: '',
-    admin_prompt: ''
-  });
+  // Estado local inicializado com configurações padrão para carregamento mais rápido
+  const [settings, setSettings] = useState<AISettings>(defaultAISettings);
 
   // Buscar configurações atuais da clínica
-  const { data: currentSettings, isLoading } = useQuery({
+  const { data: currentSettings, isLoading, error } = useQuery({
     queryKey: ['clinica-ai-settings', clinicaAtiva.id],
     queryFn: async () => {
+      console.log('[AISettingsForm] Buscando configurações da IA para clínica:', clinicaAtiva.id);
+      
       const { data, error } = await supabase
         .from('clinicas')
         .select(`
@@ -99,64 +108,99 @@ export const AISettingsForm = () => {
         .single();
 
       if (error) {
-        console.error('Erro ao buscar configurações da IA:', error);
+        console.error('[AISettingsForm] Erro ao buscar configurações da IA:', error);
         throw error;
       }
 
+      console.log('[AISettingsForm] Configurações da IA carregadas:', data);
       return data;
     },
-    enabled: !!clinicaAtiva.id
+    enabled: !!clinicaAtiva.id,
+    staleTime: 5 * 60 * 1000, // Cache por 5 minutos
+    retry: 1
   });
 
-  // Atualizar estado local quando os dados chegarem
+  // Atualizar estado local quando os dados chegarem do Supabase
   useEffect(() => {
     if (currentSettings) {
+      console.log('[AISettingsForm] Atualizando estado local com dados do Supabase');
+      
       setSettings({
-        ai_active_for_all_new_leads: currentSettings.ai_active_for_all_new_leads || false,
-        ai_active_for_ad_leads_only: currentSettings.ai_active_for_ad_leads_only || false,
-        ai_chat_suggestions_active: currentSettings.ai_chat_suggestions_active || false,
-        ai_business_hours_start_weekday: currentSettings.ai_business_hours_start_weekday || '08:00',
-        ai_business_hours_end_weekday: currentSettings.ai_business_hours_end_weekday || '18:00',
-        ai_active_saturday: currentSettings.ai_active_saturday || false,
-        ai_saturday_hours_start: currentSettings.ai_saturday_hours_start || '08:00',
-        ai_saturday_hours_end: currentSettings.ai_saturday_hours_end || '12:00',
-        ai_active_sunday: currentSettings.ai_active_sunday || false,
-        ai_sunday_hours_start: currentSettings.ai_sunday_hours_start || '08:00',
-        ai_sunday_hours_end: currentSettings.ai_sunday_hours_end || '12:00',
-        ai_operating_mode: currentSettings.ai_operating_mode || '24/7',
-        ai_name: currentSettings.ai_name || '',
-        ai_clinica_prompt: currentSettings.ai_clinica_prompt || '',
-        ai_restricted_topics_prompt: currentSettings.ai_restricted_topics_prompt || '',
-        admin_prompt: currentSettings.admin_prompt || ''
+        ai_active_for_all_new_leads: currentSettings.ai_active_for_all_new_leads ?? false,
+        ai_active_for_ad_leads_only: currentSettings.ai_active_for_ad_leads_only ?? false,
+        ai_chat_suggestions_active: currentSettings.ai_chat_suggestions_active ?? false,
+        ai_business_hours_start_weekday: currentSettings.ai_business_hours_start_weekday ?? '08:00',
+        ai_business_hours_end_weekday: currentSettings.ai_business_hours_end_weekday ?? '18:00',
+        ai_active_saturday: currentSettings.ai_active_saturday ?? false,
+        ai_saturday_hours_start: currentSettings.ai_saturday_hours_start ?? '08:00',
+        ai_saturday_hours_end: currentSettings.ai_saturday_hours_end ?? '12:00',
+        ai_active_sunday: currentSettings.ai_active_sunday ?? false,
+        ai_sunday_hours_start: currentSettings.ai_sunday_hours_start ?? '08:00',
+        ai_sunday_hours_end: currentSettings.ai_sunday_hours_end ?? '12:00',
+        ai_operating_mode: currentSettings.ai_operating_mode ?? '24/7',
+        ai_name: currentSettings.ai_name ?? '',
+        ai_clinica_prompt: currentSettings.ai_clinica_prompt ?? '',
+        ai_restricted_topics_prompt: currentSettings.ai_restricted_topics_prompt ?? '',
+        admin_prompt: currentSettings.admin_prompt ?? ''
       });
     }
   }, [currentSettings]);
 
-  // Mutation para salvar as configurações
+  // Mutation para salvar as configurações - corrigida para garantir que todos os campos sejam enviados
   const saveSettingsMutation = useMutation({
     mutationFn: async (newSettings: AISettings) => {
+      console.log('[AISettingsForm] Salvando configurações da IA:', newSettings);
+      console.log('[AISettingsForm] ID da clínica:', clinicaAtiva.id);
+
+      // Garantir que todas as propriedades da interface AISettings sejam incluídas
+      const settingsToUpdate = {
+        ai_active_for_all_new_leads: newSettings.ai_active_for_all_new_leads,
+        ai_active_for_ad_leads_only: newSettings.ai_active_for_ad_leads_only,
+        ai_chat_suggestions_active: newSettings.ai_chat_suggestions_active,
+        ai_business_hours_start_weekday: newSettings.ai_business_hours_start_weekday,
+        ai_business_hours_end_weekday: newSettings.ai_business_hours_end_weekday,
+        ai_active_saturday: newSettings.ai_active_saturday,
+        ai_saturday_hours_start: newSettings.ai_saturday_hours_start,
+        ai_saturday_hours_end: newSettings.ai_saturday_hours_end,
+        ai_active_sunday: newSettings.ai_active_sunday,
+        ai_sunday_hours_start: newSettings.ai_sunday_hours_start,
+        ai_sunday_hours_end: newSettings.ai_sunday_hours_end,
+        ai_operating_mode: newSettings.ai_operating_mode,
+        ai_name: newSettings.ai_name,
+        ai_clinica_prompt: newSettings.ai_clinica_prompt,
+        ai_restricted_topics_prompt: newSettings.ai_restricted_topics_prompt,
+        admin_prompt: newSettings.admin_prompt,
+        updated_at: new Date().toISOString() // Adicionar timestamp de atualização
+      };
+
+      console.log('[AISettingsForm] Objeto que será enviado ao Supabase:', settingsToUpdate);
+
       const { error } = await supabase
         .from('clinicas')
-        .update(newSettings)
+        .update(settingsToUpdate)
         .eq('id', clinicaAtiva.id);
 
       if (error) {
-        console.error('Erro ao salvar configurações da IA:', error);
+        console.error('[AISettingsForm] Erro ao salvar configurações da IA:', error);
         throw error;
       }
+
+      console.log('[AISettingsForm] Configurações da IA salvas com sucesso');
     },
     onSuccess: () => {
+      // Invalidar cache para recarregar dados atualizados
       queryClient.invalidateQueries({ queryKey: ['clinica-ai-settings'] });
       toast.success('Configurações da IA salvas com sucesso!');
     },
     onError: (error: any) => {
-      console.error('Erro ao salvar configurações:', error);
+      console.error('[AISettingsForm] Erro ao salvar configurações:', error);
       toast.error('Erro ao salvar configurações da IA');
     }
   });
 
-  // Função para atualizar um campo específico
+  // Função para atualizar um campo específico no estado local
   const updateSetting = (key: keyof AISettings, value: any) => {
+    console.log(`[AISettingsForm] Atualizando configuração ${key}:`, value);
     setSettings(prev => ({
       ...prev,
       [key]: value
@@ -165,20 +209,38 @@ export const AISettingsForm = () => {
 
   // Função para salvar todas as configurações
   const handleSave = () => {
+    console.log('[AISettingsForm] Iniciando salvamento das configurações');
     saveSettingsMutation.mutate(settings);
   };
 
-  if (isLoading) {
+  // Mostrar erro se houver falha no carregamento
+  if (error) {
+    console.error('[AISettingsForm] Erro no carregamento:', error);
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-        <span className="ml-2 text-gray-600">Carregando configurações...</span>
+        <div className="text-center">
+          <p className="text-red-600 mb-2">Erro ao carregar configurações da IA</p>
+          <Button 
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['clinica-ai-settings'] })}
+            variant="outline"
+          >
+            Tentar Novamente
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {/* Indicador de carregamento apenas quando necessário */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-blue-600 mr-2" />
+          <span className="text-sm text-gray-600">Carregando configurações...</span>
+        </div>
+      )}
+
       {/* Botão de salvar no topo */}
       <div className="flex justify-end">
         <Button 
