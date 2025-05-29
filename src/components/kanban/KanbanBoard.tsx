@@ -1,3 +1,4 @@
+
 // src/components/kanban/KanbanBoard.tsx
 import React, { useState } from 'react'; // React importado
 import { Plus } from 'lucide-react';
@@ -9,7 +10,7 @@ import { EtapaModal } from './EtapaModal';
 import { MoveLeadsModal } from './MoveLeadsModal';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useUpdateLead, useMoveLeadToStage, CreateLeadData } from '@/hooks/useLeadsData';
-import { useUpdateEtapa, useDeleteEtapa, CreateEtapaData } from '@/hooks/useEtapasData';
+import { useUpdateEtapa, useDeleteEtapa, CreateEtapaData, Etapa } from '@/hooks/useEtapasData';
 import { useClinicaOperations } from '@/hooks/useClinicaOperations';
 import { useReorderEtapas } from '@/hooks/useEtapaReorder';
 
@@ -38,13 +39,10 @@ export interface Lead {
 }
 
 // Interface para representar uma coluna (etapa) no Kanban
-export interface IKanbanColumn { // Renomeado para IKanbanColumn para clareza
-  id: string;
-  title: string; // Vem de etapa.nome
+// Agora extende Etapa para ser compatível com os dados do banco
+export interface IKanbanColumn extends Etapa {
+  title: string; // Calculado a partir de nome
   leadIds: string[]; // IDs dos leads nesta coluna (calculado)
-  ordem?: number; // Ordem da etapa, crucial para D&D de colunas
-  nome: string; // Nome original da etapa
-  // Adicione quaisquer outros campos da sua 'etapa' que sejam relevantes
 }
 
 interface KanbanBoardProps {
@@ -72,7 +70,6 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
   const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null);
   // Estado para feedback visual da coluna alvo durante o drag de outra coluna
   const [columnDragOverTargetId, setColumnDragOverTargetId] = useState<string | null>(null);
-
 
   // Hooks de dados e mutações
   const { etapas = [], leads = [], tags = [], loading } = useSupabaseData();
@@ -232,7 +229,6 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
     }
   };
 
-
   // --- Manipuladores de Drag and Drop para COLUNAS (ETAPAS) ---
   /**
    * Início do arraste de uma COLUNA.
@@ -329,6 +325,17 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
     }
   };
 
+  // Função para converter Etapa em IKanbanColumn
+  const convertEtapaToKanbanColumn = (etapa: Etapa): IKanbanColumn => {
+    const currentLeads = Array.isArray(leads) ? leads : [];
+    const leadsDaEtapa = currentLeads.filter(lead => lead.etapa_kanban_id === etapa.id);
+    
+    return {
+      ...etapa,
+      title: etapa.nome, // Mapeia nome para title
+      leadIds: leadsDaEtapa.map(lead => lead.id), // Calcula leadIds
+    };
+  };
 
   // Feedback visual durante o carregamento inicial
   if (loading) {
@@ -380,10 +387,10 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
         {/* Mapeia as etapas (colunas) ordenadas */}
         {Array.isArray(etapas) && etapas
           .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)) // Ordena as colunas pela prop 'ordem'
-          .map((etapa: IKanbanColumn, index) => { // etapa agora é do tipo IKanbanColumn
+          .map((etapa: Etapa, index) => { // etapa agora é do tipo Etapa
+            const kanbanColumn = convertEtapaToKanbanColumn(etapa); // Converte para IKanbanColumn
             const leadsDaEtapa = Array.isArray(leads)
               ? leads.filter(lead => lead.etapa_kanban_id === etapa.id)
-              // TODO: Adicionar ordenação dos leads dentro da etapa se houver um campo 'ordem_na_etapa'
               : [];
             const corDaEtapa = ETAPA_COLORS[index % ETAPA_COLORS.length];
 
@@ -405,15 +412,15 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
               >
                 {/* O componente KanbanColumnComponent em si não é mais draggable, mas é um alvo de drop para cards. */}
                 <KanbanColumnComponent
-                  column={etapa} // Passa a etapa (IKanbanColumn)
+                  column={kanbanColumn} // Passa a etapa convertida (IKanbanColumn)
                   leads={leadsDaEtapa}
                   corEtapa={corDaEtapa}
                   onEditLead={handleEditLead}
                   onDropLeadInColumn={handleDropLeadInColumn} // Passa o handler para drop de leads
                   onOpenHistory={handleOpenHistory}
                   onOpenChat={handleOpenChat}
-                  onEditEtapa={() => handleEditEtapa(etapa)}
-                  onDeleteEtapa={() => handleDeleteEtapa(etapa)}
+                  onEditEtapa={() => handleEditEtapa(kanbanColumn)}
+                  onDeleteEtapa={() => handleDeleteEtapa(kanbanColumn)}
                   isColumnDragOverTarget={columnDragOverTargetId === etapa.id && draggedColumnId !== etapa.id && !!draggedColumnId}
                 />
               </div>
