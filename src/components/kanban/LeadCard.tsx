@@ -1,22 +1,20 @@
 // src/components/kanban/LeadCard.tsx
 import React from 'react';
 import { History, MessageCircle, Tag } from 'lucide-react';
-import { Lead } from './KanbanBoard';
+import { Lead } from './KanbanBoard'; // Certifique-se que KanbanBoard.tsx EXPORTE esta interface
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 
 interface LeadCardProps {
   lead: Lead;
-  index: number; // Índice do card na coluna
+  // index: number; // O índice pode ser útil para reordenação interna da coluna, mas não é estritamente necessário para mover entre colunas.
   onEdit: () => void;
   onOpenHistory: () => void;
   onOpenChat: () => void;
-  columnId: string;
-  // Removido onDropOnCard se a coluna for o único alvo de drop para cards
+  columnId: string; // ID da coluna atual do lead
 }
 
 export const LeadCard = ({
   lead,
-  index, // Recebe o índice
   onEdit,
   onOpenHistory,
   onOpenChat,
@@ -25,14 +23,25 @@ export const LeadCard = ({
   const { tags = [] } = useSupabaseData();
   const tagDoLead = Array.isArray(tags) ? tags.find(tag => tag.id === lead.tag_id) : undefined;
 
+  /**
+   * Inicia o arraste de um card de lead.
+   * Define os dados a serem transferidos: 'leadId', 'fromColumnId' e 'itemType'.
+   */
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     e.dataTransfer.setData('leadId', lead.id);
     e.dataTransfer.setData('fromColumnId', columnId);
-    // Opcional: passar o tipo de item sendo arrastado
-    e.dataTransfer.setData('itemType', 'leadCard');
-    // Você também pode passar o índice se precisar para reordenação DENTRO da mesma coluna
-    // e.dataTransfer.setData('fromIndex', index.toString());
+    e.dataTransfer.setData('itemType', 'leadCard'); // Identifica o tipo de item sendo arrastado
     e.dataTransfer.effectAllowed = 'move';
+    // Adiciona uma classe para feedback visual enquanto o card está sendo arrastado
+    e.currentTarget.classList.add('dragging-card');
+  };
+
+  /**
+   * Finaliza o arraste do card de lead.
+   * Remove a classe de feedback visual.
+   */
+  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    e.currentTarget.classList.remove('dragging-card');
   };
 
   const handleHistoryClick = (e: React.MouseEvent) => {
@@ -48,12 +57,15 @@ export const LeadCard = ({
   return (
     <div
       className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 cursor-grab hover:shadow-md hover:border-gray-200 transition-all duration-200 relative group"
-      draggable
+      draggable // Torna o card arrastável
       onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd} // Limpa o estilo ao final do arraste
       onClick={onEdit}
       data-lead-id={lead.id}
     >
-      {/* Conteúdo do card permanece o mesmo */}
+      {/* Estilo para o card sendo arrastado (opcional, mas melhora UX) */}
+      <style>{`.dragging-card { opacity: 0.7; border: 2px dashed #3B82F6; }`}</style>
+      
       <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">
         <button
           onClick={handleChatClick}
