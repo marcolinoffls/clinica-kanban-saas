@@ -10,19 +10,24 @@ import { AISettings, defaultAISettings } from '../types';
  * Hook para Gerenciamento das Configurações de IA
  * 
  * Centraliza toda a lógica de busca, atualização e salvamento
- * das configurações de IA da clínica no Supabase
+ * das configurações de IA da clínica no Supabase.
+ * Agora integrado com dados reais da clínica autenticada.
  */
 export const useAISettings = () => {
-  const { clinicaAtiva } = useClinica();
+  const { clinicaAtiva, isLoading: clinicaLoading, hasClinica } = useClinica();
   const queryClient = useQueryClient();
   
   // Estado local inicializado com configurações padrão para carregamento mais rápido
   const [settings, setSettings] = useState<AISettings>(defaultAISettings);
 
-  // Buscar configurações atuais da clínica
+  // Buscar configurações atuais da clínica (apenas se a clínica estiver carregada)
   const { data: currentSettings, isLoading, error } = useQuery({
-    queryKey: ['clinica-ai-settings', clinicaAtiva.id],
+    queryKey: ['clinica-ai-settings', clinicaAtiva?.id],
     queryFn: async () => {
+      if (!clinicaAtiva?.id) {
+        throw new Error('ID da clínica não encontrado');
+      }
+
       console.log('[useAISettings] Buscando configurações da IA para clínica:', clinicaAtiva.id);
       
       const { data, error } = await supabase
@@ -56,7 +61,7 @@ export const useAISettings = () => {
       console.log('[useAISettings] Configurações da IA carregadas:', data);
       return data;
     },
-    enabled: !!clinicaAtiva.id,
+    enabled: !!clinicaAtiva?.id && hasClinica && !clinicaLoading,
     staleTime: 5 * 60 * 1000, // Cache por 5 minutos
     retry: 1
   });
@@ -90,6 +95,10 @@ export const useAISettings = () => {
   // Mutation para salvar as configurações
   const saveSettingsMutation = useMutation({
     mutationFn: async (newSettings: AISettings) => {
+      if (!clinicaAtiva?.id) {
+        throw new Error('ID da clínica não encontrado para salvamento');
+      }
+
       console.log('[useAISettings] Salvando configurações da IA:', newSettings);
       console.log('[useAISettings] ID da clínica:', clinicaAtiva.id);
 
@@ -150,6 +159,10 @@ export const useAISettings = () => {
 
   // Função para salvar todas as configurações
   const handleSave = () => {
+    if (!clinicaAtiva?.id) {
+      toast.error('Erro: Clínica não encontrada');
+      return;
+    }
     console.log('[useAISettings] Iniciando salvamento das configurações');
     saveSettingsMutation.mutate(settings);
   };
@@ -158,9 +171,10 @@ export const useAISettings = () => {
     settings,
     updateSetting,
     handleSave,
-    isLoading,
+    isLoading: isLoading || clinicaLoading,
     error,
     isSaving: saveSettingsMutation.isPending,
-    queryClient
+    queryClient,
+    hasClinica // Expor se a clínica está disponível
   };
 };
