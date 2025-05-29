@@ -12,15 +12,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
  * - Área de texto com redimensionamento automático
  * - Suporte a Shift+Enter para nova linha
  * - Botões para anexos, respostas prontas, IA e emojis
- * - Toggle do botão IA para controle de estado
+ * - Controle granular de ativação da IA com estado persistente
  * - Integração com respostas prontas via atalhos
  * - Validação de entrada e loading states
+ * - Visual aprimorado para o botão de IA com gradiente quando ativo
  */
 
 interface MessageInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSend: (aiEnabled?: boolean) => void; // Adicionado parâmetro para estado da IA
+  onSend: (aiEnabled?: boolean) => void;
   onAttachFile?: () => void;
   loading?: boolean;
   respostasProntas?: Array<{
@@ -29,6 +30,10 @@ interface MessageInputProps {
     conteudo: string;
     atalho?: string;
   }>;
+  // NOVOS props para controle da IA
+  aiEnabled: boolean;
+  onToggleAI: () => void;
+  isAIInitializing?: boolean;
 }
 
 export const MessageInput = ({
@@ -37,12 +42,13 @@ export const MessageInput = ({
   onSend,
   onAttachFile,
   loading = false,
-  respostasProntas = []
+  respostasProntas = [],
+  aiEnabled, // Estado da IA vem de fora agora
+  onToggleAI, // Função para alternar IA vem de fora
+  isAIInitializing = false
 }: MessageInputProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showRespostasProntas, setShowRespostasProntas] = useState(false);
-  // Estado para controlar se o botão de IA está ativado
-  const [aiEnabled, setAiEnabled] = useState(false);
 
   // Função para lidar com teclas especiais
   const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -50,7 +56,7 @@ export const MessageInput = ({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (value.trim() && !loading) {
-        // Enviar estado do botão IA junto com a mensagem
+        // Enviar estado atual da IA junto com a mensagem
         onSend(aiEnabled);
       }
     }
@@ -66,11 +72,6 @@ export const MessageInput = ({
     onChange(conteudo);
     setShowRespostasProntas(false);
     textareaRef.current?.focus();
-  };
-
-  // Função para toggle do botão IA
-  const toggleAI = () => {
-    setAiEnabled(!aiEnabled);
   };
 
   // Filtrar respostas prontas baseado no texto digitado
@@ -136,16 +137,17 @@ export const MessageInput = ({
           </PopoverContent>
         </Popover>
 
-        {/* Botão IA com toggle de estado */}
+        {/* Botão IA com visual aprimorado e gradiente quando ativo */}
         <Button
           variant="ghost"
           size="sm"
-          onClick={toggleAI}
+          onClick={onToggleAI}
+          disabled={isAIInitializing}
           className={`${
             aiEnabled 
-              ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' 
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
+              ? 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md' 
+              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+          } transition-all duration-200`}
           title={`Assistente IA ${aiEnabled ? 'ativado' : 'desativado'}`}
         >
           <Bot size={16} />
@@ -192,7 +194,7 @@ export const MessageInput = ({
         </div>
 
         <Button
-          onClick={() => onSend(aiEnabled)} // Passar estado da IA ao enviar
+          onClick={() => onSend(aiEnabled)} // Passar estado atual da IA ao enviar
           disabled={!value.trim() || loading}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 h-[60px]"
         >
@@ -200,14 +202,24 @@ export const MessageInput = ({
         </Button>
       </div>
 
-      {/* Dica de uso com indicador do estado da IA */}
+      {/* Dica de uso com indicador aprimorado do estado da IA */}
       <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
         <span>Shift+Enter para nova linha</span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <span>/ para respostas prontas</span>
-          {aiEnabled && (
-            <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded">
-              IA ativada
+          {/* Indicador visual melhorado do estado da IA */}
+          {isAIInitializing ? (
+            <span className="text-gray-400 bg-gray-100 px-2 py-1 rounded flex items-center gap-1">
+              <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
+              Carregando IA...
+            </span>
+          ) : aiEnabled ? (
+            <span className="text-white bg-gradient-to-r from-blue-500 to-purple-600 px-2 py-1 rounded font-medium shadow-sm">
+              IA Ativada
+            </span>
+          ) : (
+            <span className="text-gray-600 bg-gray-100 px-2 py-1 rounded">
+              IA Desativada
             </span>
           )}
         </div>

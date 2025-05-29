@@ -1,7 +1,8 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseChat } from './useSupabaseChat';
-import { useLeads } from './useLeadsData';
+import { useLeads, useUpdateLeadAiConversationStatus } from './useLeadsData';
 import { useEtapas } from './useEtapasData';
 import { useTags } from './useTagsData';
 
@@ -12,12 +13,14 @@ import { useTags } from './useTagsData';
  * - Integração dos dados de diferentes entidades (leads, etapas, tags, chat)
  * - Subscrições Realtime para atualizações em tempo real
  * - Coordenação entre diferentes hooks especializados
+ * - Controle de estado da IA por lead (NOVO)
  * 
  * Utiliza os hooks especializados para cada domínio:
  * - useLeads: para dados de leads
  * - useEtapas: para etapas do kanban
  * - useTags: para tags/categorias
  * - useSupabaseChat: para mensagens e chat
+ * - useUpdateLeadAiConversationStatus: para controle de IA por lead (NOVO)
  */
 
 export const useSupabaseData = () => {
@@ -30,6 +33,9 @@ export const useSupabaseData = () => {
   
   // Hook especializado para chat
   const chatHook = useSupabaseChat();
+
+  // NOVO: Hook para atualizar estado da IA por lead
+  const updateLeadAiConversationStatus = useUpdateLeadAiConversationStatus();
 
   // Verificar se ainda está carregando dados iniciais
   useEffect(() => {
@@ -144,5 +150,8 @@ export const useSupabaseData = () => {
     buscarMensagensLead: chatHook.buscarMensagensLead,
     enviarMensagem: chatHook.enviarMensagem,
     marcarMensagensComoLidas: chatHook.marcarMensagensComoLidas,
+
+    // NOVA: Função para atualizar estado da IA por lead
+    updateLeadAiConversationStatus: updateLeadAiConversationStatus.mutate,
   };
 };

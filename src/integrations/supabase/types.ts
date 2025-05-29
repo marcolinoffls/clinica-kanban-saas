@@ -380,6 +380,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          ai_conversation_enabled: boolean | null
           anotacoes: string | null
           anuncio: string | null
           clinica_id: string | null
@@ -403,6 +404,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          ai_conversation_enabled?: boolean | null
           anotacoes?: string | null
           anuncio?: string | null
           clinica_id?: string | null
@@ -426,6 +428,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          ai_conversation_enabled?: boolean | null
           anotacoes?: string | null
           anuncio?: string | null
           clinica_id?: string | null

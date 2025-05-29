@@ -12,6 +12,7 @@ import { toast } from 'sonner';
  * - Atualizar leads existentes
  * - Deletar leads
  * - Mover leads entre etapas
+ * - Atualizar estado de ativação da IA por lead (NOVO)
  * 
  * Utiliza as políticas RLS para garantir isolamento por clínica
  */
@@ -32,6 +33,7 @@ export interface Lead {
   data_ultimo_contato: string | null;
   created_at: string | null;
   updated_at: string | null;
+  ai_conversation_enabled: boolean | null; // NOVO: Controle de IA por lead
 }
 
 // Interface para criação de lead (campos obrigatórios)
@@ -45,6 +47,7 @@ export interface CreateLeadData {
   anotacoes?: string;
   origem_lead?: string;
   servico_interesse?: string;
+  ai_conversation_enabled?: boolean; // NOVO: Estado inicial da IA
 }
 
 // Hook para buscar todos os leads da clínica do usuário
@@ -56,7 +59,7 @@ export const useLeads = () => {
 
       const { data, error } = await supabase
         .from('leads')
-        .select('*')
+        .select('*') // Agora inclui ai_conversation_enabled
         .order('data_ultimo_contato', { ascending: false, nullsFirst: false })
         .order('updated_at', { ascending: false });
 
@@ -138,6 +141,44 @@ export const useUpdateLead = () => {
     onError: (error: Error) => {
       console.error('❌ Erro na atualização do lead:', error);
       toast.error(`Erro ao atualizar lead: ${error.message}`);
+    },
+  });
+};
+
+// NOVO: Hook para atualizar apenas o estado da IA para um lead específico
+export const useUpdateLeadAiConversationStatus = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ leadId, aiEnabled }: { leadId: string; aiEnabled: boolean }): Promise<Lead> => {
+      console.log('🤖 Atualizando estado da IA para lead:', leadId, 'aiEnabled:', aiEnabled);
+
+      const { data, error } = await supabase
+        .from('leads')
+        .update({ 
+          ai_conversation_enabled: aiEnabled,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', leadId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Erro ao atualizar estado da IA do lead:', error);
+        throw new Error(`Erro ao atualizar estado da IA: ${error.message}`);
+      }
+
+      console.log('✅ Estado da IA atualizado com sucesso para lead:', data.nome);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      // Toast sutil para não poluir a interface
+      console.log(`ℹ️ IA ${data.ai_conversation_enabled ? 'ativada' : 'desativada'} para ${data.nome}`);
+    },
+    onError: (error: Error) => {
+      console.error('❌ Erro ao atualizar estado da IA:', error);
+      toast.error(`Erro ao atualizar IA: ${error.message}`);
     },
   });
 };

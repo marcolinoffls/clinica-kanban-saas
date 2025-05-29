@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
@@ -6,6 +7,7 @@ import { LeadInfoSidebar } from './LeadInfoSidebar';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useWebhook } from '@/hooks/useWebhook';
 import { useClinicaData } from '@/hooks/useClinicaData';
+import { useAIConversationControl } from '@/hooks/useAIConversationControl';
 
 interface Message {
   id: string;
@@ -32,6 +34,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     respostasProntas,
     mensagensNaoLidas,
     marcarMensagensComoLidas,
+    updateLeadAiConversationStatus,
     loading
   } = useSupabaseData();
 
@@ -41,6 +44,15 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const [messageInput, setMessageInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+
+  // Buscar o lead selecionado
+  const selectedLead = leads.find(l => l.id === selectedConversation) || null;
+
+  // NOVO: Hook para controlar a IA da conversa
+  const { aiEnabled, toggleAI, isInitializing } = useAIConversationControl({
+    selectedLead,
+    updateLeadAiConversationStatus
+  });
 
   // Atualizar conversa selecionada quando selectedLeadId mudar
   useEffect(() => {
@@ -65,7 +77,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   );
 
   // Função para enviar mensagem com webhook (incluindo estado da IA) - ATUALIZADA
-  const handleSendMessage = async (aiEnabled?: boolean) => {
+  const handleSendMessage = async (aiEnabledForMessage?: boolean) => {
     if (!messageInput.trim() || !selectedConversation || sendingMessage) return;
     
     try {
@@ -76,6 +88,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       console.log('- selectedConversation (leadId):', selectedConversation);
       console.log('- messageInput:', messageInput.substring(0, 50) + '...');
       console.log('- clinicaIdDireto:', clinicaIdDireto);
+      console.log('- aiEnabledForMessage:', aiEnabledForMessage);
       
       const novaMensagemRaw = await enviarMensagem(selectedConversation, messageInput);
       
@@ -99,7 +112,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       if (clinicaIdParaWebhook && novaMensagemRaw.enviado_por === 'usuario') {
         console.log('🚀 [ChatPage] Enviando webhook com dados:');
         console.log('- clinicaIdParaWebhook:', clinicaIdParaWebhook);
-        console.log('- aiEnabled:', aiEnabled || false);
+        console.log('- aiEnabledForMessage:', aiEnabledForMessage || false);
         
         enviarWebhook(
           novaMensagemRaw.id,
@@ -108,7 +121,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           novaMensagemRaw.conteudo,
           novaMensagemRaw.tipo || 'texto',
           novaMensagemRaw.created_at,
-          aiEnabled || false
+          aiEnabledForMessage || false // Usar o estado da IA no momento do envio
         );
       } else {
         console.warn('⚠️ [ChatPage] Webhook não enviado:');
@@ -135,8 +148,6 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const getLastMessage = (leadId: string) => {
     return 'Clique para ver a conversa...';
   };
-
-  const selectedLead = leads.find(l => l.id === selectedConversation);
 
   if (loading) {
     return (
@@ -282,7 +293,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
               <ChatWindow leadId={selectedConversation} />
             </div>
 
-            {/* Input de nova mensagem fixo na parte inferior */}
+            {/* Input de nova mensagem fixo na parte inferior com controle de IA */}
             <div className="border-t border-gray-200 bg-white flex-shrink-0">
               <MessageInput
                 value={messageInput}
@@ -290,6 +301,9 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                 onSend={handleSendMessage}
                 loading={sendingMessage}
                 respostasProntas={respostasProntas}
+                aiEnabled={aiEnabled}
+                onToggleAI={toggleAI}
+                isAIInitializing={isInitializing}
               />
             </div>
           </>
