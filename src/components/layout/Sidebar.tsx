@@ -6,7 +6,8 @@ import {
   Kanban, 
   CalendarDays, 
   Settings,
-  Shield
+  Shield,
+  Bot
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -25,6 +26,7 @@ import { LogoutButton } from '@/components/auth/LogoutButton';
  * - Acesso ao painel administrativo para usuários com permissão
  * - Exibição de informações do usuário logado
  * - Botão de logout integrado
+ * - Item especial de IA com gradiente azul
  */
 
 // Array com todas as opções de navegação disponíveis
@@ -63,6 +65,14 @@ const navigationItems = [
     icon: CalendarDays,
     description: 'Agendamentos',
     path: '/agenda'
+  },
+  {
+    id: 'ia',
+    label: 'Inteligência Artificial',
+    icon: Bot,
+    description: 'Configurações da IA',
+    path: '/ia',
+    isSpecial: true // Flag para identificar o item especial
   },
   {
     id: 'configuracoes',
@@ -113,10 +123,12 @@ export const Sidebar = () => {
                   to={item.path}
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors",
-                    "hover:bg-blue-50 hover:text-blue-600",
-                    isActive 
-                      ? "bg-blue-100 text-blue-700 border border-blue-200" 
-                      : "text-gray-600"
+                    // Estilo especial para o item de IA
+                    item.isSpecial
+                      ? "bg-gradient-to-r from-blue-400 via-blue-500 to-purple-500 text-white hover:from-blue-500 hover:via-blue-600 hover:to-purple-600 shadow-md"
+                      : isActive 
+                        ? "bg-blue-100 text-blue-700 border border-blue-200" 
+                        : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
                   )}
                   title={item.description}
                 >
