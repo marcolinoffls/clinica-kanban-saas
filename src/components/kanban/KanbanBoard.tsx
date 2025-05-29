@@ -70,6 +70,8 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
   const [consultasLead, setConsultasLead] = useState<any[]>([]);
   const [etapaToDelete, setEtapaToDelete] = useState<any>(null);
   const [isMoveLeadsModalOpen, setIsMoveLeadsModalOpen] = useState(false);
+  
+  // CORREÇÃO: Declarar draggedEtapa como string no lugar correto
   const [draggedEtapa, setDraggedEtapa] = useState<string | null>(null);
 
   // Hook principal para dados do Supabase
@@ -109,7 +111,7 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
         // Editando lead existente
         await updateLeadMutation.mutateAsync({ id: selectedLead.id, ...leadData });
       } else {
-        // Criando novo lead - usar hook de operações da clínica
+        // CORREÇÃO: Usar createLead corretamente sem clinica_id
         await createLead({
           nome: leadData.nome,
           telefone: leadData.telefone || undefined,
@@ -256,6 +258,7 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
   const handleEtapaDrop = (e: React.DragEvent, targetEtapaId: string) => {
     e.preventDefault();
     
+    // CORREÇÃO: Usar draggedEtapa diretamente sem redeclarar
     if (!draggedEtapa || draggedEtapa === targetEtapaId) {
       setDraggedEtapa(null);
       return;
@@ -269,8 +272,8 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
 
     // Reordenar etapas no array local
     const newEtapas = [...etapas];
-    const [draggedEtapa] = newEtapas.splice(draggedIndex, 1);
-    newEtapas.splice(targetIndex, 0, draggedEtapa);
+    const [draggedEtapaObj] = newEtapas.splice(draggedIndex, 1);
+    newEtapas.splice(targetIndex, 0, draggedEtapaObj);
 
     // Criar array de atualizações com nova ordem
     const etapasToUpdate = newEtapas.map((etapa, index) => ({

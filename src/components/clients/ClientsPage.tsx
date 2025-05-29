@@ -25,11 +25,14 @@ export const ClientsPage = () => {
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [leadDetails, setLeadDetails] = useState<Lead | null>(null);
   
-  const { leads, tags, loading } = useSupabaseData();
+  // CORREÇÃO: Incluir etapas no useSupabaseData
+  const { leads, tags, etapas, loading } = useSupabaseData();
   const { createLead } = useClinicaOperations();
   const updateLeadMutation = useUpdateLead();
   const deleteLeadMutation = useDeleteLead();
   const { toast } = useToast();
+
+  // ... keep existing code (all filtering and formatting functions)
 
   // Filtra contatos baseado na busca
   const filteredLeads = leads.filter(lead =>
@@ -307,13 +310,16 @@ export const ClientsPage = () => {
         </div>
       </div>
 
-      {/* Modal de lead */}
+      {/* CORREÇÃO: Adicionar a prop etapas ao LeadModal */}
       <LeadModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         lead={selectedLead}
+        etapas={etapas}
         onSave={handleSalvarLead}
       />
+
+      {/* ... keep existing code (modal de detalhes do contato) */}
 
       {/* Modal de detalhes do contato */}
       {showLeadDetails && leadDetails && (
