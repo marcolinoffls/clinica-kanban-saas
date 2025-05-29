@@ -5,7 +5,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ClinicaProvider } from '@/contexts/ClinicaContext';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { MainLayout } from '@/components/layout/MainLayout';
+import MainLayout from '@/components/layout/MainLayout';
 
 // Páginas
 import WelcomePage from '@/pages/WelcomePage';
