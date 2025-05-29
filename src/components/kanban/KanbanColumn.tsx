@@ -1,28 +1,22 @@
 // src/components/kanban/KanbanColumn.tsx
-import React from 'react'; // Importa React para usar JSX e tipos de eventos
-import { Edit2, Trash2 } from 'lucide-react';
-// Importa as interfaces Lead e IKanbanColumn do KanbanBoard para consistência de tipos
-// É crucial que KanbanBoard.tsx EXPORTE essas interfaces.
-import { Lead, IKanbanColumn } from './KanbanBoard';
+import React from 'react';
+import { Edit2, Trash2, GripVertical } from 'lucide-react'; // Adicionado GripVertical
+import { Lead, IKanbanColumn } from './KanbanBoard'; // Certifique-se que KanbanBoard.tsx EXPORTE estas interfaces
 import { LeadCard } from './LeadCard';
 
-/**
- * Componente de coluna do Kanban.
- * Exibe uma etapa do funil e os leads pertencentes a ela.
- * Permite arrastar leads para esta coluna.
- */
-
-// Define as props esperadas pelo componente KanbanColumn
 interface KanbanColumnProps {
-  column: IKanbanColumn; // Dados da coluna (id, título, ids dos leads)
-  leads: Lead[]; // Array de objetos Lead que pertencem a esta coluna
-  corEtapa: string; // Classe CSS para a cor da etapa (ex: 'bg-blue-500')
-  onEditLead: (lead: Lead) => void; // Função para chamar ao editar um lead
-  onMoveCard: (leadId: string, fromColumnId: string, toColumnId: string) => void; // Função para mover um card de lead
-  onOpenHistory: (lead: Lead) => void; // Função para abrir o histórico do lead
-  onOpenChat: (lead: Lead) => void; // Função para abrir o chat com o lead
-  onEditEtapa: () => void; // Função para editar a etapa/coluna
-  onDeleteEtapa: () => void; // Função para deletar a etapa/coluna
+  column: IKanbanColumn;
+  leads: Lead[];
+  corEtapa: string;
+  onEditLead: (lead: Lead) => void;
+  // Callback para quando um LeadCard é solto nesta coluna
+  onDropLeadInColumn: (leadId: string, fromColumnId: string, toColumnId: string) => void;
+  onOpenHistory: (lead: Lead) => void;
+  onOpenChat: (lead: Lead) => void;
+  onEditEtapa: () => void;
+  onDeleteEtapa: () => void;
+  // Props para o drag and drop da COLUNA
+  isDraggingColumn?: boolean; // Opcional: para feedback visual se a coluna está sendo arrastada
 }
 
 export const KanbanColumn = ({
@@ -30,75 +24,92 @@ export const KanbanColumn = ({
   leads,
   corEtapa,
   onEditLead,
-  onMoveCard,
+  onDropLeadInColumn, // Callback para quando um LEAD é solto aqui
   onOpenHistory,
   onOpenChat,
   onEditEtapa,
   onDeleteEtapa,
+  isDraggingColumn, // Nova prop para feedback visual
 }: KanbanColumnProps) => {
-  /**
-   * Manipulador para o evento onDragOver.
-   * Previne o comportamento padrão do navegador para permitir que um drop ocorra.
-   * @param e - O evento de drag.
-   */
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault(); // Necessário para permitir que o evento onDrop seja disparado
-    // Opcionalmente, pode-se adicionar feedback visual aqui (ex: mudar a borda da coluna)
-    // e.dataTransfer.dropEffect = "move"; // Indica o tipo de operação permitida
-  };
 
   /**
-   * Manipulador para o evento onDrop.
-   * Chamado quando um item arrastável (um LeadCard) é solto sobre esta coluna.
-   * Extrai os dados do lead (leadId e coluna de origem) e chama a função onMoveCard.
-   * @param e - O evento de drag.
+   * Manipulador para o evento onDragOver DESTA COLUNA.
+   * Permite que LeadCards sejam soltos AQUI.
    */
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault(); // Previne o comportamento padrão (ex: abrir como link)
-    
-    // Extrai os dados que foram definidos no onDragStart do LeadCard
-    const leadId = e.dataTransfer.getData('leadId');
-    const fromColumnId = e.dataTransfer.getData('fromColumnId'); // Certifique-se que 'fromColumnId' é o nome correto usado no setData
-
-    // Verifica se os dados necessários estão presentes e se a coluna de origem é diferente da atual
-    if (leadId && fromColumnId && fromColumnId !== column.id) {
-      // Chama a função passada por props para efetivamente mover o card/lead
-      onMoveCard(leadId, fromColumnId, column.id);
-    } else if (leadId && fromColumnId === column.id) {
-      // Opcional: Lidar com o caso de soltar o card na mesma coluna (ex: reordenar dentro da coluna, se implementado)
-      console.log(`Lead ${leadId} solto na mesma coluna ${column.id}. Nenhuma ação de movimentação entre colunas.`);
+  const handleLeadDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); // Permite o drop
+    const draggedItemType = e.dataTransfer.types.find(type => type === 'leadId');
+    if (draggedItemType) {
+      // Opcional: Adicionar classe para feedback visual que a coluna é um alvo de drop para leads
+      // e.currentTarget.classList.add('lead-drag-over-target');
+      e.dataTransfer.dropEffect = 'move';
+    } else {
+      e.dataTransfer.dropEffect = 'none'; // Não permitir drop de outros tipos de item (como colunas) aqui
     }
   };
 
+  // const handleLeadDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+  //   // e.currentTarget.classList.remove('lead-drag-over-target');
+  // };
+
+  /**
+   * Manipulador para o evento onDrop DESTA COLUNA.
+   * Chamado quando um LeadCard é solto sobre esta coluna.
+   */
+  const handleLeadDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    // e.currentTarget.classList.remove('lead-drag-over-target');
+
+    const leadId = e.dataTransfer.getData('leadId');
+    const fromColumnId = e.dataTransfer.getData('fromColumnId');
+
+    // Verifica se os dados são de um lead e se a origem é diferente
+    if (leadId && fromColumnId && fromColumnId !== column.id) {
+      onDropLeadInColumn(leadId, fromColumnId, column.id);
+    } else if (leadId && fromColumnId === column.id) {
+      // Card solto na mesma coluna.
+      // A reordenação DENTRO da coluna (se implementada) seria tratada no onDrop do LeadCard
+      // ou aqui se a intenção fosse mover para o final da coluna.
+      console.log(`Lead ${leadId} solto na mesma coluna ${column.id}. Nenhuma mudança de etapa.`);
+    }
+  };
+
+
   return (
     // O div principal da coluna.
-    // - onDragOver e onDrop são para receber os LeadCards arrastados.
-    // - Não é mais 'draggable' por si só para evitar conflito com o drag dos cards.
+    // É um alvo de drop para LeadCards.
+    // A propriedade `draggable` e os handlers para arrastar a coluna estarão no wrapper em KanbanBoard.tsx
     <div
-      className="bg-gray-50 rounded-xl p-4 min-w-80 h-fit border border-gray-200 shadow-sm flex flex-col" // Adicionado flex flex-col para melhor controle da altura
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      // Adiciona um data attribute para facilitar testes ou estilizações específicas
+      className={`bg-gray-50 rounded-xl p-4 min-w-80 h-full border border-gray-200 shadow-sm flex flex-col transition-opacity ${
+        isDraggingColumn ? 'opacity-50' : 'opacity-100' // Feedback visual se a coluna está sendo arrastada
+      }`}
+      onDragOver={handleLeadDragOver} // Permite que LeadCards sejam soltos aqui
+      // onDragLeave={handleLeadDragLeave} // Limpa feedback visual
+      onDrop={handleLeadDrop}       // Lida com LeadCards soltos aqui
       data-column-id={column.id}
     >
       {/* Header da coluna: título, cor, contagem de leads e botões de ação da etapa */}
-      <div className="flex justify-between items-center mb-4">
+      {/* Adicionamos um "handle" para arrastar a coluna, se necessário, ou tornamos o header arrastável */}
+      <div
+        className="flex justify-between items-center mb-4"
+        // Se você quiser que apenas o header arraste a coluna, adicione draggable e onDragStart aqui
+        // e passe os handlers do KanbanBoard para cá. Por enquanto, o div wrapper em KanbanBoard fará isso.
+      >
         <div className="flex items-center gap-3">
-          {/* Círculo colorido para identificar visualmente a etapa */}
+          {/* Ícone para arrastar a coluna (opcional, pode ser todo o header) */}
+          {/* <GripVertical className="cursor-grab text-gray-400" size={16} /> */}
           <div className={`w-3 h-3 rounded-full ${corEtapa}`}></div>
-          {/* Título da coluna/etapa */}
           <h3 className="font-semibold text-gray-800 text-sm">{column.title}</h3>
-          {/* Botões para editar e deletar a etapa */}
           <div className="flex gap-1">
             <button
-              onClick={onEditEtapa} // Chama a função de editar etapa passada via props
+              onClick={onEditEtapa}
               className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
               title="Editar nome da etapa"
             >
               <Edit2 size={14} />
             </button>
             <button
-              onClick={onDeleteEtapa} // Chama a função de deletar etapa passada via props
+              onClick={onDeleteEtapa}
               className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
               title="Excluir etapa"
             >
@@ -106,30 +117,28 @@ export const KanbanColumn = ({
             </button>
           </div>
         </div>
-        {/* Badge com a contagem de leads na coluna */}
         <span className="bg-white text-gray-600 px-2.5 py-1 rounded-full text-xs font-medium border border-gray-200">
           {leads.length}
         </span>
       </div>
 
       {/* Container para os cards de leads */}
-      {/* min-h-[120px] para dar uma área mínima de drop mesmo se vazia */}
-      {/* Adicionado flex-grow e overflow-y-auto para permitir scroll interno se muitos cards */}
       <div className="space-y-3 min-h-[120px] flex-grow overflow-y-auto">
-        {/* Mapeia e renderiza cada LeadCard */}
-        {/* Verifica se 'leads' é um array antes de mapear para evitar erros */}
-        {Array.isArray(leads) && leads.map((lead) => (
+        {Array.isArray(leads) && leads.map((lead, index) => ( // Adicionamos o index aqui
           <LeadCard
             key={lead.id}
             lead={lead}
+            index={index} // Passa o índice do lead na coluna
             onEdit={() => onEditLead(lead)}
             onOpenHistory={() => onOpenHistory(lead)}
             onOpenChat={() => onOpenChat(lead)}
-            columnId={column.id} // Passa o ID da coluna atual para o LeadCard, útil para onDragStart
+            columnId={column.id}
+            // onDropOnCard não é mais necessário se a coluna é o único alvo de drop para cards
+            // A menos que você queira reordenar cards dentro da coluna soltando sobre outro card.
+            // Se a reordenação dentro da coluna não for prioridade agora, pode remover esta prop.
           />
         ))}
-
-        {/* Placeholder visual para colunas vazias, indicando que é uma área de drop */}
+        
         {(!Array.isArray(leads) || leads.length === 0) && (
           <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg h-full flex flex-col justify-center">
             <div className="text-gray-400 text-sm">
