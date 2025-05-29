@@ -48,59 +48,59 @@ function App() {
                 {/* Rotas protegidas com layout */}
                 <Route path="/dashboard" element={
                   <ProtectedRoute>
-                    <MainLayout>
-                      <DashboardPage />
-                    </MainLayout>
+                    <MainLayout />
                   </ProtectedRoute>
-                } />
+                }>
+                  <Route index element={<DashboardPage />} />
+                </Route>
                 
                 <Route path="/leads" element={
                   <ProtectedRoute>
-                    <MainLayout>
-                      <LeadsPage />
-                    </MainLayout>
+                    <MainLayout />
                   </ProtectedRoute>
-                } />
+                }>
+                  <Route index element={<LeadsPage />} />
+                </Route>
                 
                 <Route path="/contatos" element={
                   <ProtectedRoute>
-                    <MainLayout>
-                      <ContatosPage />
-                    </MainLayout>
+                    <MainLayout />
                   </ProtectedRoute>
-                } />
+                }>
+                  <Route index element={<ContatosPage />} />
+                </Route>
                 
                 <Route path="/chat" element={
                   <ProtectedRoute>
-                    <MainLayout>
-                      <ChatPageWrapper />
-                    </MainLayout>
+                    <MainLayout />
                   </ProtectedRoute>
-                } />
+                }>
+                  <Route index element={<ChatPageWrapper />} />
+                </Route>
                 
                 <Route path="/agenda" element={
                   <ProtectedRoute>
-                    <MainLayout>
-                      <AgendaPage />
-                    </MainLayout>
+                    <MainLayout />
                   </ProtectedRoute>
-                } />
+                }>
+                  <Route index element={<AgendaPage />} />
+                </Route>
                 
                 <Route path="/configuracoes" element={
                   <ProtectedRoute>
-                    <MainLayout>
-                      <ConfiguracoesPage />
-                    </MainLayout>
+                    <MainLayout />
                   </ProtectedRoute>
-                } />
+                }>
+                  <Route index element={<ConfiguracoesPage />} />
+                </Route>
 
                 <Route path="/ia" element={
                   <ProtectedRoute>
-                    <MainLayout>
-                      <ConfiguracoesIAPage />
-                    </MainLayout>
+                    <MainLayout />
                   </ProtectedRoute>
-                } />
+                }>
+                  <Route index element={<ConfiguracoesIAPage />} />
+                </Route>
                 
                 <Route path="/admin" element={
                   <ProtectedRoute>

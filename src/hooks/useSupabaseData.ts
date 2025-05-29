@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseChat } from './useSupabaseChat';
-import { useLeads } from './useLeadsData';
+import { useSupabaseLeads } from './useSupabaseLeads';
 import { useEtapas } from './useEtapasData';
 import { useTags } from './useTagsData';
 
@@ -15,7 +15,7 @@ import { useTags } from './useTagsData';
  * - Coordenação entre diferentes hooks especializados
  * 
  * Utiliza os hooks especializados para cada domínio:
- * - useLeads: para dados de leads
+ * - useSupabaseLeads: para dados de leads
  * - useEtapas: para etapas do kanban
  * - useTags: para tags/categorias
  * - useSupabaseChat: para mensagens e chat
@@ -25,7 +25,7 @@ export const useSupabaseData = () => {
   const [loading, setLoading] = useState(true);
 
   // Hooks especializados para cada domínio
-  const { data: leads = [], isLoading: leadsLoading } = useLeads();
+  const { data: leads = [], isLoading: leadsLoading } = useSupabaseLeads.useLeads();
   const { data: etapas = [], isLoading: etapasLoading } = useEtapas();
   const { data: tags = [], isLoading: tagsLoading } = useTags();
   
@@ -129,14 +129,14 @@ export const useSupabaseData = () => {
 
   return {
     // Dados principais das entidades
-    leads,
-    etapas,
-    tags,
+    leads: leads || [],
+    etapas: etapas || [],
+    tags: tags || [],
     
     // Estados do chat
-    mensagens: chatHook.mensagens,
-    respostasProntas: chatHook.respostasProntas,
-    mensagensNaoLidas: chatHook.mensagensNaoLidas,
+    mensagens: chatHook.mensagens || [],
+    respostasProntas: chatHook.respostasProntas || [],
+    mensagensNaoLidas: chatHook.mensagensNaoLidas || {},
     
     // Estado de loading geral
     loading,

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Plus } from 'lucide-react';
@@ -54,8 +53,13 @@ export const KanbanBoard = () => {
   const [etapaToDelete, setEtapaToDelete] = useState<Etapa | null>(null);
   const [leadsToMove, setLeadsToMove] = useState<Lead[]>([]);
 
+  // Verificação de segurança para evitar erro de length
+  const leadsSafe = leads || [];
+  const etapasSafe = etapas || [];
+  const tagsSafe = tags || [];
+
   // Ordenar etapas por ordem
-  const etapasOrdenadas = [...etapas].sort((a, b) => a.ordem - b.ordem);
+  const etapasOrdenadas = [...etapasSafe].sort((a, b) => a.ordem - b.ordem);
 
   // Função para lidar com fim do arrastar
   const onDragEnd = async (result: DropResult) => {
@@ -124,7 +128,7 @@ export const KanbanBoard = () => {
 
   // Função para lidar com exclusão de etapa
   const handleDeleteEtapa = (etapa: Etapa) => {
-    const leadsNaEtapa = leads.filter(lead => lead.etapa_kanban_id === etapa.id);
+    const leadsNaEtapa = leadsSafe.filter(lead => lead.etapa_kanban_id === etapa.id);
     
     if (leadsNaEtapa.length > 0) {
       setEtapaToDelete(etapa);
@@ -217,7 +221,7 @@ export const KanbanBoard = () => {
                 style={{ minWidth: 'max-content' }}
               >
                 {etapasOrdenadas.map((etapa, index) => {
-                  const leadsNaEtapa = leads.filter(lead => lead.etapa_kanban_id === etapa.id);
+                  const leadsNaEtapa = leadsSafe.filter(lead => lead.etapa_kanban_id === etapa.id);
                   
                   return (
                     <Draggable key={etapa.id} draggableId={etapa.id} index={index}>
@@ -230,7 +234,7 @@ export const KanbanBoard = () => {
                           <KanbanColumn
                             etapa={etapa}
                             leads={leadsNaEtapa}
-                            tags={tags}
+                            tags={tagsSafe}
                             onEditLead={(lead) => {
                               setEditingLead(lead);
                               setIsLeadModalOpen(true);
@@ -265,7 +269,7 @@ export const KanbanBoard = () => {
           setSelectedEtapaForNewLead(null);
         }}
         lead={editingLead}
-        etapas={etapas}
+        etapas={etapasSafe}
         selectedEtapaId={selectedEtapaForNewLead}
         onSave={handleSaveLead}
       />
@@ -277,6 +281,7 @@ export const KanbanBoard = () => {
           setEditingEtapa(null);
         }}
         etapa={editingEtapa}
+        etapasExistentes={etapasSafe}
         onSave={handleSaveEtapa}
       />
 
@@ -289,7 +294,7 @@ export const KanbanBoard = () => {
         }}
         etapaToDelete={etapaToDelete}
         leads={leadsToMove}
-        availableEtapas={etapas.filter(e => e.id !== etapaToDelete?.id)}
+        availableEtapas={etapasSafe.filter(e => e.id !== etapaToDelete?.id)}
         onConfirm={handleConfirmMoveAndDelete}
       />
     </div>
