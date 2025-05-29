@@ -4,6 +4,7 @@ import { Send, Paperclip, Zap, Bot, Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 /**
  * Componente de entrada de mensagem avançado
@@ -12,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
  * - Área de texto com redimensionamento automático
  * - Suporte a Shift+Enter para nova linha
  * - Botões para anexos, respostas prontas, IA e emojis
- * - Toggle do botão IA para controle de estado
+ * - Toggle do botão IA para controle de estado com estilo em gradiente
  * - Integração com respostas prontas via atalhos
  * - Validação de entrada e loading states
  */
@@ -136,16 +137,17 @@ export const MessageInput = ({
           </PopoverContent>
         </Popover>
 
-        {/* Botão IA com toggle de estado */}
+        {/* Botão IA com toggle de estado e gradiente */}
         <Button
           variant="ghost"
           size="sm"
           onClick={toggleAI}
-          className={`${
+          className={cn(
+            "transition-all duration-200",
             aiEnabled 
-              ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' 
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
+              ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 shadow-md" 
+              : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+          )}
           title={`Assistente IA ${aiEnabled ? 'ativado' : 'desativado'}`}
         >
           <Bot size={16} />
@@ -206,7 +208,7 @@ export const MessageInput = ({
         <div className="flex items-center gap-2">
           <span>/ para respostas prontas</span>
           {aiEnabled && (
-            <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded">
+            <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-2 py-1 rounded text-xs font-medium">
               IA ativada
             </span>
           )}

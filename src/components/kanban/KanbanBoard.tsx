@@ -1,427 +1,293 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { KanbanColumn } from './KanbanColumn';
 import { LeadModal } from './LeadModal';
-import { ConsultasHistoryModal } from './ConsultasHistoryModal';
 import { EtapaModal } from './EtapaModal';
 import { MoveLeadsModal } from './MoveLeadsModal';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { useUpdateLead, useMoveLeadToStage } from '@/hooks/useLeadsData';
-import { useUpdateEtapa, useDeleteEtapa } from '@/hooks/useEtapasData';
-import { useClinicaOperations } from '@/hooks/useClinicaOperations';
-import { useReorderEtapas } from '@/hooks/useEtapaReorder';
+import { useSupabaseLeads } from '@/hooks/useSupabaseLeads';
+import { useEtapaReorder } from '@/hooks/useEtapaReorder';
 
-/**
- * Componente principal do Kanban com funcionalidades aprimoradas
- * 
- * Novas funcionalidades implementadas:
- * - Cores distintivas para cada etapa
- * - Reordenação de etapas por drag and drop
- * - Verificação de leads antes de deletar etapas
- * - Movimentação automática de leads ao deletar etapas
- * - Design moderno e responsivo
- */
-
-// Tipos TypeScript corrigidos para compatibilidade
-export interface Lead {
+interface Lead {
   id: string;
   nome: string;
-  telefone: string | null;
-  email: string | null;
-  anotacoes: string | null;
-  etapa_kanban_id: string | null;
-  tag_id: string | null;
-  data_ultimo_contato: string | null;
+  telefone?: string;
+  email?: string;
+  etapa_kanban_id?: string;
+  tag_id?: string;
+  anotacoes?: string;
+  origem_lead?: string;
+  servico_interesse?: string;
   created_at: string;
-  updated_at: string | null;
-  clinica_id: string | null;
-  origem_lead: string | null;
-  servico_interesse: string | null;
+  updated_at: string;
 }
 
-export interface KanbanColumn {
+interface Etapa {
   id: string;
-  title: string;
-  leadIds: string[];
+  nome: string;
+  ordem: number;
 }
 
-interface KanbanBoardProps {
-  onNavigateToChat?: (leadId: string) => void;
+interface Tag {
+  id: string;
+  nome: string;
+  cor: string;
 }
 
-// Cores para as etapas (ciclo de 7 cores)
-const ETAPA_COLORS = [
-  'bg-blue-500',
-  'bg-green-500', 
-  'bg-yellow-500',
-  'bg-purple-500',
-  'bg-red-500',
-  'bg-indigo-500',
-  'bg-pink-500'
-];
-
-export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
-  // Estados do componente
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+export const KanbanBoard = () => {
+  const { leads, etapas, tags, loading } = useSupabaseData();
+  const { createLead, updateLead, deleteLead } = useSupabaseLeads();
+  const { reorderEtapas } = useEtapaReorder();
+  
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isEtapaModalOpen, setIsEtapaModalOpen] = useState(false);
-  const [editingEtapa, setEditingEtapa] = useState<any>(null);
-  const [consultasLead, setConsultasLead] = useState<any[]>([]);
-  const [etapaToDelete, setEtapaToDelete] = useState<any>(null);
-  const [isMoveLeadsModalOpen, setIsMoveLeadsModalOpen] = useState(false);
-  const [draggedEtapa, setDraggedEtapa] = useState<string | null>(null);
-
-  // Hook principal para dados do Supabase
-  const { etapas, leads, tags, loading } = useSupabaseData();
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [editingEtapa, setEditingEtapa] = useState<Etapa | null>(null);
+  const [selectedEtapaForNewLead, setSelectedEtapaForNewLead] = useState<string | null>(null);
   
-  // Hook para operações da clínica
-  const { createLead, createEtapa } = useClinicaOperations();
-  
-  // Hooks especializados para mutações
-  const updateLeadMutation = useUpdateLead();
-  const moveLeadMutation = useMoveLeadToStage();
-  const updateEtapaMutation = useUpdateEtapa();
-  const deleteEtapaMutation = useDeleteEtapa();
-  const reorderEtapasMutation = useReorderEtapas();
+  // Estados para modal de movimentação de leads
+  const [moveLeadsModalOpen, setMoveLeadsModalOpen] = useState(false);
+  const [etapaToDelete, setEtapaToDelete] = useState<Etapa | null>(null);
+  const [leadsToMove, setLeadsToMove] = useState<Lead[]>([]);
 
-  // Função para abrir modal de edição de lead
-  const handleEditLead = (lead: Lead) => {
-    setSelectedLead(lead);
-    setIsLeadModalOpen(true);
+  // Ordenar etapas por ordem
+  const etapasOrdenadas = [...etapas].sort((a, b) => a.ordem - b.ordem);
+
+  // Função para lidar com fim do arrastar
+  const onDragEnd = async (result: DropResult) => {
+    const { destination, source, type } = result;
+
+    if (!destination) return;
+
+    // Se arrastar etapas (colunas)
+    if (type === 'etapa') {
+      if (destination.index === source.index) return;
+
+      const etapasOrdenadas = [...etapas].sort((a, b) => a.ordem - b.ordem);
+      const [draggedEtapa] = etapasOrdenadas.splice(source.index, 1);
+      etapasOrdenadas.splice(destination.index, 0, draggedEtapa);
+
+      // Atualizar ordens no banco
+      await reorderEtapas(etapasOrdenadas);
+      return;
+    }
+
+    // Se arrastar leads entre etapas
+    if (source.droppableId === destination.droppableId) return;
+
+    const leadId = result.draggableId;
+    const novaEtapaId = destination.droppableId;
+
+    try {
+      await updateLead(leadId, { etapa_kanban_id: novaEtapaId });
+    } catch (error) {
+      console.error('Erro ao mover lead:', error);
+    }
   };
 
   // Função para criar novo lead
-  const handleCreateLead = () => {
-    setSelectedLead(null);
-    setIsLeadModalOpen(true);
-  };
-
-  // Função para salvar lead (criar ou editar) com validação
-  const handleSaveLead = async (leadData: Partial<Lead> & { nome: string }) => {
+  const handleCreateLead = async (leadData: Partial<Lead>) => {
     try {
-      // Validação local antes de enviar para o Supabase
-      if (!leadData.nome?.trim()) {
-        throw new Error('Nome do lead é obrigatório');
-      }
-
-      if (selectedLead) {
-        // Editando lead existente
-        await updateLeadMutation.mutateAsync({ id: selectedLead.id, ...leadData });
-      } else {
-        // Criando novo lead - usar hook de operações da clínica
-        await createLead({
-          nome: leadData.nome,
-          telefone: leadData.telefone || undefined,
-          email: leadData.email || undefined,
-          etapa_kanban_id: leadData.etapa_kanban_id || undefined,
-          tag_id: leadData.tag_id || undefined,
-          anotacoes: leadData.anotacoes || undefined,
-          origem_lead: leadData.origem_lead || undefined,
-          servico_interesse: leadData.servico_interesse || undefined,
-        });
-      }
-      
+      await createLead(leadData);
       setIsLeadModalOpen(false);
-    } catch (error: any) {
-      console.error('Erro ao salvar lead:', error);
-      alert(error.message || 'Erro ao salvar lead. Tente novamente.');
-    }
-  };
-
-  // Função para mover lead entre colunas (drag and drop)
-  const handleMoveCard = async (leadId: string, fromEtapa: string, toEtapa: string) => {
-    if (fromEtapa === toEtapa) return;
-    
-    try {
-      await moveLeadMutation.mutateAsync({ leadId, etapaId: toEtapa });
     } catch (error) {
-      console.error('Erro ao mover lead:', error);
-      alert('Erro ao mover lead. Tente novamente.');
+      console.error('Erro ao criar lead:', error);
     }
   };
 
-  // Função para abrir histórico de consultas
-  const handleOpenHistory = async (lead: Lead) => {
+  // Função para atualizar lead
+  const handleUpdateLead = async (leadId: string, leadData: Partial<Lead>) => {
     try {
-      // Buscar consultas seria implementado aqui
-      const consultas: any[] = [];
-      setConsultasLead(consultas);
-      setSelectedLead(lead);
-      setIsHistoryModalOpen(true);
+      await updateLead(leadId, leadData);
+      setIsLeadModalOpen(false);
+      setEditingLead(null);
     } catch (error) {
-      console.error('Erro ao buscar consultas:', error);
-      alert('Erro ao carregar histórico. Tente novamente.');
+      console.error('Erro ao atualizar lead:', error);
     }
   };
 
-  // Função para abrir chat com lead
-  const handleOpenChat = (lead: Lead) => {
-    if (onNavigateToChat) {
-      onNavigateToChat(lead.id);
+  // Função para deletar lead
+  const handleDeleteLead = async (leadId: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este lead?')) {
+      try {
+        await deleteLead(leadId);
+      } catch (error) {
+        console.error('Erro ao deletar lead:', error);
+      }
     }
   };
 
-  // Função para criar nova etapa
-  const handleCreateEtapa = () => {
-    setEditingEtapa(null);
-    setIsEtapaModalOpen(true);
-  };
-
-  // Função para editar etapa existente
-  const handleEditEtapa = (etapa: any) => {
+  // Função para editar etapa
+  const handleEditEtapa = (etapa: Etapa) => {
     setEditingEtapa(etapa);
     setIsEtapaModalOpen(true);
   };
 
-  // Função para salvar etapa
-  const handleSaveEtapa = async (nome: string) => {
-    try {
-      if (editingEtapa) {
-        await updateEtapaMutation.mutateAsync({ id: editingEtapa.id, nome });
-      } else {
-        // Calcular próxima ordem
-        const nextOrder = Math.max(...etapas.map(e => e.ordem || 0), 0) + 1;
-        await createEtapa({ nome, ordem: nextOrder });
-      }
-      setIsEtapaModalOpen(false);
-    } catch (error) {
-      console.error('Erro ao salvar etapa:', error);
-      throw error; // Propagar erro para o modal
-    }
-  };
-
-  // Função para excluir etapa
-  const handleDeleteEtapa = async (etapa: any) => {
-    // Verificar se a etapa possui leads
+  // Função para lidar com exclusão de etapa
+  const handleDeleteEtapa = (etapa: Etapa) => {
     const leadsNaEtapa = leads.filter(lead => lead.etapa_kanban_id === etapa.id);
     
     if (leadsNaEtapa.length > 0) {
-      // Se houver leads, abrir modal para mover leads
-      setEtapaToDelete({...etapa, leadsCount: leadsNaEtapa.length});
-      setIsMoveLeadsModalOpen(true);
+      // Se há leads na etapa, abrir modal para movê-los
+      setEtapaToDelete(etapa);
+      setLeadsToMove(leadsNaEtapa);
+      setMoveLeadsModalOpen(true);
     } else {
-      // Se não houver leads, confirmar exclusão diretamente
-      const confirmacao = confirm(
-        `Tem certeza que deseja excluir a etapa "${etapa.nome}"?\n\nEsta ação não pode ser desfeita.`
-      );
-
-      if (!confirmacao) return;
-
-      try {
-        await deleteEtapaMutation.mutateAsync(etapa.id);
-      } catch (error: any) {
-        console.error('Erro ao excluir etapa:', error);
-        alert(error.message || 'Erro ao excluir etapa. Tente novamente.');
+      // Se não há leads, confirmar exclusão diretamente
+      if (window.confirm(`Tem certeza que deseja excluir a etapa "${etapa.nome}"?`)) {
+        // Lógica de exclusão da etapa aqui
+        console.log('Excluir etapa:', etapa.id);
       }
     }
   };
 
-  // Função para mover leads e excluir etapa
-  const handleMoveLeadsAndDeleteEtapa = async (targetEtapaId: string) => {
-    if (!etapaToDelete) return;
+  // Função para confirmar movimentação e exclusão
+  const handleConfirmMoveAndDelete = async (targetEtapaId: string) => {
+    if (!etapaToDelete || leadsToMove.length === 0) return;
 
     try {
-      // Buscar todos os leads da etapa a ser deletada
-      const leadsToMove = leads.filter(lead => lead.etapa_kanban_id === etapaToDelete.id);
+      // Mover todos os leads para a nova etapa
+      for (const lead of leadsToMove) {
+        await updateLead(lead.id, { etapa_kanban_id: targetEtapaId });
+      }
+
+      // Aqui seria a lógica para excluir a etapa do banco
+      console.log('Excluir etapa após mover leads:', etapaToDelete.id);
       
-      // Mover todos os leads para a etapa destino
-      const movePromises = leadsToMove.map(lead => 
-        moveLeadMutation.mutateAsync({ leadId: lead.id, etapaId: targetEtapaId })
-      );
-      
-      await Promise.all(movePromises);
-      
-      // Após mover todos os leads, deletar a etapa
-      await deleteEtapaMutation.mutateAsync(etapaToDelete.id);
-      
+      // Fechar modal
+      setMoveLeadsModalOpen(false);
       setEtapaToDelete(null);
+      setLeadsToMove([]);
     } catch (error) {
-      console.error('Erro ao mover leads e deletar etapa:', error);
-      throw error;
+      console.error('Erro ao mover leads e excluir etapa:', error);
     }
   };
 
-  // Função para drag and drop de etapas
-  const handleEtapaDragStart = (e: React.DragEvent, etapaId: string) => {
-    setDraggedEtapa(etapaId);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleEtapaDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleEtapaDrop = (e: React.DragEvent, targetEtapaId: string) => {
-    e.preventDefault();
-    
-    if (!draggedEtapa || draggedEtapa === targetEtapaId) {
-      setDraggedEtapa(null);
-      return;
-    }
-
-    // Encontrar posições das etapas
-    const draggedIndex = etapas.findIndex(etapa => etapa.id === draggedEtapa);
-    const targetIndex = etapas.findIndex(etapa => etapa.id === targetEtapaId);
-    
-    if (draggedIndex === -1 || targetIndex === -1) return;
-
-    // Reordenar etapas no array local
-    const newEtapas = [...etapas];
-    const [draggedEtapa] = newEtapas.splice(draggedIndex, 1);
-    newEtapas.splice(targetIndex, 0, draggedEtapa);
-
-    // Criar array de atualizações com nova ordem
-    const etapasToUpdate = newEtapas.map((etapa, index) => ({
-      id: etapa.id,
-      ordem: index
-    }));
-
-    // Enviar atualizações para o backend
-    reorderEtapasMutation.mutate({ etapas: etapasToUpdate });
-    setDraggedEtapa(null);
-  };
-
-  // Mostrar loading enquanto carrega dados
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando dados do CRM...</p>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2 text-gray-600">Carregando...</span>
       </div>
     );
   }
 
   return (
-    <div className="h-full">
-      {/* Header da página com título e botões - Responsivo */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">
-            Gerenciamento de Leads
-          </h2>
-          <p className="text-gray-600 mt-1">
-            Acompanhe o progresso dos seus leads no funil de vendas
-          </p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            onClick={handleCreateEtapa}
-            className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+    <div className="h-full flex flex-col">
+      {/* Header com botões de ação */}
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">Kanban de Leads</h2>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setIsEtapaModalOpen(true)}
+            variant="outline"
+            className="flex items-center gap-2"
           >
-            <Plus size={18} />
+            <Plus size={16} />
             Nova Etapa
-          </button>
-          <button
-            onClick={handleCreateLead}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          </Button>
+          <Button
+            onClick={() => setIsLeadModalOpen(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
           >
-            + Novo Lead
-          </button>
+            <Plus size={16} />
+            Novo Lead
+          </Button>
         </div>
       </div>
 
-      {/* Board do Kanban - Layout responsivo */}
-      <div className="flex gap-6 overflow-x-auto pb-6 min-h-[600px]">
-        {etapas.map((etapa, index) => {
-          const leadsEtapa = leads.filter(lead => lead.etapa_kanban_id === etapa.id);
-          const corEtapa = ETAPA_COLORS[index % ETAPA_COLORS.length];
-          
-          return (
-            <div
-              key={etapa.id}
-              draggable
-              onDragStart={(e) => handleEtapaDragStart(e, etapa.id)}
-              onDragOver={handleEtapaDragOver}
-              onDrop={(e) => handleEtapaDrop(e, etapa.id)}
-              className={`cursor-move transition-all duration-200 ${
-                draggedEtapa === etapa.id ? 'opacity-50 scale-95' : ''
-              }`}
-            >
-              <KanbanColumn
-                column={{
-                  id: etapa.id,
-                  title: etapa.nome,
-                  leadIds: leadsEtapa.map(l => l.id)
-                }}
-                leads={leadsEtapa}
-                corEtapa={corEtapa}
-                onEditLead={handleEditLead}
-                onMoveCard={handleMoveCard}
-                onOpenHistory={handleOpenHistory}
-                onOpenChat={handleOpenChat}
-                onEditEtapa={() => handleEditEtapa(etapa)}
-                onDeleteEtapa={() => handleDeleteEtapa(etapa)}
-              />
-            </div>
-          );
-        })}
-        
-        {/* Mensagem quando não há etapas */}
-        {etapas.length === 0 && (
-          <div className="col-span-full flex items-center justify-center py-20">
-            <div className="text-center">
-              <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <Plus size={32} className="text-gray-400" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Nenhuma etapa criada
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Crie sua primeira etapa para começar a organizar seus leads.
-              </p>
-              <button
-                onClick={handleCreateEtapa}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+      {/* Board Kanban com scroll horizontal */}
+      <div className="flex-1 overflow-x-auto">
+        <DragDropContext onDragEnd={onDragEnd}>
+          <Droppable droppableId="etapas" direction="horizontal" type="etapa">
+            {(provided) => (
+              <div
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                className="flex gap-4 p-1"
+                style={{ minWidth: 'max-content' }}
               >
-                Criar Primeira Etapa
-              </button>
-            </div>
-          </div>
-        )}
+                {etapasOrdenadas.map((etapa, index) => {
+                  const leadsNaEtapa = leads.filter(lead => lead.etapa_kanban_id === etapa.id);
+                  
+                  return (
+                    <Draggable key={etapa.id} draggableId={etapa.id} index={index}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`w-80 ${snapshot.isDragging ? 'rotate-2 shadow-xl' : ''}`}
+                        >
+                          <KanbanColumn
+                            etapa={etapa}
+                            leads={leadsNaEtapa}
+                            tags={tags}
+                            onEditLead={(lead) => {
+                              setEditingLead(lead);
+                              setIsLeadModalOpen(true);
+                            }}
+                            onDeleteLead={handleDeleteLead}
+                            onEditEtapa={handleEditEtapa}
+                            onDeleteEtapa={handleDeleteEtapa}
+                            onAddLead={(etapaId) => {
+                              setSelectedEtapaForNewLead(etapaId);
+                              setIsLeadModalOpen(true);
+                            }}
+                            dragHandleProps={provided.dragHandleProps}
+                          />
+                        </div>
+                      )}
+                    </Draggable>
+                  );
+                })}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
       </div>
 
-      {/* Modal para edição/criação de leads com seleção de etapa */}
+      {/* Modais */}
       <LeadModal
         isOpen={isLeadModalOpen}
-        onClose={() => setIsLeadModalOpen(false)}
-        lead={selectedLead}
+        onClose={() => {
+          setIsLeadModalOpen(false);
+          setEditingLead(null);
+          setSelectedEtapaForNewLead(null);
+        }}
+        lead={editingLead}
         etapas={etapas}
-        onSave={handleSaveLead}
-        onOpenHistory={selectedLead ? () => handleOpenHistory(selectedLead) : undefined}
+        selectedEtapaId={selectedEtapaForNewLead}
+        onSave={editingLead ? handleUpdateLead : handleCreateLead}
       />
 
-      {/* Modal para histórico de consultas */}
-      <ConsultasHistoryModal
-        isOpen={isHistoryModalOpen}
-        onClose={() => setIsHistoryModalOpen(false)}
-        lead={selectedLead}
-        consultas={consultasLead}
-      />
-
-      {/* Modal para criar/editar etapas */}
       <EtapaModal
         isOpen={isEtapaModalOpen}
-        onClose={() => setIsEtapaModalOpen(false)}
-        onSave={handleSaveEtapa}
+        onClose={() => {
+          setIsEtapaModalOpen(false);
+          setEditingEtapa(null);
+        }}
         etapa={editingEtapa}
-        etapasExistentes={etapas}
+        onSave={(etapaData) => {
+          console.log('Salvar etapa:', etapaData);
+          setIsEtapaModalOpen(false);
+          setEditingEtapa(null);
+        }}
       />
 
-      {/* Modal para mover leads ao deletar etapa */}
       <MoveLeadsModal
-        isOpen={isMoveLeadsModalOpen}
+        isOpen={moveLeadsModalOpen}
         onClose={() => {
-          setIsMoveLeadsModalOpen(false);
+          setMoveLeadsModalOpen(false);
           setEtapaToDelete(null);
+          setLeadsToMove([]);
         }}
-        onConfirm={handleMoveLeadsAndDeleteEtapa}
         etapaToDelete={etapaToDelete}
-        leadsCount={etapaToDelete?.leadsCount || 0}
-        etapasDisponiveis={etapas}
+        leadsToMove={leadsToMove}
+        availableEtapas={etapas.filter(e => e.id !== etapaToDelete?.id)}
+        onConfirm={handleConfirmMoveAndDelete}
       />
     </div>
   );

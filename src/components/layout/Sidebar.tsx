@@ -6,7 +6,8 @@ import {
   Kanban, 
   CalendarDays, 
   Settings,
-  Shield
+  Shield,
+  Bot
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -25,6 +26,7 @@ import { LogoutButton } from '@/components/auth/LogoutButton';
  * - Acesso ao painel administrativo para usuários com permissão
  * - Exibição de informações do usuário logado
  * - Botão de logout integrado
+ * - Item especial de IA com estilo em gradiente
  */
 
 // Array com todas as opções de navegação disponíveis
@@ -88,6 +90,11 @@ export const Sidebar = () => {
     navigate('/admin');
   };
 
+  // Função para navegar para configurações de IA
+  const navegarParaIA = () => {
+    navigate('/ia');
+  };
+
   return (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
       {/* Header da sidebar com logo da clínica */}
@@ -126,6 +133,23 @@ export const Sidebar = () => {
               </li>
             );
           })}
+          
+          {/* Item especial de IA com gradiente */}
+          <li>
+            <button
+              onClick={navegarParaIA}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-all",
+                location.pathname === '/ia'
+                  ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md"
+                  : "bg-gradient-to-r from-blue-400 to-purple-500 text-white hover:from-blue-500 hover:to-purple-600 hover:shadow-md"
+              )}
+              title="Configurações de Inteligência Artificial"
+            >
+              <Bot size={20} />
+              <span className="font-medium">Inteligência Artificial</span>
+            </button>
+          </li>
           
           {/* Separador */}
           <li className="pt-4 mt-4 border-t border-gray-200">

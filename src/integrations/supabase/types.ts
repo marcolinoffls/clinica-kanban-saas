@@ -195,6 +195,21 @@ export type Database = {
       clinicas: {
         Row: {
           admin_prompt: string | null
+          ai_active_for_ad_leads_only: boolean | null
+          ai_active_for_all_new_leads: boolean | null
+          ai_active_saturday: boolean | null
+          ai_active_sunday: boolean | null
+          ai_business_hours_end_weekday: string | null
+          ai_business_hours_start_weekday: string | null
+          ai_chat_suggestions_active: boolean | null
+          ai_clinica_prompt: string | null
+          ai_name: string | null
+          ai_operating_mode: string | null
+          ai_restricted_topics_prompt: string | null
+          ai_saturday_hours_end: string | null
+          ai_saturday_hours_start: string | null
+          ai_sunday_hours_end: string | null
+          ai_sunday_hours_start: string | null
           cnpj: string | null
           created_at: string | null
           email: string
@@ -214,6 +229,21 @@ export type Database = {
         }
         Insert: {
           admin_prompt?: string | null
+          ai_active_for_ad_leads_only?: boolean | null
+          ai_active_for_all_new_leads?: boolean | null
+          ai_active_saturday?: boolean | null
+          ai_active_sunday?: boolean | null
+          ai_business_hours_end_weekday?: string | null
+          ai_business_hours_start_weekday?: string | null
+          ai_chat_suggestions_active?: boolean | null
+          ai_clinica_prompt?: string | null
+          ai_name?: string | null
+          ai_operating_mode?: string | null
+          ai_restricted_topics_prompt?: string | null
+          ai_saturday_hours_end?: string | null
+          ai_saturday_hours_start?: string | null
+          ai_sunday_hours_end?: string | null
+          ai_sunday_hours_start?: string | null
           cnpj?: string | null
           created_at?: string | null
           email: string
@@ -233,6 +263,21 @@ export type Database = {
         }
         Update: {
           admin_prompt?: string | null
+          ai_active_for_ad_leads_only?: boolean | null
+          ai_active_for_all_new_leads?: boolean | null
+          ai_active_saturday?: boolean | null
+          ai_active_sunday?: boolean | null
+          ai_business_hours_end_weekday?: string | null
+          ai_business_hours_start_weekday?: string | null
+          ai_chat_suggestions_active?: boolean | null
+          ai_clinica_prompt?: string | null
+          ai_name?: string | null
+          ai_operating_mode?: string | null
+          ai_restricted_topics_prompt?: string | null
+          ai_saturday_hours_end?: string | null
+          ai_saturday_hours_start?: string | null
+          ai_sunday_hours_end?: string | null
+          ai_sunday_hours_start?: string | null
           cnpj?: string | null
           created_at?: string | null
           email?: string
