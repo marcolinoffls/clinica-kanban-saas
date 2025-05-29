@@ -27,6 +27,7 @@ import { LogoutButton } from '@/components/auth/LogoutButton';
  * - Exibição de informações do usuário logado
  * - Botão de logout integrado
  * - Item especial de IA com gradiente azul
+ * - Verificações de segurança para dados de clínica
  */
 
 // Array com todas as opções de navegação disponíveis
@@ -155,16 +156,16 @@ export const Sidebar = () => {
 
       {/* Footer da sidebar com informações do usuário e logout */}
       <div className="p-4 border-t border-gray-200 space-y-4">
-        {/* Informações da clínica */}
+        {/* Informações da clínica - com verificações de segurança */}
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
             <span className="text-blue-600 font-semibold text-sm">
-              {clinicaAtiva.nome.charAt(0).toUpperCase()}
+              {clinicaAtiva?.nome ? clinicaAtiva.nome.charAt(0).toUpperCase() : 'C'}
             </span>
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">
-              {isLoading ? 'Carregando...' : clinicaAtiva.nome}
+              {isLoading ? 'Carregando...' : (clinicaAtiva?.nome || 'Clínica')}
             </p>
             <p className="text-xs text-gray-500">Clínica</p>
           </div>
