@@ -1,59 +1,48 @@
 
-import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 /**
- * Hook para gerenciar reordenação de etapas do kanban
+ * Hook para reordenar etapas do kanban
  * 
- * Funcionalidades:
- * - Reordenar etapas via drag and drop
- * - Atualizar ordem no banco de dados
- * - Gerenciar estado de loading
+ * Gerencia o drag and drop das colunas (etapas) e atualiza
+ * a ordem no banco de dados mantendo a sequência correta.
  */
 
-export const useEtapaReorder = () => {
-  const [reordering, setReordering] = useState(false);
+export const useReorderEtapas = () => {
+  const queryClient = useQueryClient();
 
-  // Função para reordenar etapas
-  const reorderEtapas = async (sourceIndex: number, destinationIndex: number, etapas: any[]) => {
-    try {
-      setReordering(true);
-      
-      // Criar nova ordem das etapas
-      const newEtapas = Array.from(etapas);
-      const [movedEtapa] = newEtapas.splice(sourceIndex, 1);
-      newEtapas.splice(destinationIndex, 0, movedEtapa);
+  return useMutation({
+    mutationFn: async ({ etapas }: { etapas: { id: string; ordem: number }[] }) => {
+      console.log('🔄 Reordenando etapas:', etapas);
 
-      // Atualizar ordem de cada etapa
-      const updates = newEtapas.map((etapa, index) => ({
-        id: etapa.id,
-        ordem: index
-      }));
-
-      // Executar updates no banco
-      for (const update of updates) {
-        const { error } = await supabase
+      // Atualizar a ordem de todas as etapas afetadas
+      const updates = etapas.map(({ id, ordem }) => 
+        supabase
           .from('etapas_kanban')
-          .update({ ordem: update.ordem })
-          .eq('id', update.id);
+          .update({ ordem })
+          .eq('id', id)
+      );
 
-        if (error) throw error;
+      const results = await Promise.all(updates);
+      
+      // Verificar se alguma atualização falhou
+      const errors = results.filter(result => result.error);
+      if (errors.length > 0) {
+        console.error('❌ Erro ao reordenar etapas:', errors);
+        throw new Error('Erro ao reordenar etapas');
       }
 
-      toast.success('Ordem das etapas atualizada!');
-      return newEtapas;
-    } catch (error) {
-      console.error('Erro ao reordenar etapas:', error);
+      console.log('✅ Etapas reordenadas com sucesso');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['etapas'] });
+      toast.success('Etapas reordenadas com sucesso!');
+    },
+    onError: (error: Error) => {
+      console.error('❌ Erro ao reordenar etapas:', error);
       toast.error('Erro ao reordenar etapas');
-      throw error;
-    } finally {
-      setReordering(false);
-    }
-  };
-
-  return {
-    reordering,
-    reorderEtapas
-  };
+    },
+  });
 };

@@ -1,44 +1,69 @@
-
-import { History, MessageCircle, Tag, Trash2 } from 'lucide-react';
-import { Lead, Tag as TagType } from './KanbanBoard';
+import { History, MessageCircle, Tag } from 'lucide-react';
+import { Lead } from './KanbanBoard';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
 
 /**
- * Card de lead com design moderno
+ * Card de lead aprimorado com design moderno
  * 
- * Exibe informações do lead e ações disponíveis
- * Permite edição e exclusão do lead
+ * Melhorias implementadas:
+ * - Design moderno com bordas arredondadas
+ * - Exibição de tags coloridas
+ * - Melhor organização visual dos elementos
+ * - Hover effects aprimorados
  */
 
 interface LeadCardProps {
   lead: Lead;
-  tags: TagType[];
   onEdit: () => void;
-  onDelete: () => void;
+  onOpenHistory: () => void;
+  onOpenChat: () => void;
+  columnId: string;
 }
 
-export const LeadCard = ({ lead, tags, onEdit, onDelete }: LeadCardProps) => {
-  // Buscar dados da tag para exibir cor
+export const LeadCard = ({ lead, onEdit, onOpenHistory, onOpenChat, columnId }: LeadCardProps) => {
+  // Buscar dados das tags para exibir cor
+  const { tags } = useSupabaseData();
   const tagDoLead = tags.find(tag => tag.id === lead.tag_id);
 
+  // Configuração para arrastar o card
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('leadId', lead.id);
+    e.dataTransfer.setData('fromColumn', columnId);
+  };
+
   // Prevenir propagação de eventos dos botões
-  const handleDeleteClick = (e: React.MouseEvent) => {
+  const handleHistoryClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onDelete();
+    onOpenHistory();
+  };
+
+  const handleChatClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onOpenChat();
   };
 
   return (
     <div
       className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 cursor-pointer hover:shadow-md hover:border-gray-200 transition-all duration-200 relative group"
+      draggable
+      onDragStart={handleDragStart}
       onClick={onEdit}
     >
       {/* Botões de ação no topo */}
       <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
-          onClick={handleDeleteClick}
-          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          title="Excluir lead"
+          onClick={handleChatClick}
+          className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+          title="Abrir chat"
         >
-          <Trash2 size={14} />
+          <MessageCircle size={14} />
+        </button>
+        <button
+          onClick={handleHistoryClick}
+          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+          title="Ver histórico"
+        >
+          <History size={14} />
         </button>
       </div>
 

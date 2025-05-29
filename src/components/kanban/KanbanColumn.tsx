@@ -1,48 +1,70 @@
 
 import { Edit2, Trash2 } from 'lucide-react';
-import { Droppable, Draggable } from '@hello-pangea/dnd';
+import { KanbanColumn as IKanbanColumn, Lead } from './KanbanBoard';
 import { LeadCard } from './LeadCard';
-import { Lead, Etapa, Tag } from './KanbanBoard';
 
 /**
- * Componente de coluna do Kanban
+ * Componente de coluna do Kanban com design aprimorado
  * 
- * Exibe uma etapa do processo com seus leads
- * Permite arrastar e soltar leads entre etapas
- * Fornece ações para editar/excluir a etapa
+ * Melhorias implementadas:
+ * - Círculo colorido identificador da etapa
+ * - Design moderno com bordas arredondadas
+ * - Área de drop visível e responsiva
+ * - Placeholder para colunas vazias
  */
 
 interface KanbanColumnProps {
-  etapa: Etapa;
+  column: IKanbanColumn;
   leads: Lead[];
-  tags: Tag[];
+  corEtapa: string; // Nova prop para cor da etapa
   onEditLead: (lead: Lead) => void;
-  onDeleteLead: (leadId: string) => void;
+  onMoveCard: (leadId: string, fromColumn: string, toColumn: string) => void;
+  onOpenHistory: (lead: Lead) => void;
+  onOpenChat: (lead: Lead) => void;
   onEditEtapa: () => void;
   onDeleteEtapa: () => void;
-  onAddLead: (etapaId: string) => void;
-  dragHandleProps?: any;
 }
 
 export const KanbanColumn = ({ 
-  etapa, 
+  column, 
   leads, 
-  tags,
+  corEtapa,
   onEditLead, 
-  onDeleteLead,
+  onMoveCard, 
+  onOpenHistory,
+  onOpenChat,
   onEditEtapa,
-  onDeleteEtapa,
-  onAddLead,
-  dragHandleProps
+  onDeleteEtapa 
 }: KanbanColumnProps) => {
+  // Configuração para permitir drop de cards
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  // Função para receber cards arrastados de outras colunas
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const leadId = e.dataTransfer.getData('leadId');
+    const fromColumn = e.dataTransfer.getData('fromColumn');
+    
+    if (leadId && fromColumn !== column.id) {
+      onMoveCard(leadId, fromColumn, column.id);
+    }
+  };
+
   return (
-    <div className="bg-gray-50 rounded-xl p-4 min-w-80 h-fit border border-gray-200 shadow-sm">
-      {/* Header da coluna */}
+    <div 
+      className="bg-gray-50 rounded-xl p-4 min-w-80 h-fit border border-gray-200 shadow-sm"
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Header da coluna com círculo colorido */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-3">
-          <div {...dragHandleProps} className="cursor-grab">
-            <h3 className="font-semibold text-gray-800 text-sm">{etapa.nome}</h3>
-          </div>
+          {/* Círculo colorido identificador da etapa */}
+          <div className={`w-3 h-3 rounded-full ${corEtapa}`}></div>
+          
+          <h3 className="font-semibold text-gray-800 text-sm">{column.title}</h3>
           
           <div className="flex gap-1">
             <button
@@ -69,48 +91,28 @@ export const KanbanColumn = ({
       </div>
 
       {/* Lista de cards dos leads */}
-      <Droppable droppableId={etapa.id}>
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className={`space-y-3 min-h-[120px] transition-colors ${
-              snapshot.isDraggingOver ? 'bg-blue-50 border-blue-200' : ''
-            }`}
-          >
-            {leads.map((lead, index) => (
-              <Draggable key={lead.id} draggableId={lead.id} index={index}>
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    {...provided.dragHandleProps}
-                    className={snapshot.isDragging ? 'rotate-2 shadow-xl' : ''}
-                  >
-                    <LeadCard
-                      lead={lead}
-                      tags={tags}
-                      onEdit={() => onEditLead(lead)}
-                      onDelete={() => onDeleteLead(lead.id)}
-                    />
-                  </div>
-                )}
-              </Draggable>
-            ))}
-            {provided.placeholder}
-            
-            {/* Placeholder para colunas vazias */}
-            {leads.length === 0 && (
-              <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">
-                <div className="text-gray-400 text-sm">
-                  <p className="font-medium mb-1">Nenhum lead aqui</p>
-                  <p className="text-xs">Arraste leads para esta etapa</p>
-                </div>
-              </div>
-            )}
+      <div className="space-y-3 min-h-[120px]">
+        {leads.map((lead) => (
+          <LeadCard
+            key={lead.id}
+            lead={lead}
+            onEdit={() => onEditLead(lead)}
+            onOpenHistory={() => onOpenHistory(lead)}
+            onOpenChat={() => onOpenChat(lead)}
+            columnId={column.id}
+          />
+        ))}
+        
+        {/* Placeholder para colunas vazias */}
+        {leads.length === 0 && (
+          <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">
+            <div className="text-gray-400 text-sm">
+              <p className="font-medium mb-1">Nenhum lead aqui</p>
+              <p className="text-xs">Arraste leads para esta etapa</p>
+            </div>
           </div>
         )}
-      </Droppable>
+      </div>
     </div>
   );
 };

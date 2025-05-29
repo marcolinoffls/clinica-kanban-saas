@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from 'react';
 import { X, User, Phone, Mail, MessageSquare, Building, Stethoscope, Workflow } from 'lucide-react';
-import { Lead, Etapa } from './KanbanBoard';
+import { Lead } from './KanbanBoard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,18 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 
 /**
- * Modal para criação e edição de leads
+ * Modal aprimorado para criação e edição de leads
  * 
- * Permite definir todas as informações do lead
- * incluindo a etapa inicial no kanban
+ * Nova funcionalidade implementada:
+ * - Seleção de etapa inicial do kanban ao criar lead
+ * - Interface melhorada para seleção de etapa
  */
 
 interface LeadModalProps {
   isOpen: boolean;
   onClose: () => void;
   lead: Lead | null;
-  etapas: Etapa[];
-  selectedEtapaId?: string | null;
+  etapas: any[]; // Nova prop com etapas disponíveis
   onSave: (leadData: Partial<Lead>) => void;
   onOpenHistory?: () => void;
 }
@@ -52,14 +51,15 @@ const servicosInteresse = [
   'Periodontia'
 ];
 
-export const LeadModal = ({ isOpen, onClose, lead, etapas, selectedEtapaId, onSave, onOpenHistory }: LeadModalProps) => {
+export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory }: LeadModalProps) => {
+  // Estados do formulário com nova etapa
   const [formData, setFormData] = useState({
     nome: '',
     telefone: '',
     email: '',
     origem_lead: '',
     servico_interesse: '',
-    etapa_kanban_id: '',
+    etapa_kanban_id: '', // Novo campo para etapa
     anotacoes: ''
   });
   
@@ -69,6 +69,7 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, selectedEtapaId, onSa
   // Preenche o formulário quando um lead é selecionado para edição
   useEffect(() => {
     if (lead) {
+      console.log('📝 Carregando dados do lead para edição:', lead);
       setFormData({
         nome: lead.nome || '',
         telefone: lead.telefone || '',
@@ -79,28 +80,30 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, selectedEtapaId, onSa
         anotacoes: lead.anotacoes || ''
       });
     } else {
+      console.log('➕ Formulário limpo para criação de novo lead');
       setFormData({
         nome: '',
         telefone: '',
         email: '',
         origem_lead: '',
         servico_interesse: '',
-        etapa_kanban_id: selectedEtapaId || (etapas.length > 0 ? etapas[0].id : ''),
+        etapa_kanban_id: etapas.length > 0 ? etapas[0].id : '', // Primeira etapa como padrão
         anotacoes: ''
       });
     }
     setErrors({});
-  }, [lead, isOpen, etapas, selectedEtapaId]);
+  }, [lead, isOpen, etapas]);
 
   // Função para atualizar campos do formulário
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    // Limpar erro do campo quando usuário digita
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
-  // Validação do formulário
+  // Validação do formulário com nova etapa
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
     
@@ -120,6 +123,7 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, selectedEtapaId, onSa
       newErrors.servico_interesse = 'Serviço de interesse é obrigatório';
     }
 
+    // Validar etapa apenas para novos leads
     if (!lead && !formData.etapa_kanban_id) {
       newErrors.etapa_kanban_id = 'Etapa inicial é obrigatória';
     }
@@ -138,10 +142,15 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, selectedEtapaId, onSa
     
     setIsLoading(true);
     try {
+      // CORREÇÃO: Incluir o ID do lead nos dados quando estiver editando
       const leadDataToSave = {
         ...formData,
+        // Se estiver editando (lead existe), incluir o ID
         ...(lead && { id: lead.id })
       };
+      
+      console.log('💾 Dados que serão enviados para salvamento:', leadDataToSave);
+      console.log('🔍 Modo de operação:', lead ? 'EDIÇÃO' : 'CRIAÇÃO');
       
       await onSave(leadDataToSave);
       onClose();
@@ -162,6 +171,7 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, selectedEtapaId, onSa
     return value;
   };
 
+  // Não renderiza nada se o modal estiver fechado
   if (!isOpen) return null;
 
   return (

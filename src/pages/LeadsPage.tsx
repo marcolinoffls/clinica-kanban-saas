@@ -18,7 +18,7 @@ const LeadsPage = () => {
     navigate(`/chat?leadId=${leadId}`);
   };
 
-  return <KanbanBoard />;
+  return <KanbanBoard onNavigateToChat={handleNavigateToChat} />;
 };
 
 export default LeadsPage;

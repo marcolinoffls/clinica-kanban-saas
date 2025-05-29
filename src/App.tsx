@@ -1,124 +1,85 @@
 
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from '@/components/ui/sonner';
-import { AuthProvider } from '@/contexts/AuthContext';
-import { ClinicaProvider } from '@/contexts/ClinicaContext';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import MainLayout from '@/components/layout/MainLayout';
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ClinicaProvider } from "@/contexts/ClinicaContext";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import MainLayout from "@/components/layout/MainLayout";
+import DashboardPage from "./pages/DashboardPage";
+import LeadsPage from "./pages/LeadsPage";
+import ContatosPage from "./pages/ContatosPage";
+import ChatPageWrapper from "./pages/ChatPageWrapper";
+import AgendaPage from "./pages/AgendaPage";
+import ConfiguracoesPage from "./pages/ConfiguracoesPage";
+import AdminPage from "./pages/AdminPage";
+import SignInPage from "./pages/SignInPage";
+import SignUpPage from "./pages/SignUpPage";
+import WelcomePage from "./pages/WelcomePage";
+import NotFound from "./pages/NotFound";
 
-// Páginas
-import WelcomePage from '@/pages/WelcomePage';
-import SignInPage from '@/pages/SignInPage';
-import SignUpPage from '@/pages/SignUpPage';
-import DashboardPage from '@/pages/DashboardPage';
-import LeadsPage from '@/pages/LeadsPage';
-import ContatosPage from '@/pages/ContatosPage';
-import ChatPageWrapper from '@/pages/ChatPageWrapper';
-import AgendaPage from '@/pages/AgendaPage';
-import ConfiguracoesPage from '@/pages/ConfiguracoesPage';
-import ConfiguracoesIAPage from '@/pages/ConfiguracoesIAPage';
-import AdminPage from '@/pages/AdminPage';
-import NotFound from '@/pages/NotFound';
+const queryClient = new QueryClient();
 
-import './App.css';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutos
-      retry: 1,
-    },
-  },
-});
-
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
       <AuthProvider>
         <ClinicaProvider>
-          <Router>
-            <div className="min-h-screen bg-gray-50">
-              <Routes>
-                {/* Rotas públicas */}
-                <Route path="/" element={<WelcomePage />} />
-                <Route path="/signin" element={<SignInPage />} />
-                <Route path="/signup" element={<SignUpPage />} />
-                
-                {/* Rotas protegidas com layout */}
-                <Route path="/dashboard" element={
+          <BrowserRouter>
+            <Routes>
+              {/* Página pública de boas-vindas */}
+              <Route path="/welcome" element={<WelcomePage />} />
+              
+              {/* Rotas públicas de autenticação */}
+              <Route path="/login" element={<SignInPage />} />
+              <Route path="/signup" element={<SignUpPage />} />
+              
+              {/* Redirecionar raiz para dashboard */}
+              <Route 
+                path="/" 
+                element={<Navigate to="/dashboard" replace />} 
+              />
+              
+              {/* Rotas protegidas com layout principal */}
+              <Route 
+                path="/*" 
+                element={
                   <ProtectedRoute>
                     <MainLayout />
                   </ProtectedRoute>
-                }>
-                  <Route index element={<DashboardPage />} />
-                </Route>
-                
-                <Route path="/leads" element={
-                  <ProtectedRoute>
-                    <MainLayout />
-                  </ProtectedRoute>
-                }>
-                  <Route index element={<LeadsPage />} />
-                </Route>
-                
-                <Route path="/contatos" element={
-                  <ProtectedRoute>
-                    <MainLayout />
-                  </ProtectedRoute>
-                }>
-                  <Route index element={<ContatosPage />} />
-                </Route>
-                
-                <Route path="/chat" element={
-                  <ProtectedRoute>
-                    <MainLayout />
-                  </ProtectedRoute>
-                }>
-                  <Route index element={<ChatPageWrapper />} />
-                </Route>
-                
-                <Route path="/agenda" element={
-                  <ProtectedRoute>
-                    <MainLayout />
-                  </ProtectedRoute>
-                }>
-                  <Route index element={<AgendaPage />} />
-                </Route>
-                
-                <Route path="/configuracoes" element={
-                  <ProtectedRoute>
-                    <MainLayout />
-                  </ProtectedRoute>
-                }>
-                  <Route index element={<ConfiguracoesPage />} />
-                </Route>
-
-                <Route path="/ia" element={
-                  <ProtectedRoute>
-                    <MainLayout />
-                  </ProtectedRoute>
-                }>
-                  <Route index element={<ConfiguracoesIAPage />} />
-                </Route>
-                
-                <Route path="/admin" element={
+                }
+              >
+                {/* Rotas das páginas principais */}
+                <Route path="dashboard" element={<DashboardPage />} />
+                <Route path="leads" element={<LeadsPage />} />
+                <Route path="contatos" element={<ContatosPage />} />
+                <Route path="chat" element={<ChatPageWrapper />} />
+                <Route path="agenda" element={<AgendaPage />} />
+                <Route path="configuracoes" element={<ConfiguracoesPage />} />
+              </Route>
+              
+              {/* Rota do admin (sem layout principal pois tem seu próprio layout) */}
+              <Route 
+                path="/admin" 
+                element={
                   <ProtectedRoute>
                     <AdminPage />
                   </ProtectedRoute>
-                } />
-                
-                {/* Página 404 */}
-                <Route path="/404" element={<NotFound />} />
-                <Route path="*" element={<Navigate to="/404" replace />} />
-              </Routes>
-            </div>
-            <Toaster />
-          </Router>
+                } 
+              />
+              
+              {/* Página 404 para rotas não encontradas */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
         </ClinicaProvider>
       </AuthProvider>
-    </QueryClientProvider>
-  );
-}
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;
