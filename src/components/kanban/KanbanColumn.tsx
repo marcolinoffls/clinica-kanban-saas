@@ -4,30 +4,25 @@ import { KanbanColumn as IKanbanColumn, Lead } from './KanbanBoard';
 import { LeadCard } from './LeadCard';
 
 /**
- * Componente de coluna do Kanban com drag and drop corrigido
+ * Componente de coluna do Kanban com design aprimorado
  * 
- * CORREÇÕES APLICADAS:
- * - Separação clara entre eventos de drag de leads e etapas
- * - Prevenção de propagação de eventos conflitantes
- * - Validação de tipos de dados no dataTransfer
- * - Bloqueio de interações durante reordenação de etapas
+ * Melhorias implementadas:
+ * - Círculo colorido identificador da etapa
+ * - Design moderno com bordas arredondadas
+ * - Área de drop visível e responsiva
+ * - Placeholder para colunas vazias
  */
 
 interface KanbanColumnProps {
   column: IKanbanColumn;
   leads: Lead[];
-  corEtapa: string;
+  corEtapa: string; // Nova prop para cor da etapa
   onEditLead: (lead: Lead) => void;
+  onMoveCard: (leadId: string, fromColumn: string, toColumn: string) => void;
   onOpenHistory: (lead: Lead) => void;
   onOpenChat: (lead: Lead) => void;
   onEditEtapa: () => void;
   onDeleteEtapa: () => void;
-  // Props específicas para drag de leads
-  onLeadDragStart: (leadId: string, fromEtapaId: string) => void;
-  onLeadDragEnd: () => void;
-  onLeadDrop: (leadId: string, fromEtapa: string, toEtapa: string) => void;
-  draggedLead: string | null;
-  etapaReorderMode: boolean;
 }
 
 export const KanbanColumn = ({ 
@@ -35,67 +30,35 @@ export const KanbanColumn = ({
   leads, 
   corEtapa,
   onEditLead, 
+  onMoveCard, 
   onOpenHistory,
   onOpenChat,
   onEditEtapa,
-  onDeleteEtapa,
-  onLeadDragStart,
-  onLeadDragEnd,
-  onLeadDrop,
-  draggedLead,
-  etapaReorderMode
+  onDeleteEtapa 
 }: KanbanColumnProps) => {
-
-  // ========== EVENTOS DE DRAG PARA LEADS ==========
-  
-  const handleLeadDragOver = (e: React.DragEvent) => {
-    // Só permitir drop de leads quando NÃO estiver em modo de reordenação
-    if (etapaReorderMode) return;
-    
+  // Configuração para permitir drop de cards
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation(); // Evitar propagação para elementos pai
-    e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleLeadDrop = (e: React.DragEvent) => {
-    // Só processar drops de leads quando NÃO estiver em modo de reordenação
-    if (etapaReorderMode) return;
-    
+  // Função para receber cards arrastados de outras colunas
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation(); // Evitar propagação para elementos pai
+    const leadId = e.dataTransfer.getData('leadId');
+    const fromColumn = e.dataTransfer.getData('fromColumn');
     
-    // Verificar se é um drop de lead válido
-    const leadId = e.dataTransfer.getData('lead/id');
-    const fromColumn = e.dataTransfer.getData('lead/fromColumn');
-    
-    if (!leadId || !fromColumn) {
-      console.log('⚠️ Drop inválido - dados de lead ausentes');
-      return;
+    if (leadId && fromColumn !== column.id) {
+      onMoveCard(leadId, fromColumn, column.id);
     }
-    
-    if (fromColumn !== column.id) {
-      console.log('✅ Processando drop de lead:', leadId, 'para etapa:', column.id);
-      onLeadDrop(leadId, fromColumn, column.id);
-    }
-    
-    onLeadDragEnd();
   };
 
   return (
     <div 
-      className={`bg-gray-50 rounded-xl p-4 min-w-80 h-fit border border-gray-200 shadow-sm transition-all ${
-        draggedLead && !etapaReorderMode 
-          ? 'ring-2 ring-blue-200 bg-blue-50' 
-          : ''
-      } ${
-        etapaReorderMode 
-          ? 'pointer-events-none opacity-75' 
-          : ''
-      }`}
-      onDragOver={handleLeadDragOver}
-      onDrop={handleLeadDrop}
+      className="bg-gray-50 rounded-xl p-4 min-w-80 h-fit border border-gray-200 shadow-sm"
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
-      {/* Header da coluna */}
+      {/* Header da coluna com círculo colorido */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-3">
           {/* Círculo colorido identificador da etapa */}
@@ -103,13 +66,11 @@ export const KanbanColumn = ({
           
           <h3 className="font-semibold text-gray-800 text-sm">{column.title}</h3>
           
-          {/* Botões de ação da etapa - desabilitados durante reordenação */}
-          <div className={`flex gap-1 ${etapaReorderMode ? 'opacity-50 pointer-events-none' : ''}`}>
+          <div className="flex gap-1">
             <button
               onClick={onEditEtapa}
               className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
               title="Editar nome da etapa"
-              disabled={etapaReorderMode}
             >
               <Edit2 size={14} />
             </button>
@@ -117,7 +78,6 @@ export const KanbanColumn = ({
               onClick={onDeleteEtapa}
               className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
               title="Excluir etapa"
-              disabled={etapaReorderMode}
             >
               <Trash2 size={14} />
             </button>
@@ -140,37 +100,19 @@ export const KanbanColumn = ({
             onOpenHistory={() => onOpenHistory(lead)}
             onOpenChat={() => onOpenChat(lead)}
             columnId={column.id}
-            onDragStart={onLeadDragStart}
-            onDragEnd={onLeadDragEnd}
-            isDragged={draggedLead === lead.id}
-            etapaReorderMode={etapaReorderMode}
           />
         ))}
         
         {/* Placeholder para colunas vazias */}
         {leads.length === 0 && (
-          <div className={`text-center py-12 border-2 border-dashed border-gray-200 rounded-lg transition-colors ${
-            draggedLead && !etapaReorderMode 
-              ? 'border-blue-300 bg-blue-50' 
-              : ''
-          }`}>
+          <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">
             <div className="text-gray-400 text-sm">
               <p className="font-medium mb-1">Nenhum lead aqui</p>
-              <p className="text-xs">
-                {etapaReorderMode 
-                  ? 'Modo de reordenação ativo' 
-                  : 'Arraste leads para esta etapa'
-                }
-              </p>
+              <p className="text-xs">Arraste leads para esta etapa</p>
             </div>
           </div>
         )}
       </div>
-
-      {/* Indicador visual durante drag de lead */}
-      {draggedLead && !etapaReorderMode && (
-        <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-blue-400 rounded-xl bg-blue-50 bg-opacity-20"></div>
-      )}
     </div>
   );
 };
