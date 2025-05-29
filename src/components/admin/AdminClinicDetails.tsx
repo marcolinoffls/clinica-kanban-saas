@@ -53,7 +53,8 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
         setClinica(dados);
         setAdminPrompt(dados.admin_prompt || '');
         setEvolutionInstanceName(dados.evolution_instance_name || '');
-        setEvolutionApiKey(dados.evolution_api_key || '');
+        // CORREÇÃO: Usar campo correto ou string vazia se não existir
+        setEvolutionApiKey(''); // Não carregar por segurança
       } catch (error) {
         console.error('Erro ao carregar detalhes da clínica:', error);
         toast({

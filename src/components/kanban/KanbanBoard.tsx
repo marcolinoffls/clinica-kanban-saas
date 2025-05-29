@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { KanbanColumn } from './KanbanColumn';
@@ -70,12 +71,10 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
   const [consultasLead, setConsultasLead] = useState<any[]>([]);
   const [etapaToDelete, setEtapaToDelete] = useState<any>(null);
   const [isMoveLeadsModalOpen, setIsMoveLeadsModalOpen] = useState(false);
-  
-  // CORREÇÃO: Declarar draggedEtapa como string no lugar correto
   const [draggedEtapa, setDraggedEtapa] = useState<string | null>(null);
 
-  // Hook principal para dados do Supabase
-  const { etapas, leads, tags, loading } = useSupabaseData();
+  // Hook principal para dados do Supabase - CORREÇÃO: garantir arrays válidos
+  const { etapas = [], leads = [], tags = [], loading } = useSupabaseData();
   
   // Hook para operações da clínica
   const { createLead, createEtapa } = useClinicaOperations();
@@ -258,8 +257,13 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
   const handleEtapaDrop = (e: React.DragEvent, targetEtapaId: string) => {
     e.preventDefault();
     
-    // CORREÇÃO: Usar draggedEtapa diretamente sem redeclarar
     if (!draggedEtapa || draggedEtapa === targetEtapaId) {
+      setDraggedEtapa(null);
+      return;
+    }
+
+    // CORREÇÃO: Verificar se etapas é um array válido antes de buscar índices
+    if (!Array.isArray(etapas) || etapas.length === 0) {
       setDraggedEtapa(null);
       return;
     }
@@ -329,8 +333,12 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
 
       {/* Board do Kanban - Layout responsivo */}
       <div className="flex gap-6 overflow-x-auto pb-6 min-h-[600px]">
-        {etapas.map((etapa, index) => {
-          const leadsEtapa = leads.filter(lead => lead.etapa_kanban_id === etapa.id);
+        {/* CORREÇÃO: Verificar se etapas é array válido antes de mapear */}
+        {Array.isArray(etapas) && etapas.map((etapa, index) => {
+          // CORREÇÃO: Garantir que leads seja array válido antes de filtrar
+          const leadsEtapa = Array.isArray(leads) 
+            ? leads.filter(lead => lead.etapa_kanban_id === etapa.id)
+            : [];
           const corEtapa = ETAPA_COLORS[index % ETAPA_COLORS.length];
           
           return (
@@ -364,7 +372,7 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
         })}
         
         {/* Mensagem quando não há etapas */}
-        {etapas.length === 0 && (
+        {(!Array.isArray(etapas) || etapas.length === 0) && (
           <div className="col-span-full flex items-center justify-center py-20">
             <div className="text-center">
               <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">

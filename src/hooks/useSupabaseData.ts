@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseChat } from './useSupabaseChat';
@@ -129,14 +128,14 @@ export const useSupabaseData = () => {
 
   return {
     // Dados principais das entidades
-    leads,
-    etapas,
-    tags,
+    leads: Array.isArray(leads) ? leads : [],
+    etapas: Array.isArray(etapas) ? etapas : [],
+    tags: Array.isArray(tags) ? tags : [],
     
     // Estados do chat
-    mensagens: chatHook.mensagens,
-    respostasProntas: chatHook.respostasProntas,
-    mensagensNaoLidas: chatHook.mensagensNaoLidas,
+    mensagens: chatHook.mensagens || [],
+    respostasProntas: chatHook.respostasProntas || [],
+    mensagensNaoLidas: chatHook.mensagensNaoLidas || {},
     
     // Estado de loading geral
     loading,
