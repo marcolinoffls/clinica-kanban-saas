@@ -1,15 +1,16 @@
+
 import { History, MessageCircle, Tag } from 'lucide-react';
 import { Lead } from './KanbanBoard';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 
 /**
- * Card de lead aprimorado com design moderno
+ * Card de lead com drag and drop isolado e corrigido
  * 
- * Melhorias implementadas:
- * - Design moderno com bordas arredondadas
- * - Exibição de tags coloridas
- * - Melhor organização visual dos elementos
- * - Hover effects aprimorados
+ * CORREÇÕES APLICADAS:
+ * - Eventos de drag específicos para leads
+ * - Dados únicos no dataTransfer para evitar conflitos
+ * - Prevenção de drag durante reordenação de etapas
+ * - Feedback visual melhorado durante drag
  */
 
 interface LeadCardProps {
@@ -18,17 +19,50 @@ interface LeadCardProps {
   onOpenHistory: () => void;
   onOpenChat: () => void;
   columnId: string;
+  onDragStart: (leadId: string, fromEtapaId: string) => void;
+  onDragEnd: () => void;
+  isDragged: boolean;
+  etapaReorderMode: boolean;
 }
 
-export const LeadCard = ({ lead, onEdit, onOpenHistory, onOpenChat, columnId }: LeadCardProps) => {
+export const LeadCard = ({ 
+  lead, 
+  onEdit, 
+  onOpenHistory, 
+  onOpenChat, 
+  columnId,
+  onDragStart,
+  onDragEnd,
+  isDragged,
+  etapaReorderMode
+}: LeadCardProps) => {
   // Buscar dados das tags para exibir cor
   const { tags } = useSupabaseData();
   const tagDoLead = tags.find(tag => tag.id === lead.tag_id);
 
-  // Configuração para arrastar o card
+  // ========== EVENTOS DE DRAG ESPECÍFICOS PARA LEADS ==========
+  
   const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData('leadId', lead.id);
-    e.dataTransfer.setData('fromColumn', columnId);
+    // Prevenir drag durante reordenação de etapas
+    if (etapaReorderMode) {
+      e.preventDefault();
+      return;
+    }
+    
+    console.log('🔄 Iniciando drag de lead:', lead.id, 'da coluna:', columnId);
+    
+    // Usar prefixos específicos para evitar conflitos
+    e.dataTransfer.setData('lead/id', lead.id);
+    e.dataTransfer.setData('lead/fromColumn', columnId);
+    e.dataTransfer.effectAllowed = 'move';
+    
+    // Informar ao componente pai
+    onDragStart(lead.id, columnId);
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    console.log('✅ Finalizando drag de lead:', lead.id);
+    onDragEnd();
   };
 
   // Prevenir propagação de eventos dos botões
@@ -44,17 +78,32 @@ export const LeadCard = ({ lead, onEdit, onOpenHistory, onOpenChat, columnId }: 
 
   return (
     <div
-      className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 cursor-pointer hover:shadow-md hover:border-gray-200 transition-all duration-200 relative group"
-      draggable
+      className={`bg-white p-4 rounded-xl shadow-sm border border-gray-100 transition-all duration-200 relative group ${
+        etapaReorderMode 
+          ? 'opacity-50 cursor-not-allowed' 
+          : 'cursor-pointer hover:shadow-md hover:border-gray-200'
+      } ${
+        isDragged 
+          ? 'opacity-60 scale-95 rotate-2 shadow-lg z-10' 
+          : ''
+      }`}
+      draggable={!etapaReorderMode}
       onDragStart={handleDragStart}
-      onClick={onEdit}
+      onDragEnd={handleDragEnd}
+      onClick={etapaReorderMode ? undefined : onEdit}
+      title={etapaReorderMode ? 'Modo de reordenação ativo - edição de leads desabilitada' : 'Clique para editar lead'}
     >
-      {/* Botões de ação no topo */}
-      <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Botões de ação no topo - desabilitados durante reordenação */}
+      <div className={`absolute top-3 right-3 flex gap-1 transition-opacity ${
+        etapaReorderMode 
+          ? 'opacity-0 pointer-events-none' 
+          : 'opacity-0 group-hover:opacity-100'
+      }`}>
         <button
           onClick={handleChatClick}
           className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
           title="Abrir chat"
+          disabled={etapaReorderMode}
         >
           <MessageCircle size={14} />
         </button>
@@ -62,6 +111,7 @@ export const LeadCard = ({ lead, onEdit, onOpenHistory, onOpenChat, columnId }: 
           onClick={handleHistoryClick}
           className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
           title="Ver histórico"
+          disabled={etapaReorderMode}
         >
           <History size={14} />
         </button>
@@ -117,6 +167,18 @@ export const LeadCard = ({ lead, onEdit, onOpenHistory, onOpenChat, columnId }: 
         <p className="text-xs text-gray-500 mt-3 line-clamp-2 leading-relaxed">
           {lead.anotacoes}
         </p>
+      )}
+
+      {/* Indicador visual durante drag */}
+      {isDragged && (
+        <div className="absolute inset-0 bg-blue-100 border-2 border-blue-400 border-dashed rounded-xl opacity-50 pointer-events-none"></div>
+      )}
+
+      {/* Overlay durante modo de reordenação */}
+      {etapaReorderMode && (
+        <div className="absolute inset-0 bg-gray-100 bg-opacity-75 rounded-xl flex items-center justify-center pointer-events-none">
+          <span className="text-xs text-gray-600 font-medium">Reordenação ativa</span>
+        </div>
       )}
     </div>
   );
