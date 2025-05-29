@@ -4,29 +4,19 @@ import { KanbanColumn as IKanbanColumn, Lead } from './KanbanBoard';
 import { LeadCard } from './LeadCard';
 
 /**
- * Componente que representa uma coluna do Kanban
+ * Componente de coluna do Kanban com design aprimorado
  * 
- * Funcionalidades:
- * - Exibe o título da etapa e contagem de leads
- * - Lista os cards dos leads nesta etapa
- * - Suporte a drag and drop
- * - Botão para editar nome da etapa
- * - Botão para excluir etapa
- * 
- * Props:
- * - column: dados da coluna (id, título, leadIds)
- * - leads: array de leads desta coluna
- * - onEditLead: função para editar um lead
- * - onMoveCard: função para mover card entre colunas
- * - onOpenHistory: função para abrir histórico de consultas
- * - onOpenChat: função para abrir chat
- * - onEditEtapa: função para editar o nome da etapa
- * - onDeleteEtapa: função para excluir a etapa
+ * Melhorias implementadas:
+ * - Círculo colorido identificador da etapa
+ * - Design moderno com bordas arredondadas
+ * - Área de drop visível e responsiva
+ * - Placeholder para colunas vazias
  */
 
 interface KanbanColumnProps {
   column: IKanbanColumn;
   leads: Lead[];
+  corEtapa: string; // Nova prop para cor da etapa
   onEditLead: (lead: Lead) => void;
   onMoveCard: (leadId: string, fromColumn: string, toColumn: string) => void;
   onOpenHistory: (lead: Lead) => void;
@@ -38,6 +28,7 @@ interface KanbanColumnProps {
 export const KanbanColumn = ({ 
   column, 
   leads, 
+  corEtapa,
   onEditLead, 
   onMoveCard, 
   onOpenHistory,
@@ -63,38 +54,44 @@ export const KanbanColumn = ({
 
   return (
     <div 
-      className="bg-gray-100 rounded-lg p-4 min-w-80 h-fit"
+      className="bg-gray-50 rounded-xl p-4 min-w-80 h-fit border border-gray-200 shadow-sm"
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* Header da coluna com título, botões de ação e contagem */}
+      {/* Header da coluna com círculo colorido */}
       <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-gray-800">{column.title}</h3>
+        <div className="flex items-center gap-3">
+          {/* Círculo colorido identificador da etapa */}
+          <div className={`w-3 h-3 rounded-full ${corEtapa}`}></div>
+          
+          <h3 className="font-semibold text-gray-800 text-sm">{column.title}</h3>
+          
           <div className="flex gap-1">
             <button
               onClick={onEditEtapa}
-              className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
               title="Editar nome da etapa"
             >
               <Edit2 size={14} />
             </button>
             <button
               onClick={onDeleteEtapa}
-              className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
               title="Excluir etapa"
             >
               <Trash2 size={14} />
             </button>
           </div>
         </div>
-        <span className="bg-gray-200 text-gray-600 px-2 py-1 rounded-full text-sm">
+        
+        {/* Badge com contagem */}
+        <span className="bg-white text-gray-600 px-2.5 py-1 rounded-full text-xs font-medium border border-gray-200">
           {leads.length}
         </span>
       </div>
 
       {/* Lista de cards dos leads */}
-      <div className="space-y-3">
+      <div className="space-y-3 min-h-[120px]">
         {leads.map((lead) => (
           <LeadCard
             key={lead.id}
@@ -106,10 +103,13 @@ export const KanbanColumn = ({
           />
         ))}
         
-        {/* Mensagem quando não há leads na coluna */}
+        {/* Placeholder para colunas vazias */}
         {leads.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            <p>Nenhum lead nesta etapa</p>
+          <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">
+            <div className="text-gray-400 text-sm">
+              <p className="font-medium mb-1">Nenhum lead aqui</p>
+              <p className="text-xs">Arraste leads para esta etapa</p>
+            </div>
           </div>
         )}
       </div>

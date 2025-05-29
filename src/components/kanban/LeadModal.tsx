@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, User, Phone, Mail, MessageSquare, Building, Stethoscope } from 'lucide-react';
+import { X, User, Phone, Mail, MessageSquare, Building, Stethoscope, Workflow } from 'lucide-react';
 import { Lead } from './KanbanBoard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,27 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 
 /**
- * Modal moderno para criação e edição de leads
+ * Modal aprimorado para criação e edição de leads
  * 
- * Design atualizado com:
- * - Interface mais limpa e organizada
- * - Campos específicos para CRM médico (origem, serviço de interesse)
- * - Validação visual melhorada
- * - Ícones funcionais para melhor UX
- * - Seções organizadas logicamente
- * 
- * Props:
- * - isOpen: controla se o modal está visível
- * - onClose: função para fechar o modal
- * - lead: lead para edição (null para criação)
- * - onSave: função para salvar os dados
- * - onOpenHistory: função para abrir histórico (opcional)
+ * Nova funcionalidade implementada:
+ * - Seleção de etapa inicial do kanban ao criar lead
+ * - Interface melhorada para seleção de etapa
  */
 
 interface LeadModalProps {
   isOpen: boolean;
   onClose: () => void;
   lead: Lead | null;
+  etapas: any[]; // Nova prop com etapas disponíveis
   onSave: (leadData: Partial<Lead>) => void;
   onOpenHistory?: () => void;
 }
@@ -60,14 +51,15 @@ const servicosInteresse = [
   'Periodontia'
 ];
 
-export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: LeadModalProps) => {
-  // Estados do formulário
+export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory }: LeadModalProps) => {
+  // Estados do formulário com nova etapa
   const [formData, setFormData] = useState({
     nome: '',
     telefone: '',
     email: '',
     origem_lead: '',
     servico_interesse: '',
+    etapa_kanban_id: '', // Novo campo para etapa
     anotacoes: ''
   });
   
@@ -84,10 +76,10 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: Lead
         email: lead.email || '',
         origem_lead: lead.origem_lead || '',
         servico_interesse: lead.servico_interesse || '',
+        etapa_kanban_id: lead.etapa_kanban_id || '',
         anotacoes: lead.anotacoes || ''
       });
     } else {
-      // Limpa o formulário para criação
       console.log('➕ Formulário limpo para criação de novo lead');
       setFormData({
         nome: '',
@@ -95,11 +87,12 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: Lead
         email: '',
         origem_lead: '',
         servico_interesse: '',
+        etapa_kanban_id: etapas.length > 0 ? etapas[0].id : '', // Primeira etapa como padrão
         anotacoes: ''
       });
     }
     setErrors({});
-  }, [lead, isOpen]);
+  }, [lead, isOpen, etapas]);
 
   // Função para atualizar campos do formulário
   const handleInputChange = (field: string, value: string) => {
@@ -110,7 +103,7 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: Lead
     }
   };
 
-  // Validação do formulário
+  // Validação do formulário com nova etapa
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
     
@@ -128,6 +121,11 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: Lead
     
     if (!formData.servico_interesse) {
       newErrors.servico_interesse = 'Serviço de interesse é obrigatório';
+    }
+
+    // Validar etapa apenas para novos leads
+    if (!lead && !formData.etapa_kanban_id) {
+      newErrors.etapa_kanban_id = 'Etapa inicial é obrigatória';
     }
     
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
@@ -317,6 +315,43 @@ export const LeadModal = ({ isOpen, onClose, lead, onSave, onOpenHistory }: Lead
                 </div>
               </div>
             </div>
+
+            {/* Nova seção: Configuração do Kanban */}
+            {!lead && (
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                  <Workflow className="w-4 h-4 text-gray-500" />
+                  <h4 className="text-lg font-medium text-gray-900">Posição no Kanban</h4>
+                </div>
+                
+                <div>
+                  <Label htmlFor="etapa" className="text-sm font-medium text-gray-700">
+                    Etapa Inicial <span className="text-red-500">*</span>
+                  </Label>
+                  <Select 
+                    value={formData.etapa_kanban_id} 
+                    onValueChange={(value) => handleInputChange('etapa_kanban_id', value)}
+                  >
+                    <SelectTrigger className={`mt-1 ${errors.etapa_kanban_id ? 'border-red-300' : ''}`}>
+                      <SelectValue placeholder="Selecione a etapa inicial" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {etapas.map((etapa) => (
+                        <SelectItem key={etapa.id} value={etapa.id}>
+                          {etapa.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.etapa_kanban_id && (
+                    <p className="text-red-500 text-xs mt-1">{errors.etapa_kanban_id}</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    Esta será a posição inicial do lead no seu funil de vendas
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Seção: Detalhes Adicionais */}
             <div className="space-y-4">
