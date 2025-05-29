@@ -5,18 +5,19 @@ import { useAuthUser } from './useAuthUser';
 import { useToast } from '@/hooks/use-toast';
 
 /**
- * Hook para operações da clínica (criar leads e etapas)
+ * Hook para operações da clínica (criar leads, etapas e tags)
  * 
  * Este hook fornece funções para:
  * - Criar novos leads associados à clínica do usuário
  * - Criar novas etapas do kanban
+ * - Criar novas tags
  * - Gerenciar dados específicos da clínica logada
  * 
  * Todas as operações são automaticamente associadas à clínica
  * do usuário autenticado através do userProfile.clinica_id
  */
 
-// CORREÇÃO: Interface corrigida para criação de leads
+// Interface para criação de leads
 interface CreateLeadData {
   nome: string;
   telefone?: string;
@@ -28,9 +29,16 @@ interface CreateLeadData {
   servico_interesse?: string;
 }
 
+// Interface para criação de etapas
 interface CreateEtapaData {
   nome: string;
   ordem: number;
+}
+
+// Interface para criação de tags
+interface CreateTagData {
+  nome: string;
+  cor?: string;
 }
 
 export const useClinicaOperations = () => {
@@ -45,7 +53,6 @@ export const useClinicaOperations = () => {
         throw new Error('Usuário não está associado a uma clínica');
       }
 
-      // CORREÇÃO: Incluir clinica_id na inserção
       const { data, error } = await supabase
         .from('leads')
         .insert({
@@ -63,7 +70,6 @@ export const useClinicaOperations = () => {
       return data;
     },
     onSuccess: () => {
-      // Invalidar queries relacionadas para atualizar os dados
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       
       toast({
@@ -122,6 +128,47 @@ export const useClinicaOperations = () => {
     },
   });
 
+  // Mutation para criar novas tags
+  const createTagMutation = useMutation({
+    mutationFn: async (tagData: CreateTagData) => {
+      if (!userProfile?.clinica_id) {
+        throw new Error('Usuário não está associado a uma clínica');
+      }
+
+      const { data, error } = await supabase
+        .from('tags')
+        .insert({
+          ...tagData,
+          clinica_id: userProfile.clinica_id,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Erro ao criar tag:', error);
+        throw new Error(error.message || 'Erro ao criar tag');
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tags'] });
+      
+      toast({
+        title: "Sucesso",
+        description: "Tag criada com sucesso!",
+      });
+    },
+    onError: (error: any) => {
+      console.error('Erro na mutation de criar tag:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao criar tag. Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Função para criar lead (wrapper da mutation)
   const createLead = async (leadData: CreateLeadData) => {
     return createLeadMutation.mutateAsync(leadData);
@@ -132,17 +179,25 @@ export const useClinicaOperations = () => {
     return createEtapaMutation.mutateAsync(etapaData);
   };
 
+  // Função para criar tag (wrapper da mutation)
+  const createTag = async (tagData: CreateTagData) => {
+    return createTagMutation.mutateAsync(tagData);
+  };
+
   return {
     // Funções principais
     createLead,
     createEtapa,
+    createTag,
     
     // Estados das mutations
-    isCreatingLead: createLeadMutation.isPending, // CORREÇÃO: usar isPending
+    isCreatingLead: createLeadMutation.isPending,
     isCreatingEtapa: createEtapaMutation.isPending,
+    isCreatingTag: createTagMutation.isPending,
     
     // Objetos das mutations para acesso direto se necessário
     createLeadMutation,
     createEtapaMutation,
+    createTagMutation,
   };
 };

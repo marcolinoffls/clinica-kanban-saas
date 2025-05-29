@@ -1,24 +1,25 @@
+
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Building2, Clock, MessageSquare, Save, Link2, Key } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { PasswordInput } from '@/components/ui/password-input';
 import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
 import { useToast } from '@/hooks/use-toast';
+import { ClinicStatsCards } from './clinic-details/ClinicStatsCards';
+import { ClinicBasicInfo } from './clinic-details/ClinicBasicInfo';
+import { AdminPromptSection } from './clinic-details/AdminPromptSection';
+import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
 
 /**
- * Componente de detalhes individuais da clínica no painel administrativo
+ * Componente principal de detalhes da clínica no painel administrativo
  * 
- * Funcionalidades:
- * - Exibe informações detalhadas da clínica
- * - Permite editar o prompt administrativo
- * - Gerencia Nome da Instância Evolution
- * - Gerencia API Key da Evolution
- * - Mostra estatísticas específicas da clínica
+ * Coordena todos os componentes de detalhes da clínica:
+ * - Estatísticas e métricas da clínica
+ * - Informações básicas de contato
+ * - Configuração do prompt administrativo
+ * - Configurações da Evolution API
+ * 
+ * Este componente foi refatorado em componentes menores para
+ * melhor organização e manutenibilidade do código.
  */
 
 interface AdminClinicDetailsProps {
@@ -40,9 +41,6 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingApiKey, setSavingApiKey] = useState(false);
-  const [adminPrompt, setAdminPrompt] = useState('');
-  const [evolutionInstanceName, setEvolutionInstanceName] = useState('');
-  const [evolutionApiKey, setEvolutionApiKey] = useState('');
 
   // Carregar dados da clínica ao inicializar
   useEffect(() => {
@@ -51,10 +49,6 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
         setLoading(true);
         const dados = await buscarDetalhesClinica(clinicaId);
         setClinica(dados);
-        setAdminPrompt(dados.admin_prompt || '');
-        setEvolutionInstanceName(dados.evolution_instance_name || '');
-        // CORREÇÃO: Usar campo correto ou string vazia se não existir
-        setEvolutionApiKey(''); // Não carregar por segurança
       } catch (error) {
         console.error('Erro ao carregar detalhes da clínica:', error);
         toast({
@@ -71,10 +65,10 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
   }, [clinicaId]);
 
   // Função para salvar o prompt administrativo
-  const salvarPrompt = async () => {
+  const salvarPrompt = async (prompt: string) => {
     try {
       setSaving(true);
-      await atualizarPromptClinica(clinicaId, adminPrompt);
+      await atualizarPromptClinica(clinicaId, prompt);
       
       toast({
         title: "Sucesso",
@@ -93,10 +87,10 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
   };
 
   // Função para salvar o nome da instância Evolution
-  const salvarEvolutionInstanceName = async () => {
+  const salvarEvolutionInstanceName = async (instanceName: string) => {
     try {
       setSaving(true);
-      await atualizarNomeInstanciaEvolution(clinicaId, evolutionInstanceName);
+      await atualizarNomeInstanciaEvolution(clinicaId, instanceName);
       
       toast({
         title: "Sucesso",
@@ -115,10 +109,10 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
   };
 
   // Função para salvar a API Key da Evolution
-  const salvarEvolutionApiKey = async () => {
+  const salvarEvolutionApiKey = async (apiKey: string) => {
     try {
       setSavingApiKey(true);
-      await atualizarApiKeyEvolution(clinicaId, evolutionApiKey);
+      await atualizarApiKeyEvolution(clinicaId, apiKey);
       
       toast({
         title: "Sucesso",
@@ -134,19 +128,6 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
     } finally {
       setSavingApiKey(false);
     }
-  };
-
-  // Função para formatar tempo em minutos para texto legível
-  const formatarTempoResposta = (minutos: number) => {
-    if (minutos === 0) return 'Sem dados disponíveis';
-    
-    const horas = Math.floor(minutos / 60);
-    const minutosRestantes = Math.floor(minutos % 60);
-    
-    if (horas > 0) {
-      return `${horas}h ${minutosRestantes}min`;
-    }
-    return `${minutosRestantes}min`;
   };
 
   if (loading) {
@@ -165,11 +146,9 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
             <ArrowLeft className="w-4 h-4 mr-2" />
             Voltar
           </Button>
-          <Card>
-            <CardContent className="text-center py-12">
-              <p className="text-gray-500">Clínica não encontrada.</p>
-            </CardContent>
-          </Card>
+          <div className="text-center py-12">
+            <p className="text-gray-500">Clínica não encontrada.</p>
+          </div>
         </div>
       </div>
     );
@@ -199,177 +178,32 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
         </div>
 
         {/* Cards com estatísticas da clínica */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Leads de Anúncios</CardTitle>
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{clinica.leads_anuncios_count || 0}</div>
-              <p className="text-xs text-muted-foreground">
-                Leads originados de anúncios
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tempo Médio de Resposta</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatarTempoResposta(clinica.tempo_medio_resposta_minutos || 0)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Primeira resposta aos leads
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Status da Integração</CardTitle>
-              <Link2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <Badge variant={clinica.evolution_instance_name ? "default" : "secondary"}>
-                {clinica.evolution_instance_name ? "Configurada" : "Não Configurada"}
-              </Badge>
-              <p className="text-xs text-muted-foreground mt-1">
-                Evolution API
-              </p>
-            </CardContent>
-          </Card>
+        <div className="mb-8">
+          <ClinicStatsCards clinica={clinica} />
         </div>
 
         {/* Informações básicas da clínica */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Informações da Clínica</CardTitle>
-            <CardDescription>
-              Dados básicos de contato e cadastro
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-sm font-medium text-gray-700">E-mail</Label>
-                <p className="text-gray-900">{clinica.email}</p>
-              </div>
-              <div>
-                <Label className="text-sm font-medium text-gray-700">Telefone</Label>
-                <p className="text-gray-900">{clinica.telefone || 'Não informado'}</p>
-              </div>
-              <div>
-                <Label className="text-sm font-medium text-gray-700">Instância Evolution</Label>
-                <p className="text-gray-900">{clinica.evolution_instance_name || 'Não configurada'}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="mb-6">
+          <ClinicBasicInfo clinica={clinica} />
+        </div>
 
         {/* Prompt Administrativo */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Prompt Administrativo</CardTitle>
-            <CardDescription>
-              Configurações específicas de IA para esta clínica
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="admin-prompt">
-                Prompt para IA (Configurações específicas desta clínica)
-              </Label>
-              <Textarea
-                id="admin-prompt"
-                placeholder="Digite o prompt específico para a IA desta clínica..."
-                value={adminPrompt}
-                onChange={(e) => setAdminPrompt(e.target.value)}
-                rows={6}
-                className="mt-2"
-              />
-            </div>
-            <Button 
-              onClick={salvarPrompt} 
-              disabled={saving}
-              className="flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              {saving ? 'Salvando...' : 'Salvar Prompt'}
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="mb-6">
+          <AdminPromptSection 
+            clinica={clinica}
+            onSave={salvarPrompt}
+            saving={saving}
+          />
+        </div>
 
         {/* Configurações da Evolution API */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Configurações da Evolution API</CardTitle>
-            <CardDescription>
-              Configurações de integração com a Evolution API para WhatsApp
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Nome da Instância Evolution */}
-            <div>
-              <Label htmlFor="evolution-instance-name">
-                Nome da Instância Evolution
-              </Label>
-              <div className="flex gap-2 mt-2">
-                <Input
-                  id="evolution-instance-name"
-                  placeholder="Digite o nome da instância (ex: minha-clinica-instance)"
-                  value={evolutionInstanceName}
-                  onChange={(e) => setEvolutionInstanceName(e.target.value)}
-                  className="flex-1"
-                />
-                <Button 
-                  onClick={salvarEvolutionInstanceName} 
-                  disabled={saving}
-                  variant="outline"
-                  className="flex items-center gap-2"
-                >
-                  <Link2 className="w-4 h-4" />
-                  {saving ? 'Salvando...' : 'Salvar'}
-                </Button>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Nome único da sua instância na Evolution API
-              </p>
-            </div>
-
-            {/* API Key da Evolution */}
-            <div>
-              <Label htmlFor="evolution-api-key">
-                API Key da Evolution
-              </Label>
-              <div className="flex gap-2 mt-2">
-                <PasswordInput
-                  value={evolutionApiKey}
-                  onChange={setEvolutionApiKey}
-                  placeholder="Digite a API Key da Evolution"
-                  className="flex-1"
-                  label=""
-                  description=""
-                />
-                <Button 
-                  onClick={salvarEvolutionApiKey} 
-                  disabled={savingApiKey}
-                  variant="outline"
-                  className="flex items-center gap-2"
-                >
-                  <Key className="w-4 h-4" />
-                  {savingApiKey ? 'Salvando...' : 'Salvar API Key'}
-                </Button>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Chave de autenticação para acesso à Evolution API
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <EvolutionApiSettings 
+          clinica={clinica}
+          onSaveInstanceName={salvarEvolutionInstanceName}
+          onSaveApiKey={salvarEvolutionApiKey}
+          saving={saving}
+          savingApiKey={savingApiKey}
+        />
       </div>
     </div>
   );
