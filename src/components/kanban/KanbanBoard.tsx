@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Plus } from 'lucide-react';
@@ -7,10 +8,11 @@ import { LeadModal } from './LeadModal';
 import { EtapaModal } from './EtapaModal';
 import { MoveLeadsModal } from './MoveLeadsModal';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { useSupabaseLeads } from '@/hooks/useSupabaseLeads';
+import { useLeadsData } from '@/hooks/useLeadsData';
 import { useEtapaReorder } from '@/hooks/useEtapaReorder';
 
-interface Lead {
+// Interfaces exportadas para uso em outros componentes
+export interface Lead {
   id: string;
   nome: string;
   telefone?: string;
@@ -24,13 +26,13 @@ interface Lead {
   updated_at: string;
 }
 
-interface Etapa {
+export interface Etapa {
   id: string;
   nome: string;
   ordem: number;
 }
 
-interface Tag {
+export interface Tag {
   id: string;
   nome: string;
   cor: string;
@@ -38,7 +40,7 @@ interface Tag {
 
 export const KanbanBoard = () => {
   const { leads, etapas, tags, loading } = useSupabaseData();
-  const { createLead, updateLead, deleteLead } = useSupabaseLeads();
+  const { createLead, updateLead, deleteLead } = useLeadsData();
   const { reorderEtapas } = useEtapaReorder();
   
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
@@ -65,12 +67,7 @@ export const KanbanBoard = () => {
     if (type === 'etapa') {
       if (destination.index === source.index) return;
 
-      const etapasOrdenadas = [...etapas].sort((a, b) => a.ordem - b.ordem);
-      const [draggedEtapa] = etapasOrdenadas.splice(source.index, 1);
-      etapasOrdenadas.splice(destination.index, 0, draggedEtapa);
-
-      // Atualizar ordens no banco
-      await reorderEtapas(etapasOrdenadas);
+      await reorderEtapas(source.index, destination.index, etapasOrdenadas);
       return;
     }
 
@@ -130,14 +127,11 @@ export const KanbanBoard = () => {
     const leadsNaEtapa = leads.filter(lead => lead.etapa_kanban_id === etapa.id);
     
     if (leadsNaEtapa.length > 0) {
-      // Se há leads na etapa, abrir modal para movê-los
       setEtapaToDelete(etapa);
       setLeadsToMove(leadsNaEtapa);
       setMoveLeadsModalOpen(true);
     } else {
-      // Se não há leads, confirmar exclusão diretamente
       if (window.confirm(`Tem certeza que deseja excluir a etapa "${etapa.nome}"?`)) {
-        // Lógica de exclusão da etapa aqui
         console.log('Excluir etapa:', etapa.id);
       }
     }
@@ -148,21 +142,34 @@ export const KanbanBoard = () => {
     if (!etapaToDelete || leadsToMove.length === 0) return;
 
     try {
-      // Mover todos os leads para a nova etapa
       for (const lead of leadsToMove) {
         await updateLead(lead.id, { etapa_kanban_id: targetEtapaId });
       }
 
-      // Aqui seria a lógica para excluir a etapa do banco
       console.log('Excluir etapa após mover leads:', etapaToDelete.id);
       
-      // Fechar modal
       setMoveLeadsModalOpen(false);
       setEtapaToDelete(null);
       setLeadsToMove([]);
     } catch (error) {
       console.error('Erro ao mover leads e excluir etapa:', error);
     }
+  };
+
+  // Função para salvar lead com assinatura correta
+  const handleSaveLead = async (leadData: Partial<Lead>) => {
+    if (editingLead) {
+      await handleUpdateLead(editingLead.id, leadData);
+    } else {
+      await handleCreateLead(leadData);
+    }
+  };
+
+  // Função para salvar etapa
+  const handleSaveEtapa = async (nome: string) => {
+    console.log('Salvar etapa:', nome);
+    setIsEtapaModalOpen(false);
+    setEditingEtapa(null);
   };
 
   if (loading) {
@@ -229,8 +236,8 @@ export const KanbanBoard = () => {
                               setIsLeadModalOpen(true);
                             }}
                             onDeleteLead={handleDeleteLead}
-                            onEditEtapa={handleEditEtapa}
-                            onDeleteEtapa={handleDeleteEtapa}
+                            onEditEtapa={() => handleEditEtapa(etapa)}
+                            onDeleteEtapa={() => handleDeleteEtapa(etapa)}
                             onAddLead={(etapaId) => {
                               setSelectedEtapaForNewLead(etapaId);
                               setIsLeadModalOpen(true);
@@ -260,7 +267,7 @@ export const KanbanBoard = () => {
         lead={editingLead}
         etapas={etapas}
         selectedEtapaId={selectedEtapaForNewLead}
-        onSave={editingLead ? handleUpdateLead : handleCreateLead}
+        onSave={handleSaveLead}
       />
 
       <EtapaModal
@@ -270,11 +277,7 @@ export const KanbanBoard = () => {
           setEditingEtapa(null);
         }}
         etapa={editingEtapa}
-        onSave={(etapaData) => {
-          console.log('Salvar etapa:', etapaData);
-          setIsEtapaModalOpen(false);
-          setEditingEtapa(null);
-        }}
+        onSave={handleSaveEtapa}
       />
 
       <MoveLeadsModal
@@ -285,7 +288,7 @@ export const KanbanBoard = () => {
           setLeadsToMove([]);
         }}
         etapaToDelete={etapaToDelete}
-        leadsToMove={leadsToMove}
+        leads={leadsToMove}
         availableEtapas={etapas.filter(e => e.id !== etapaToDelete?.id)}
         onConfirm={handleConfirmMoveAndDelete}
       />
