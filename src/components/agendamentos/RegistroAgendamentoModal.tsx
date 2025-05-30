@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { Calendar, Clock, X, ChevronDown, Check, Trash2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { useState, useEffect, useCallback } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Calendar as CalendarIcon, Clock, X, ChevronDown, Check, Trash2, UserPlus, ListPlus, Edit3 } from 'lucide-react';
+import { format, parse, setHours, setMinutes, setSeconds, setMilliseconds } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 import {
@@ -9,6 +11,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter, // Importado para o rodapé
+  DialogDescription, // Importado para descrições
+  DialogClose, // Importado para botão de fechar explícito se necessário
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -47,297 +52,435 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList, // Importar CommandList para rolagem se necessário
 } from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner'; // Usando sonner para toasts
 
-import { useLeads } from '@/hooks/useLeadsData';
+// Hooks de dados
+import { useLeads, Lead } from '@/hooks/useLeadsData'; // Assumindo que Lead é exportado
 import { useClinica } from '@/contexts/ClinicaContext';
 import { useAuthUser } from '@/hooks/useAuthUser';
-import { useClinicServices } from '@/hooks/useClinicServices';
-import { 
-  useCreateAgendamento, 
+import { useClinicServices, ClinicaServico } from '@/hooks/useClinicServices'; // Assumindo que ClinicaServico é exportado
+import {
+  useCreateAgendamento,
   useUpdateAgendamento,
   useDeleteAgendamento,
   CreateAgendamentoData,
-  AgendamentoFromDatabase 
-} from '@/hooks/useAgendamentosData';
+  AgendamentoFromDatabase // Este tipo deve ser definido em useAgendamentosData.ts
+} from '@/hooks/useAgendamentosData'; // Criar este hook na Etapa 2
 import { useClinicaOperations } from '@/hooks/useClinicaOperations';
-import { AGENDAMENTO_STATUS_OPTIONS, AgendamentoFormData, AgendamentoStatus } from '@/constants/agendamentos';
 
-/**
- * Modal para registrar/editar agendamentos
- * 
- * Funcionalidades:
- * - Formulário completo para criação/edição de agendamentos
- * - Seleção ou criação de cliente/lead
- * - Seleção de serviço existente ou inserção manual do título
- * - Definição de data/hora de início e fim
- * - Controle de status do agendamento
- * - Valor financeiro e observações
- * - Validação de campos obrigatórios
- * - Integração com Supabase para salvamento/atualização/exclusão
- * 
- * Props:
- * - isOpen: controla visibilidade do modal
- * - onClose: função para fechar o modal
- * - agendamentoParaEditar: dados do agendamento para edição (opcional)
- */
+// Constantes e Tipos
+import { AGENDAMENTO_STATUS_OPTIONS, AgendamentoStatus } from '@/constants/agendamentos'; // Criar este arquivo
+
+// Schema de validação com Zod
+const agendamentoFormSchema = z.object({
+  cliente_id: z.string().min(1, { message: "Selecione um cliente ou cadastre um novo." }),
+  // O título pode ser opcional se um serviço for selecionado, mas obrigatório se manual
+  titulo: z.string().min(1, { message: "Título ou serviço é obrigatório." }),
+  data_inicio: z.date({ required_error: "Data de início é obrigatória." }),
+  hora_inicio: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Hora de início inválida." }),
+  data_fim: z.date({ required_error: "Data de fim é obrigatória." }),
+  hora_fim: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Hora de fim inválida." }),
+  valor: z.number().min(0, { message: "Valor não pode ser negativo." }).optional(),
+  status: z.nativeEnum(AgendamentoStatus, { required_error: "Status é obrigatório." }),
+  descricao: z.string().optional(),
+  // Campos não visíveis, mas parte do data object
+  clinica_id: z.string(),
+  usuario_id: z.string(),
+  // Campos condicionais para novo cliente
+  novo_cliente_nome: z.string().optional(),
+  novo_cliente_telefone: z.string().optional(),
+}).refine(data => data.data_fim >= data.data_inicio, {
+  message: "Data/hora de fim deve ser após a data/hora de início.",
+  path: ["data_fim"], // ou path: ["hora_fim"] se quiser focar no tempo
+});
+
+// Tipagem para os dados do formulário
+export type AgendamentoFormData = z.infer<typeof agendamentoFormSchema>;
 
 interface RegistroAgendamentoModalProps {
   isOpen: boolean;
   onClose: () => void;
-  agendamentoParaEditar?: AgendamentoFromDatabase | null;
+  agendamentoParaEditar?: AgendamentoFromDatabase | null; // Tipo vindo do hook
+  leadPreSelecionadoId?: string | null;
 }
 
-export const RegistroAgendamentoModal = ({ 
-  isOpen, 
-  onClose, 
-  agendamentoParaEditar 
+export const RegistroAgendamentoModal = ({
+  isOpen,
+  onClose,
+  agendamentoParaEditar,
+  leadPreSelecionadoId,
 }: RegistroAgendamentoModalProps) => {
+  console.log('[ModalAgendamento] Props recebidas:', { isOpen, agendamentoParaEditar, leadPreSelecionadoId });
+
   // Estados para controles de UI
   const [dataInicioPopoverOpen, setDataInicioPopoverOpen] = useState(false);
   const [dataFimPopoverOpen, setDataFimPopoverOpen] = useState(false);
   const [clienteComboboxOpen, setClienteComboboxOpen] = useState(false);
-  
+
   // Estados para modo de serviço (selecionar da lista ou manual)
   const [modoServico, setModoServico] = useState<'selecionar' | 'manual'>('selecionar');
-  const [servicoSelecionadoId, setServicoSelecionadoId] = useState<string | null>(null);
-  
+  const [servicoSelecionadoIdHook, setServicoSelecionadoIdHook] = useState<string | null>(null); // Para o Select de serviço
+
   // Estados para criação de novo cliente
   const [registrandoNovoCliente, setRegistrandoNovoCliente] = useState(false);
-  const [novoClienteNome, setNovoClienteNome] = useState('');
-  const [novoClienteTelefone, setNovoClienteTelefone] = useState('');
-  const [clienteBusca, setClienteBusca] = useState('');
+  // novoClienteNome e novoClienteTelefone serão gerenciados pelo react-hook-form agora
+
+  // Estado para o input de busca do Combobox de cliente
+  const [clienteBuscaInput, setClienteBuscaInput] = useState('');
 
   // Determinar se estamos em modo de edição
   const isEdicaoMode = !!agendamentoParaEditar;
 
   // Hooks para obter dados necessários
-  const { data: leads, isLoading: loadingLeads } = useLeads();
-  const { services: servicos, isLoading: loadingServices } = useClinicServices();
-  const { clinicaAtiva } = useClinica();
+  const { data: leadsData, isLoading: loadingLeads } = useLeads();
+  const { services: servicosData, isLoading: loadingServices } = useClinicServices();
+  const { clinicaAtiva } = useClinica(); // Usar clinicaAtiva para clinica_id
   const { userProfile } = useAuthUser();
-  
-  // Hooks para mutações
-  const createAgendamentoMutation = useCreateAgendamento();
-  const updateAgendamentoMutation = useUpdateAgendamento();
-  const deleteAgendamentoMutation = useDeleteAgendamento();
-  const { createLead } = useClinicaOperations();
 
-  // Garantir que os dados sejam sempre arrays válidos
-  const leadsSeguro = leads || []; // Garante que seja sempre um array, mesmo que vazio, se leads for undefined ou null.
-  const servicosSeguro = Array.isArray(servicos) ? servicos : [];
-  
-  console.log('🔍 Estado dos dados no modal:', {
-    leads: leads,
-    leadsSeguro: leadsSeguro,
-    leadsLength: leadsSeguro.length,
+  // Garantir que os dados sejam sempre arrays válidos para iteração
+  // Esta é a correção crucial para o erro "undefined is not iterable"
+  const leadsSeguro = Array.isArray(leadsData) ? leadsData : [];
+  const servicosSeguro = Array.isArray(servicosData) ? servicosData : [];
+
+  console.log('[ModalAgendamento] Estado dos dados:', {
+    leadsData, // O que vem do hook
+    leadsSeguro, // O que será usado no map
     loadingLeads,
-    isOpen
+    servicosData,
+    servicosSeguro,
+    loadingServices,
+    clinicaId: clinicaAtiva?.id,
+    userId: userProfile?.user_id
   });
 
-  // Configuração do formulário
+  // Configuração do formulário com react-hook-form e Zod
   const form = useForm<AgendamentoFormData>({
+    resolver: zodResolver(agendamentoFormSchema),
     defaultValues: {
-      cliente_id: '',
+      cliente_id: leadPreSelecionadoId || '',
       titulo: '',
       data_inicio: new Date(),
+      hora_inicio: format(new Date(), 'HH:mm'),
       data_fim: new Date(),
+      hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'), // Default 1 hora depois
       valor: 0,
-      status: 'AGENDADO' as AgendamentoStatus,
+      status: AgendamentoStatus.AGENDADO,
       descricao: '',
       clinica_id: clinicaAtiva?.id || '',
       usuario_id: userProfile?.user_id || '',
+      novo_cliente_nome: '',
+      novo_cliente_telefone: '',
     },
   });
 
-  // Preencher formulário quando estiver em modo de edição
+  // Preencher formulário quando estiver em modo de edição ou com lead pré-selecionado
   useEffect(() => {
-    if (agendamentoParaEditar && isOpen && leadsSeguro.length > 0) {
-      console.log('🔄 Preenchendo formulário para edição:', agendamentoParaEditar);
-      
-      // Buscar o cliente/lead correspondente
-      const clienteEncontrado = leadsSeguro.find(lead => lead.id === agendamentoParaEditar.cliente_id);
-      if (clienteEncontrado) {
-        setClienteBusca(clienteEncontrado.nome);
-      }
+    console.log('[ModalAgendamento] useEffect de Edição/Pré-seleção. isOpen:', isOpen, 'agendamentoParaEditar:', agendamentoParaEditar, 'leadPreSelecionadoId:', leadPreSelecionadoId);
+    if (!isOpen) {
+        // Resetar o formulário e estados quando o modal fecha
+        form.reset({
+            cliente_id: '',
+            titulo: '',
+            data_inicio: new Date(),
+            hora_inicio: format(new Date(), 'HH:mm'),
+            data_fim: new Date(new Date().getTime() + 60 * 60 * 1000),
+            hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'),
+            valor: 0,
+            status: AgendamentoStatus.AGENDADO,
+            descricao: '',
+            clinica_id: clinicaAtiva?.id || '',
+            usuario_id: userProfile?.user_id || '',
+            novo_cliente_nome: '',
+            novo_cliente_telefone: '',
+        });
+        setModoServico('selecionar');
+        setServicoSelecionadoIdHook(null);
+        setRegistrandoNovoCliente(false);
+        setClienteBuscaInput('');
+        return;
+    }
+
+    if (agendamentoParaEditar) {
+      console.log('[ModalAgendamento] Modo Edição - Preenchendo formulário com:', agendamentoParaEditar);
+      const dataInicio = new Date(agendamentoParaEditar.data_inicio);
+      const dataFim = new Date(agendamentoParaEditar.data_fim);
 
       form.reset({
-        cliente_id: agendamentoParaEditar.cliente_id,
-        titulo: agendamentoParaEditar.titulo,
-        data_inicio: new Date(agendamentoParaEditar.data_inicio),
-        data_fim: new Date(agendamentoParaEditar.data_fim),
+        cliente_id: agendamentoParaEditar.cliente_id || '',
+        titulo: agendamentoParaEditar.titulo || '', // Será sobrescrito se um serviço for encontrado
+        data_inicio: dataInicio,
+        hora_inicio: format(dataInicio, 'HH:mm'),
+        data_fim: dataFim,
+        hora_fim: format(dataFim, 'HH:mm'),
         valor: agendamentoParaEditar.valor || 0,
-        status: agendamentoParaEditar.status as AgendamentoStatus,
+        status: (agendamentoParaEditar.status as AgendamentoStatus) || AgendamentoStatus.AGENDADO,
         descricao: agendamentoParaEditar.descricao || '',
         clinica_id: agendamentoParaEditar.clinica_id,
         usuario_id: agendamentoParaEditar.usuario_id,
       });
-    }
-  }, [agendamentoParaEditar, isOpen, leadsSeguro, form]);
 
-  // Função para formatar data e hora para exibição
-  const formatarDataHora = (data: Date) => {
-    return format(data, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
-  };
+      // Tentar encontrar o serviço correspondente ao título para pré-selecionar
+      const servicoOriginal = servicosSeguro.find(s => s.nome_servico === agendamentoParaEditar.titulo);
+      if (servicoOriginal) {
+        setModoServico('selecionar');
+        setServicoSelecionadoIdHook(servicoOriginal.id);
+        form.setValue('titulo', servicoOriginal.nome_servico); // Garante que o título do form é o do serviço
+      } else {
+        setModoServico('manual'); // Se não achar, assume que foi título manual
+        form.setValue('titulo', agendamentoParaEditar.titulo || '');
+      }
+      
+      // Preencher busca de cliente para exibição no ComboboxTrigger
+      const clienteDoAgendamento = leadsSeguro.find(l => l.id === agendamentoParaEditar.cliente_id);
+      if (clienteDoAgendamento) {
+        setClienteBuscaInput(clienteDoAgendamento.nome);
+      }
 
-  // Função para formatar data para ISO string
-  const formatarDataParaISO = (data: Date) => {
-    return data.toISOString();
-  };
 
-  // Função para lidar com seleção de serviço
-  const handleServicoSelect = (servicoId: string) => {
-    const servico = servicosSeguro.find(s => s.id === servicoId);
-    if (servico) {
-      setServicoSelecionadoId(servicoId);
-      form.setValue('titulo', servico.nome_servico);
-    }
-  };
-
-  // Função para lidar com seleção de cliente
-  const handleClienteSelect = (clienteId: string) => {
-    console.log('🔄 Selecionando cliente:', clienteId);
-    if (clienteId === 'novo_cliente') {
-      setRegistrandoNovoCliente(true);
-      form.setValue('cliente_id', '');
+    } else if (leadPreSelecionadoId) {
+        console.log('[ModalAgendamento] Pré-selecionando lead ID:', leadPreSelecionadoId);
+        form.setValue('cliente_id', leadPreSelecionadoId);
+        const clientePre = leadsSeguro.find(l => l.id === leadPreSelecionadoId);
+        if (clientePre) {
+            setClienteBuscaInput(clientePre.nome); // Atualiza o texto exibido no ComboboxTrigger
+        }
     } else {
+        // Modo de criação sem pré-seleção, resetar para defaults
+        form.reset({
+            cliente_id: '',
+            titulo: '',
+            data_inicio: new Date(),
+            hora_inicio: format(new Date(), 'HH:mm'),
+            data_fim: new Date(new Date().getTime() + 60 * 60 * 1000),
+            hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'),
+            valor: 0,
+            status: AgendamentoStatus.AGENDADO,
+            descricao: '',
+            clinica_id: clinicaAtiva?.id || '',
+            usuario_id: userProfile?.user_id || '',
+            novo_cliente_nome: '',
+            novo_cliente_telefone: '',
+        });
+        setClienteBuscaInput('');
+    }
+  }, [agendamentoParaEditar, isOpen, form, leadPreSelecionadoId, clinicaAtiva, userProfile, leadsSeguro, servicosSeguro]);
+
+
+  // Hooks de mutação do Supabase
+  const createAgendamentoMutation = useCreateAgendamento();
+  const updateAgendamentoMutation = useUpdateAgendamento();
+  const deleteAgendamentoMutation = useDeleteAgendamento();
+  const { createLead, isCreatingLead } = useClinicaOperations(); // Usar estado de loading daqui
+
+
+  // Função para combinar data (do DatePicker) e hora (do input type="time") em um objeto Date
+  const combinarDataHora = (data: Date, horaString: string): Date => {
+    const [horas, minutos] = horaString.split(':').map(Number);
+    const novaData = new Date(data);
+    novaData.setHours(horas, minutos, 0, 0); // Zera segundos e milissegundos
+    return novaData;
+  };
+
+  // Função para lidar com seleção de serviço no Select
+  const handleServicoChange = (servicoIdValue: string) => {
+    const servico = servicosSeguro.find(s => s.id === servicoIdValue);
+    if (servico) {
+      setServicoSelecionadoIdHook(servicoIdValue);
+      form.setValue('titulo', servico.nome_servico, { shouldValidate: true });
+      // Poderia pré-preencher o valor aqui se o serviço tivesse preço
+      // form.setValue('valor', servico.preco || 0);
+      console.log(`[ModalAgendamento] Serviço selecionado: ${servico.nome_servico}, ID: ${servicoIdValue}`);
+    } else {
+      // Caso o valor seja 'outro' ou inválido, limpar
+      setServicoSelecionadoIdHook(null);
+      if(modoServico === 'selecionar') form.setValue('titulo', '', { shouldValidate: true }); // Limpa o título se estava no modo selecionar e não achou
+    }
+  };
+
+  // Função para lidar com seleção de cliente no Combobox
+  const handleClienteSelect = useCallback((value: string) => {
+    // 'value' aqui será o que foi definido no `value` do `CommandItem`, ex: lead.id ou "novo_cliente_dynamic"
+    const leadSelecionado = leadsSeguro.find(l => l.id === value);
+
+    if (leadSelecionado) {
+      form.setValue('cliente_id', leadSelecionado.id, { shouldValidate: true });
+      form.clearErrors('cliente_id'); // Limpa erro de cliente_id se houver
+      setClienteBuscaInput(leadSelecionado.nome); // Atualiza o texto do input de busca/display do Combobox
       setRegistrandoNovoCliente(false);
-      form.setValue('cliente_id', clienteId);
-      const cliente = leadsSeguro.find(l => l.id === clienteId);
-      if (cliente) {
-        setClienteBusca(cliente.nome);
+      form.setValue('novo_cliente_nome', ''); // Limpa campos de novo cliente
+      form.setValue('novo_cliente_telefone', '');
+      console.log(`[ModalAgendamento] Cliente existente selecionado: ${leadSelecionado.nome}, ID: ${leadSelecionado.id}`);
+    } else if (value.startsWith('criar_novo_cliente:')) {
+      const nomeDigitado = value.substring('criar_novo_cliente:'.length);
+      setRegistrandoNovoCliente(true);
+      form.setValue('cliente_id', ''); // Limpa cliente_id pois será um novo
+      form.setValue('novo_cliente_nome', nomeDigitado); // Pré-preenche nome
+      setClienteBuscaInput(nomeDigitado); // Atualiza input de busca
+      console.log(`[ModalAgendamento] Iniciando cadastro de novo cliente com nome: ${nomeDigitado}`);
+    }
+    setClienteComboboxOpen(false); // Fecha o popover do combobox
+  }, [form, leadsSeguro]);
+
+
+  // Função principal de salvamento (onSubmit do react-hook-form)
+  const onSubmit = async (data: AgendamentoFormData) => {
+    console.log('[ModalAgendamento] Tentando salvar. Dados do formulário:', data);
+    if (!clinicaAtiva?.id || !userProfile?.user_id) {
+      toast.error("Erro de configuração: ID da clínica ou do usuário não encontrado.");
+      console.error("[ModalAgendamento] ERRO: clinicaId ou userId ausentes.", { clinicaId: clinicaAtiva?.id, userId: userProfile?.user_id });
+      return;
+    }
+
+    let cliente_id_final = data.cliente_id;
+
+    if (registrandoNovoCliente) {
+      if (!data.novo_cliente_nome?.trim() || !data.novo_cliente_telefone?.trim()) {
+        form.setError("novo_cliente_nome", { type: "manual", message: "Nome é obrigatório para novo cliente."});
+        form.setError("novo_cliente_telefone", { type: "manual", message: "Telefone é obrigatório para novo cliente."});
+        toast.error("Nome e telefone são obrigatórios para cadastrar um novo cliente.");
+        console.warn("[ModalAgendamento] Validação falhou: Nome ou telefone do novo cliente ausente.");
+        return;
+      }
+      try {
+        console.log('[ModalAgendamento] Criando novo lead:', { nome: data.novo_cliente_nome, telefone: data.novo_cliente_telefone });
+        const novoLead = await createLead({ // createLead já deve incluir clinica_id
+          nome: data.novo_cliente_nome,
+          telefone: data.novo_cliente_telefone,
+        });
+        cliente_id_final = novoLead.id;
+        console.log('[ModalAgendamento] Novo lead criado com ID:', cliente_id_final);
+      } catch (error) {
+        toast.error("Falha ao criar novo cliente.");
+        console.error('[ModalAgendamento] Erro ao criar novo lead:', error);
+        return;
       }
     }
-    setClienteComboboxOpen(false);
+
+    if (!cliente_id_final && !registrandoNovoCliente) {
+        // Isso pode acontecer se o usuário limpou o campo e não selecionou "novo cliente"
+        form.setError("cliente_id", { type: "manual", message: "Cliente é obrigatório."});
+        toast.error("Por favor, selecione um cliente ou cadastre um novo.");
+        console.warn("[ModalAgendamento] Validação falhou: cliente_id_final está vazio e não está registrando novo cliente.");
+        return;
+    }
+
+
+    const dataInicioFinal = combinarDataHora(data.data_inicio, data.hora_inicio);
+    const dataFimFinal = combinarDataHora(data.data_fim, data.hora_fim);
+
+    if (dataFimFinal <= dataInicioFinal) {
+      form.setError("data_fim", { type: "manual", message: "Data/hora de fim deve ser posterior à de início."});
+      form.setError("hora_fim", { type: "manual", message: " "}); // Para destacar o campo de hora também
+      toast.error("Data ou hora de fim inválida.");
+      console.warn("[ModalAgendamento] Validação falhou: Data/hora de fim não é posterior à de início.");
+      return;
+    }
+
+    const agendamentoPayload: CreateAgendamentoData | (Partial<AgendamentoFromDatabase> & { id: string }) = {
+      ...(isEdicaoMode && agendamentoParaEditar && { id: agendamentoParaEditar.id }), // ID para edição
+      cliente_id: cliente_id_final,
+      clinica_id: clinicaAtiva.id,
+      usuario_id: userProfile.user_id,
+      titulo: modoServico === 'manual' ? data.titulo : (servicosSeguro.find(s => s.id === servicoSelecionadoIdHook)?.nome_servico || data.titulo),
+      data_inicio: formatarDataParaISO(dataInicioFinal),
+      data_fim: formatarDataParaISO(dataFimFinal),
+      valor: data.valor ? Number(data.valor) : 0,
+      status: data.status,
+      descricao: data.descricao || null,
+    };
+    console.log('[ModalAgendamento] Payload final para Supabase:', agendamentoPayload);
+
+    try {
+      if (isEdicaoMode) {
+        await updateAgendamentoMutation.mutateAsync(agendamentoPayload as Partial<AgendamentoFromDatabase> & { id: string });
+      } else {
+        await createAgendamentoMutation.mutateAsync(agendamentoPayload as CreateAgendamentoData);
+      }
+      handleCloseModal(); // Chama a função que reseta e fecha
+    } catch (error) {
+      // O toast de erro já é tratado dentro das mutações
+      console.error('[ModalAgendamento] Erro na mutação de salvar/atualizar agendamento:', error);
+    }
   };
 
-  // Função para lidar com exclusão do agendamento
-  const handleDeleteAgendamento = async () => {
-    if (!agendamentoParaEditar) return;
+  const handleCloseModal = () => {
+    form.reset({ // Reseta para os valores default definidos no useForm
+        cliente_id: leadPreSelecionadoId || '',
+        titulo: '',
+        data_inicio: new Date(),
+        hora_inicio: format(new Date(), 'HH:mm'),
+        data_fim: new Date(new Date().getTime() + 60 * 60 * 1000),
+        hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'),
+        valor: 0,
+        status: AgendamentoStatus.AGENDADO,
+        descricao: '',
+        clinica_id: clinicaAtiva?.id || '',
+        usuario_id: userProfile?.user_id || '',
+        novo_cliente_nome: '',
+        novo_cliente_telefone: '',
+    });
+    setModoServico('selecionar');
+    setServicoSelecionadoIdHook(null);
+    setRegistrandoNovoCliente(false);
+    setClienteBuscaInput(leadPreSelecionadoId && leadsSeguro.find(l=>l.id === leadPreSelecionadoId)?.nome || '');
+    setDataInicioPopoverOpen(false);
+    setDataFimPopoverOpen(false);
+    setClienteComboboxOpen(false);
+    onClose(); // Chama a prop onClose para fechar o Dialog
+    console.log('[ModalAgendamento] Modal fechado e formulário resetado.');
+  };
 
+
+  const handleDelete = async () => {
+    if (!agendamentoParaEditar?.id) return;
+    console.log(`[ModalAgendamento] Solicitando exclusão do agendamento ID: ${agendamentoParaEditar.id}`);
     try {
       await deleteAgendamentoMutation.mutateAsync(agendamentoParaEditar.id);
-      handleCancel(); // Fechar modal após exclusão
+      handleCloseModal();
     } catch (error) {
-      console.error('❌ Erro ao excluir agendamento:', error);
+        // toast de erro já é tratado na mutação
+        console.error(`[ModalAgendamento] Erro ao excluir agendamento ID: ${agendamentoParaEditar.id}`, error);
     }
   };
+  
+  const isLoadingMutation = createAgendamentoMutation.isPending || updateAgendamentoMutation.isPending || deleteAgendamentoMutation.isPending || isCreatingLead;
 
-  // Função para lidar com salvamento do agendamento
-  const handleSaveAgendamento = async (dados: AgendamentoFormData) => {
-    try {
-      console.log('🔄 Iniciando salvamento do agendamento...');
-      
-      let cliente_id_final = dados.cliente_id;
-      
-      // Se estamos registrando um novo cliente, criar primeiro
-      if (registrandoNovoCliente) {
-        if (!novoClienteNome.trim() || !novoClienteTelefone.trim()) {
-          throw new Error('Nome e telefone são obrigatórios para novo cliente');
-        }
-        
-        console.log('🔄 Criando novo cliente:', { nome: novoClienteNome, telefone: novoClienteTelefone });
-        
-        const novoLead = await createLead({
-          nome: novoClienteNome.trim(),
-          telefone: novoClienteTelefone.trim(),
-        });
-        
-        cliente_id_final = novoLead.id;
-        console.log('✅ Novo cliente criado com ID:', cliente_id_final);
-      }
-      
-      // Determinar título final baseado no modo de serviço
-      let titulo_final = dados.titulo;
-      if (modoServico === 'selecionar' && servicoSelecionadoId) {
-        const servicoSelecionado = servicosSeguro.find(s => s.id === servicoSelecionadoId);
-        if (servicoSelecionado) {
-          titulo_final = servicoSelecionado.nome_servico;
-        }
-      }
-      
-      if (isEdicaoMode && agendamentoParaEditar) {
-        // Modo de edição - atualizar agendamento existente
-        const agendamentoData = {
-          id: agendamentoParaEditar.id,
-          cliente_id: cliente_id_final,
-          titulo: titulo_final,
-          data_inicio: formatarDataParaISO(dados.data_inicio),
-          data_fim: formatarDataParaISO(dados.data_fim),
-          valor: dados.valor || 0,
-          status: dados.status,
-          descricao: dados.descricao || '',
-        };
-        
-        console.log('🔄 Dados do agendamento para atualizar:', agendamentoData);
-        await updateAgendamentoMutation.mutateAsync(agendamentoData);
-      } else {
-        // Modo de criação - criar novo agendamento
-        const agendamentoData: CreateAgendamentoData = {
-          cliente_id: cliente_id_final,
-          clinica_id: clinicaAtiva?.id || '',
-          usuario_id: userProfile?.user_id || '',
-          titulo: titulo_final,
-          data_inicio: formatarDataParaISO(dados.data_inicio),
-          data_fim: formatarDataParaISO(dados.data_fim),
-          valor: dados.valor || 0,
-          status: dados.status,
-          descricao: dados.descricao || '',
-        };
-        
-        console.log('🔄 Dados do agendamento para criar:', agendamentoData);
-        await createAgendamentoMutation.mutateAsync(agendamentoData);
-      }
-      
-      console.log('✅ Agendamento salvo com sucesso');
-      
-      // Fechar modal e resetar formulário
-      handleCancel();
-      
-    } catch (error: any) {
-      console.error('❌ Erro ao salvar agendamento:', error);
-    }
-  };
+  // Filtrar leads para o Combobox baseado no input de busca
+  const leadsFiltradosParaCombobox = clienteBuscaInput
+    ? leadsSeguro.filter(lead =>
+        lead.nome.toLowerCase().includes(clienteBuscaInput.toLowerCase()) ||
+        lead.telefone?.includes(clienteBuscaInput)
+      )
+    : leadsSeguro;
 
-  // Função para lidar com cancelamento
-  const handleCancel = () => {
-    form.reset();
-    setModoServico('selecionar');
-    setServicoSelecionadoId(null);
-    setRegistrandoNovoCliente(false);
-    setNovoClienteNome('');
-    setNovoClienteTelefone('');
-    setClienteBusca('');
-    onClose();
-  };
 
-  const isLoading = createAgendamentoMutation.isPending || 
-                   updateAgendamentoMutation.isPending || 
-                   deleteAgendamentoMutation.isPending;
+  if (!isOpen) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseModal()}>
+      <DialogContent className="max-w-2xl max-h-[95vh] flex flex-col">
         <DialogHeader>
           <div className="flex justify-between items-center">
             <DialogTitle className="text-xl font-semibold">
               {isEdicaoMode ? 'Editar Agendamento' : 'Novo Agendamento'}
             </DialogTitle>
-            <div className="flex items-center gap-2">
-              {/* Botão de exclusão (apenas em modo de edição) */}
-              {isEdicaoMode && (
+            <div className="flex items-center gap-1">
+              {isEdicaoMode && agendamentoParaEditar && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-red-600 hover:bg-red-50"
-                      disabled={isLoading}
+                      className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-600"
+                      disabled={isLoadingMutation}
+                      aria-label="Excluir agendamento"
                     >
                       <Trash2 size={16} />
                     </Button>
@@ -350,459 +493,359 @@ export const RegistroAgendamentoModal = ({
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogCancel disabled={isLoadingMutation}>Cancelar</AlertDialogCancel>
                       <AlertDialogAction
-                        onClick={handleDeleteAgendamento}
+                        onClick={handleDelete}
+                        disabled={isLoadingMutation}
                         className="bg-red-600 hover:bg-red-700"
                       >
-                        Excluir
+                        {deleteAgendamentoMutation.isPending ? 'Excluindo...' : 'Excluir'}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
               )}
-              
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleCancel}
-                className="h-6 w-6"
-                disabled={isLoading}
-              >
-                <X size={16} />
-              </Button>
+              <DialogClose asChild>
+                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCloseModal} aria-label="Fechar modal">
+                    <X size={18} />
+                 </Button>
+              </DialogClose>
             </div>
           </div>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSaveAgendamento)} className="space-y-6">
-            {/* Seleção do Cliente/Lead com Combobox */}
-            <FormField
-              control={form.control}
-              name="cliente_id"
-              rules={{ required: !registrandoNovoCliente ? 'Selecione um cliente' : false }}
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Cliente *</FormLabel>
-                  {loadingLeads ? (
-                    <div className="w-full h-10 bg-gray-100 rounded-md flex items-center justify-center">
-                      <span className="text-sm text-gray-500">Carregando clientes...</span>
-                    </div>
-                  ) : (
+        <div className="flex-grow overflow-y-auto pr-2 pl-0.5 py-1"> {/* Adicionado padding e scroll */}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+              {/* SELEÇÃO DE CLIENTE (COMBOBOX) */}
+              <FormField
+                control={form.control}
+                name="cliente_id"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Cliente *</FormLabel>
                     <Popover open={clienteComboboxOpen} onOpenChange={setClienteComboboxOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
                             variant="outline"
                             role="combobox"
+                            aria-expanded={clienteComboboxOpen}
                             className={cn(
                               "w-full justify-between",
                               !field.value && !registrandoNovoCliente && "text-muted-foreground"
                             )}
+                            disabled={loadingLeads}
                           >
-                            {registrandoNovoCliente 
-                              ? `Novo cliente: ${novoClienteNome || 'Digite o nome...'}`
-                              : field.value 
-                              ? leadsSeguro.find(lead => lead.id === field.value)?.nome 
-                              : "Selecione um cliente..."
+                            {registrandoNovoCliente
+                              ? `Registrando: ${form.getValues("novo_cliente_nome") || clienteBuscaInput || 'Novo Cliente...'}`
+                              : field.value
+                              ? leadsSeguro.find(lead => lead.id === field.value)?.nome || clienteBuscaInput || "Selecione..."
+                              : clienteBuscaInput || "Selecione um cliente..."
                             }
                             <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
-                      <PopoverContent className="w-full p-0">
-                        <Command>
-                          <CommandInput 
-                            placeholder="Buscar cliente..." 
-                            value={clienteBusca}
-                            onValueChange={setClienteBusca}
+                      <PopoverContent className="w-[--radix-popover-trigger-width] max-h-[300px] overflow-y-auto p-0">
+                        <Command shouldFilter={false}> {/* Desabilitar filtro interno se já filtramos com clienteBuscaInput */}
+                          <CommandInput
+                            placeholder="Buscar cliente por nome ou telefone..."
+                            value={clienteBuscaInput}
+                            onValueChange={(search) => {
+                                setClienteBuscaInput(search);
+                                // Se o usuário limpar a busca e estava registrando novo cliente, resetar
+                                if (!search && registrandoNovoCliente) {
+                                    setRegistrandoNovoCliente(false);
+                                    form.setValue('novo_cliente_nome', '');
+                                }
+                            }}
                           />
-                          <CommandEmpty>
-                            <div className="p-2">
-                              <Button
-                                variant="ghost"
-                                className="w-full justify-start"
-                                onClick={() => handleClienteSelect('novo_cliente')}
-                              >
-                                Criar novo cliente: "{clienteBusca}"
-                              </Button>
-                            </div>
-                          </CommandEmpty>
-                          <CommandGroup>
-                            {leadsSeguro.map((lead) => (
-                              <CommandItem
-                                key={lead.id}
-                                value={lead.nome}
-                                onSelect={() => handleClienteSelect(lead.id)}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    field.value === lead.id ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                {lead.nome} - {lead.telefone}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
+                          <CommandList>
+                            {loadingLeads && <div className="p-2 text-sm text-center">Carregando...</div>}
+                            <CommandEmpty>
+                                <Button
+                                    variant="ghost"
+                                    className="w-full justify-start text-sm p-2"
+                                    onClick={() => handleClienteSelect(`criar_novo_cliente:${clienteBuscaInput}`)}
+                                >
+                                    <UserPlus className="mr-2 h-4 w-4" />
+                                    Criar novo cliente: "{clienteBuscaInput || 'Digite o nome'}"
+                                </Button>
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {/* Aplicar o fallback aqui */}
+                              {(leadsFiltradosParaCombobox || []).map((lead) => (
+                                <CommandItem
+                                  key={lead.id}
+                                  value={lead.id} // Usar ID para o valor real
+                                  onSelect={() => {
+                                    console.log(`[ModalAgendamento] CMD Item onSelect, lead.id: ${lead.id}`)
+                                    handleClienteSelect(lead.id);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      field.value === lead.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {lead.nome} {lead.telefone && `- ${lead.telefone}`}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
                         </Command>
                       </PopoverContent>
                     </Popover>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            {/* Campos para Novo Cliente (se selecionado) */}
-            {registrandoNovoCliente && (
-              <div className="space-y-4 p-4 border rounded-lg bg-blue-50">
-                <h4 className="font-medium text-blue-900">Dados do Novo Cliente</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Nome do Cliente *
-                    </label>
-                    <Input
-                      value={novoClienteNome}
-                      onChange={(e) => setNovoClienteNome(e.target.value)}
-                      placeholder="Digite o nome completo"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Telefone *
-                    </label>
-                    <Input
-                      value={novoClienteTelefone}
-                      onChange={(e) => setNovoClienteTelefone(e.target.value)}
-                      placeholder="(11) 99999-9999"
-                      required
-                    />
-                  </div>
+              {/* CAMPOS PARA NOVO CLIENTE (CONDICIONAL) */}
+              {registrandoNovoCliente && (
+                <div className="space-y-4 p-4 border rounded-md bg-gray-50 my-4">
+                  <h4 className="font-medium text-gray-800 text-sm">Detalhes do Novo Cliente</h4>
+                  <FormField
+                    control={form.control}
+                    name="novo_cliente_nome"
+                    rules={{ required: registrandoNovoCliente ? 'Nome do novo cliente é obrigatório.' : false }}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nome Completo *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Nome completo do novo cliente" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="novo_cliente_telefone"
+                    rules={{ required: registrandoNovoCliente ? 'Telefone do novo cliente é obrigatório.' : false }}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Telefone *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="(XX) XXXXX-XXXX" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                   <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="p-0 h-auto text-xs text-red-600"
+                        onClick={() => {
+                            setRegistrandoNovoCliente(false);
+                            form.setValue('novo_cliente_nome', '');
+                            form.setValue('novo_cliente_telefone', '');
+                            setClienteBuscaInput(form.getValues('cliente_id') ? leadsSeguro.find(l => l.id === form.getValues('cliente_id'))?.nome || '' : '');
+                        }}
+                    >
+                        Cancelar Novo Cliente
+                    </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setRegistrandoNovoCliente(false)}
-                >
-                  Cancelar novo cliente
-                </Button>
-              </div>
-            )}
+              )}
 
-            {/* Campo Título/Serviço com Modo Seleção ou Manual */}
-            <div className="space-y-4">
-              {modoServico === 'selecionar' ? (
-                <FormField
-                  control={form.control}
-                  name="titulo"
-                  rules={{ required: 'Serviço é obrigatório' }}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Serviço/Procedimento *</FormLabel>
-                      {loadingServices ? (
-                        <div className="w-full h-10 bg-gray-100 rounded-md flex items-center justify-center">
-                          <span className="text-sm text-gray-500">Carregando serviços...</span>
-                        </div>
-                      ) : (
-                        <Select onValueChange={handleServicoSelect} value={servicoSelecionadoId || ''}>
+              {/* CAMPO TÍTULO/SERVIÇO */}
+              <FormField
+                control={form.control}
+                name="titulo"
+                rules={{ required: "Título ou serviço é obrigatório."}}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Título/Serviço *</FormLabel>
+                    {modoServico === 'selecionar' ? (
+                      <>
+                        <Select
+                          onValueChange={(value) => {
+                            handleServicoChange(value); // Isso vai setar field.onChange para 'titulo'
+                          }}
+                          value={servicoSelecionadoIdHook || ""} // Controlado pelo estado local
+                          disabled={loadingServices}
+                        >
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Selecione um serviço" />
+                              <SelectValue placeholder="Selecione um serviço..." />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {servicosSeguro.map((servico) => (
+                            {loadingServices && <SelectItem value="loading" disabled>Carregando...</SelectItem>}
+                            {(servicosSeguro || []).map((servico) => (
                               <SelectItem key={servico.id} value={servico.id}>
                                 {servico.nome_servico}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                      )}
-                      <div className="text-sm">
-                        <Button
-                          type="button"
-                          variant="link"
-                          size="sm"
-                          className="h-auto p-0 text-blue-600"
-                          onClick={() => setModoServico('manual')}
-                        >
-                          Serviço não listado? Digitar manualmente
+                        <Button type="button" variant="link" size="sm" className="p-0 h-auto text-xs" onClick={() => {setModoServico('manual'); form.setValue('titulo', ''); setServicoSelecionadoIdHook(null); }}>
+                           <Edit3 className="mr-1 h-3 w-3" /> Digitar manualmente
                         </Button>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : (
+                      </>
+                    ) : (
+                      <>
+                        <FormControl>
+                          <Input placeholder="Ex: Consulta de Retorno, Venda Produto X" {...field} />
+                        </FormControl>
+                        <Button type="button" variant="link" size="sm" className="p-0 h-auto text-xs" onClick={() => setModoServico('selecionar')}>
+                          <ListPlus className="mr-1 h-3 w-3" /> Selecionar da lista
+                        </Button>
+                      </>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* DATA E HORA DE INÍCIO */}
+              <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="titulo"
-                  rules={{ required: 'Título é obrigatório' }}
+                  name="data_inicio"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Título do Serviço/Procedimento Manual *</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="Ex: Consulta personalizada, Procedimento especial..."
-                          {...field} 
-                        />
-                      </FormControl>
-                      <div className="text-sm">
-                        <Button
-                          type="button"
-                          variant="link"
-                          size="sm"
-                          className="h-auto p-0 text-blue-600"
-                          onClick={() => setModoServico('selecionar')}
-                        >
-                          Selecionar da lista
-                        </Button>
-                      </div>
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Data de Início *</FormLabel>
+                      <Popover open={dataInicioPopoverOpen} onOpenChange={setDataInicioPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {field.value ? format(field.value, "PPP", { locale: ptBR }) : <span>Escolha uma data</span>}
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              )}
-            </div>
-
-            {/* Data e Hora de Início */}
-            <FormField
-              control={form.control}
-              name="data_inicio"
-              rules={{ required: 'Data de início é obrigatória' }}
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Data e Hora de Início *</FormLabel>
-                  <Popover open={dataInicioPopoverOpen} onOpenChange={setDataInicioPopoverOpen}>
-                    <PopoverTrigger asChild>
+                <FormField
+                  control={form.control}
+                  name="hora_inicio"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Hora Início *</FormLabel>
                       <FormControl>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            formatarDataHora(field.value)
-                          ) : (
-                            <span>Selecione data e hora</span>
-                          )}
-                          <Calendar className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
+                        <Input type="time" {...field} />
                       </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={field.value}
-                        onSelect={(date) => {
-                          if (date) {
-                            const novaData = new Date(date);
-                            if (field.value) {
-                              novaData.setHours(field.value.getHours());
-                              novaData.setMinutes(field.value.getMinutes());
-                            }
-                            field.onChange(novaData);
-                          }
-                        }}
-                        initialFocus
-                        className="pointer-events-auto"
-                      />
-                      <div className="p-3 border-t">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4" />
-                          <Input
-                            type="time"
-                            value={field.value ? format(field.value, 'HH:mm') : ''}
-                            onChange={(e) => {
-                              if (field.value && e.target.value) {
-                                const [horas, minutos] = e.target.value.split(':');
-                                const novaData = new Date(field.value);
-                                novaData.setHours(parseInt(horas), parseInt(minutos));
-                                field.onChange(novaData);
-                              }
-                            }}
-                            className="flex-1"
-                          />
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-            {/* Data e Hora de Fim */}
-            <FormField
-              control={form.control}
-              name="data_fim"
-              rules={{ required: 'Data de fim é obrigatória' }}
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Data e Hora de Fim *</FormLabel>
-                  <Popover open={dataFimPopoverOpen} onOpenChange={setDataFimPopoverOpen}>
-                    <PopoverTrigger asChild>
+              {/* DATA E HORA DE FIM */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="data_fim"
+                  render={({ field }) => (
+                     <FormItem className="flex flex-col">
+                      <FormLabel>Data de Fim *</FormLabel>
+                      <Popover open={dataFimPopoverOpen} onOpenChange={setDataFimPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {field.value ? format(field.value, "PPP", { locale: ptBR }) : <span>Escolha uma data</span>}
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus disabled={(date) => date < form.getValues("data_inicio")}/>
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="hora_fim"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Hora Fim *</FormLabel>
                       <FormControl>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            formatarDataHora(field.value)
-                          ) : (
-                            <span>Selecione data e hora</span>
-                          )}
-                          <Calendar className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
+                        <Input type="time" {...field} />
                       </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={field.value}
-                        onSelect={(date) => {
-                          if (date) {
-                            const novaData = new Date(date);
-                            if (field.value) {
-                              novaData.setHours(field.value.getHours());
-                              novaData.setMinutes(field.value.getMinutes());
-                            }
-                            field.onChange(novaData);
-                          }
-                        }}
-                        initialFocus
-                        className="pointer-events-auto"
-                      />
-                      <div className="p-3 border-t">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4" />
-                          <Input
-                            type="time"
-                            value={field.value ? format(field.value, 'HH:mm') : ''}
-                            onChange={(e) => {
-                              if (field.value && e.target.value) {
-                                const [horas, minutos] = e.target.value.split(':');
-                                const novaData = new Date(field.value);
-                                novaData.setHours(parseInt(horas), parseInt(minutos));
-                                field.onChange(novaData);
-                              }
-                            }}
-                            className="flex-1"
-                          />
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-            {/* Grid para Valor e Status */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Valor */}
+              {/* VALOR E STATUS */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="valor"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Valor (R$)</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="0.00" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione um status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {(AGENDAMENTO_STATUS_OPTIONS || []).map(option => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* DESCRIÇÃO */}
               <FormField
                 control={form.control}
-                name="valor"
+                name="descricao"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Valor (R$)</FormLabel>
+                    <FormLabel>Observações</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0,00"
-                        {...field}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                      />
+                      <Textarea placeholder="Detalhes adicionais sobre o agendamento..." {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
-              {/* Status */}
-              <FormField
-                control={form.control}
-                name="status"
-                rules={{ required: 'Status é obrigatório' }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {AGENDAMENTO_STATUS_OPTIONS.map((status) => (
-                          <SelectItem key={status.value} value={status.value}>
-                            {status.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Descrição/Observações */}
-            <FormField
-              control={form.control}
-              name="descricao"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Observações</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Observações adicionais sobre o agendamento..."
-                      rows={3}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Botões de Ação */}
-            <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCancel}
-                disabled={isLoading}
-              >
-                Cancelar
-              </Button>
-              <Button 
-                type="submit" 
-                className="bg-blue-600 hover:bg-blue-700"
-                disabled={isLoading}
-              >
-                {isLoading 
-                  ? 'Salvando...' 
-                  : isEdicaoMode ? 'Salvar Alterações' : 'Criar Agendamento'
-                }
-              </Button>
-            </div>
-          </form>
-        </Form>
+              <DialogFooter className="pt-4">
+                <Button type="button" variant="outline" onClick={handleCloseModal} disabled={isLoadingMutation}>
+                  Cancelar
+                </Button>
+                <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isLoadingMutation}>
+                  {isLoadingMutation ? 'Salvando...' : (isEdicaoMode ? 'Salvar Alterações' : 'Criar Agendamento')}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </div>
       </DialogContent>
     </Dialog>
   );
