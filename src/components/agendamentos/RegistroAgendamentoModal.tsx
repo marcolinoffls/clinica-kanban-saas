@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Calendar, Clock, X, ChevronDown, Check, Trash2 } from 'lucide-react';
@@ -66,7 +67,7 @@ import {
   AgendamentoFromDatabase 
 } from '@/hooks/useAgendamentosData';
 import { useClinicaOperations } from '@/hooks/useClinicaOperations';
-import { AGENDAMENTO_STATUS_OPTIONS, AgendamentoFormData } from '@/constants/agendamentos';
+import { AGENDAMENTO_STATUS_OPTIONS, AgendamentoFormData, AgendamentoStatus } from '@/constants/agendamentos';
 
 /**
  * Modal para registrar/editar agendamentos
@@ -136,7 +137,7 @@ export const RegistroAgendamentoModal = ({
       data_inicio: new Date(),
       data_fim: new Date(),
       valor: 0,
-      status: 'AGENDADO',
+      status: 'AGENDADO' as AgendamentoStatus,
       descricao: '',
       clinica_id: clinicaAtiva?.id || '',
       usuario_id: userProfile?.user_id || '',
@@ -160,7 +161,7 @@ export const RegistroAgendamentoModal = ({
         data_inicio: new Date(agendamentoParaEditar.data_inicio),
         data_fim: new Date(agendamentoParaEditar.data_fim),
         valor: agendamentoParaEditar.valor || 0,
-        status: agendamentoParaEditar.status,
+        status: agendamentoParaEditar.status as AgendamentoStatus,
         descricao: agendamentoParaEditar.descricao || '',
         clinica_id: agendamentoParaEditar.clinica_id,
         usuario_id: agendamentoParaEditar.usuario_id,
@@ -307,6 +308,10 @@ export const RegistroAgendamentoModal = ({
                    updateAgendamentoMutation.isPending || 
                    deleteAgendamentoMutation.isPending;
 
+  // Garantir que leads seja sempre um array válido
+  const leadsSeguro = Array.isArray(leads) ? leads : [];
+  const servicosSeguro = Array.isArray(servicos) ? servicos : [];
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -386,7 +391,7 @@ export const RegistroAgendamentoModal = ({
                           {registrandoNovoCliente 
                             ? `Novo cliente: ${novoClienteNome || 'Digite o nome...'}`
                             : field.value 
-                            ? leads.find(lead => lead.id === field.value)?.nome 
+                            ? leadsSeguro.find(lead => lead.id === field.value)?.nome 
                             : "Selecione um cliente..."
                           }
                           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -412,7 +417,7 @@ export const RegistroAgendamentoModal = ({
                           </div>
                         </CommandEmpty>
                         <CommandGroup>
-                          {leads.map((lead) => (
+                          {leadsSeguro.map((lead) => (
                             <CommandItem
                               key={lead.id}
                               value={lead.nome}
@@ -492,7 +497,7 @@ export const RegistroAgendamentoModal = ({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {servicos.map((servico) => (
+                          {servicosSeguro.map((servico) => (
                             <SelectItem key={servico.id} value={servico.id}>
                               {servico.nome_servico}
                             </SelectItem>
