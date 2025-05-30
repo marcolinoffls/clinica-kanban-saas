@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Calendar, Clock, X, ChevronDown, Check, Trash2 } from 'lucide-react';
@@ -118,8 +117,8 @@ export const RegistroAgendamentoModal = ({
   const isEdicaoMode = !!agendamentoParaEditar;
 
   // Hooks para obter dados necessários
-  const { data: leads = [] } = useLeads();
-  const { services: servicos = [] } = useClinicServices();
+  const { data: leads, isLoading: loadingLeads } = useLeads();
+  const { services: servicos, isLoading: loadingServices } = useClinicServices();
   const { clinicaAtiva } = useClinica();
   const { userProfile } = useAuthUser();
   
@@ -146,7 +145,7 @@ export const RegistroAgendamentoModal = ({
 
   // Preencher formulário quando estiver em modo de edição
   useEffect(() => {
-    if (agendamentoParaEditar && isOpen) {
+    if (agendamentoParaEditar && isOpen && leads) {
       console.log('🔄 Preenchendo formulário para edição:', agendamentoParaEditar);
       
       // Buscar o cliente/lead correspondente
@@ -308,9 +307,12 @@ export const RegistroAgendamentoModal = ({
                    updateAgendamentoMutation.isPending || 
                    deleteAgendamentoMutation.isPending;
 
-  // Garantir que leads seja sempre um array válido
+  // Garantir que os dados sejam sempre arrays válidos e aguardar carregamento
   const leadsSeguro = Array.isArray(leads) ? leads : [];
   const servicosSeguro = Array.isArray(servicos) ? servicos : [];
+  
+  // Se os dados ainda estão carregando, não renderizar o combobox
+  const dadosCarregados = !loadingLeads && !loadingServices;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -377,65 +379,71 @@ export const RegistroAgendamentoModal = ({
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Cliente *</FormLabel>
-                  <Popover open={clienteComboboxOpen} onOpenChange={setClienteComboboxOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className={cn(
-                            "w-full justify-between",
-                            !field.value && !registrandoNovoCliente && "text-muted-foreground"
-                          )}
-                        >
-                          {registrandoNovoCliente 
-                            ? `Novo cliente: ${novoClienteNome || 'Digite o nome...'}`
-                            : field.value 
-                            ? leadsSeguro.find(lead => lead.id === field.value)?.nome 
-                            : "Selecione um cliente..."
-                          }
-                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-0">
-                      <Command>
-                        <CommandInput 
-                          placeholder="Buscar cliente..." 
-                          value={clienteBusca}
-                          onValueChange={setClienteBusca}
-                        />
-                        <CommandEmpty>
-                          <div className="p-2">
-                            <Button
-                              variant="ghost"
-                              className="w-full justify-start"
-                              onClick={() => handleClienteSelect('novo_cliente')}
-                            >
-                              Criar novo cliente: "{clienteBusca}"
-                            </Button>
-                          </div>
-                        </CommandEmpty>
-                        <CommandGroup>
-                          {leadsSeguro.map((lead) => (
-                            <CommandItem
-                              key={lead.id}
-                              value={lead.nome}
-                              onSelect={() => handleClienteSelect(lead.id)}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  field.value === lead.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {lead.nome} - {lead.telefone}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                  {!dadosCarregados ? (
+                    <div className="w-full h-10 bg-gray-100 rounded-md flex items-center justify-center">
+                      <span className="text-sm text-gray-500">Carregando clientes...</span>
+                    </div>
+                  ) : (
+                    <Popover open={clienteComboboxOpen} onOpenChange={setClienteComboboxOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between",
+                              !field.value && !registrandoNovoCliente && "text-muted-foreground"
+                            )}
+                          >
+                            {registrandoNovoCliente 
+                              ? `Novo cliente: ${novoClienteNome || 'Digite o nome...'}`
+                              : field.value 
+                              ? leadsSeguro.find(lead => lead.id === field.value)?.nome 
+                              : "Selecione um cliente..."
+                            }
+                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput 
+                            placeholder="Buscar cliente..." 
+                            value={clienteBusca}
+                            onValueChange={setClienteBusca}
+                          />
+                          <CommandEmpty>
+                            <div className="p-2">
+                              <Button
+                                variant="ghost"
+                                className="w-full justify-start"
+                                onClick={() => handleClienteSelect('novo_cliente')}
+                              >
+                                Criar novo cliente: "{clienteBusca}"
+                              </Button>
+                            </div>
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {leadsSeguro.length > 0 && leadsSeguro.map((lead) => (
+                              <CommandItem
+                                key={lead.id}
+                                value={lead.nome}
+                                onSelect={() => handleClienteSelect(lead.id)}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    field.value === lead.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {lead.nome} - {lead.telefone}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -490,20 +498,26 @@ export const RegistroAgendamentoModal = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Serviço/Procedimento *</FormLabel>
-                      <Select onValueChange={handleServicoSelect} value={servicoSelecionadoId || ''}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione um serviço" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {servicosSeguro.map((servico) => (
-                            <SelectItem key={servico.id} value={servico.id}>
-                              {servico.nome_servico}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {!dadosCarregados ? (
+                        <div className="w-full h-10 bg-gray-100 rounded-md flex items-center justify-center">
+                          <span className="text-sm text-gray-500">Carregando serviços...</span>
+                        </div>
+                      ) : (
+                        <Select onValueChange={handleServicoSelect} value={servicoSelecionadoId || ''}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione um serviço" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {servicosSeguro.length > 0 && servicosSeguro.map((servico) => (
+                              <SelectItem key={servico.id} value={servico.id}>
+                                {servico.nome_servico}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                       <div className="text-sm">
                         <Button
                           type="button"
