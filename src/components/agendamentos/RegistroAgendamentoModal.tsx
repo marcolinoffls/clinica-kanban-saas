@@ -573,27 +573,20 @@ export const RegistroAgendamentoModal = ({
                                     Criar novo cliente: "{clienteBuscaInput || 'Digite o nome'}"
                                 </Button>
                             </CommandEmpty>
-                            <CommandGroup>
-                              {/* Aplicar o fallback aqui */}
-                              {(leadsFiltradosParaCombobox || []).map((lead) => (
-                                <CommandItem
-                                  key={lead.id}
-                                  value={lead.id} // Usar ID para o valor real
-                                  onSelect={() => {
-                                    console.log(`[ModalAgendamento] CMD Item onSelect, lead.id: ${lead.id}`)
-                                    handleClienteSelect(lead.id);
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      field.value === lead.id ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  {lead.nome} {lead.telefone && `- ${lead.telefone}`}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
+                              <CommandGroup>
+                                {(leadsFiltradosParaCombobox || []).map((lead) => ( // <--- Você já tem o fallback aqui!
+                                  <CommandItem
+                                    key={lead.id}
+                                    value={`${lead.nome} ${lead.telefone || ''} ${lead.id}`}
+                                    onSelect={() => {
+                                      handleClienteSelect(lead.id);
+                                    }}
+                                  >
+                                    <Check /* ... */ />
+                                    {lead.nome} {lead.telefone && `- ${lead.telefone}`}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
                           </CommandList>
                         </Command>
                       </PopoverContent>
