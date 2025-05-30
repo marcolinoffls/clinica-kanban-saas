@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { Calendar, Clock, X, ChevronDown, Check } from 'lucide-react';
+import { Calendar, Clock, X, ChevronDown, Check, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -10,6 +10,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
   Form,
   FormControl,
@@ -47,7 +58,13 @@ import { useLeads } from '@/hooks/useLeadsData';
 import { useClinica } from '@/contexts/ClinicaContext';
 import { useAuthUser } from '@/hooks/useAuthUser';
 import { useClinicServices } from '@/hooks/useClinicServices';
-import { useCreateAgendamento, CreateAgendamentoData } from '@/hooks/useAgendamentosData';
+import { 
+  useCreateAgendamento, 
+  useUpdateAgendamento,
+  useDeleteAgendamento,
+  CreateAgendamentoData,
+  AgendamentoFromDatabase 
+} from '@/hooks/useAgendamentosData';
 import { useClinicaOperations } from '@/hooks/useClinicaOperations';
 import { AGENDAMENTO_STATUS_OPTIONS, AgendamentoFormData } from '@/constants/agendamentos';
 
@@ -55,31 +72,31 @@ import { AGENDAMENTO_STATUS_OPTIONS, AgendamentoFormData } from '@/constants/age
  * Modal para registrar/editar agendamentos
  * 
  * Funcionalidades:
- * - Formulário completo para criação de agendamentos
+ * - Formulário completo para criação/edição de agendamentos
  * - Seleção ou criação de cliente/lead
  * - Seleção de serviço existente ou inserção manual do título
  * - Definição de data/hora de início e fim
  * - Controle de status do agendamento
  * - Valor financeiro e observações
  * - Validação de campos obrigatórios
- * - Integração com Supabase para salvamento
+ * - Integração com Supabase para salvamento/atualização/exclusão
  * 
  * Props:
  * - isOpen: controla visibilidade do modal
  * - onClose: função para fechar o modal
- * - agendamento: dados do agendamento para edição (opcional)
+ * - agendamentoParaEditar: dados do agendamento para edição (opcional)
  */
 
 interface RegistroAgendamentoModalProps {
   isOpen: boolean;
   onClose: () => void;
-  agendamento?: any; // Para futuras implementações de edição
+  agendamentoParaEditar?: AgendamentoFromDatabase | null;
 }
 
 export const RegistroAgendamentoModal = ({ 
   isOpen, 
   onClose, 
-  agendamento 
+  agendamentoParaEditar 
 }: RegistroAgendamentoModalProps) => {
   // Estados para controles de UI
   const [dataInicioPopoverOpen, setDataInicioPopoverOpen] = useState(false);
@@ -96,30 +113,60 @@ export const RegistroAgendamentoModal = ({
   const [novoClienteTelefone, setNovoClienteTelefone] = useState('');
   const [clienteBusca, setClienteBusca] = useState('');
 
+  // Determinar se estamos em modo de edição
+  const isEdicaoMode = !!agendamentoParaEditar;
+
   // Hooks para obter dados necessários
   const { data: leads = [] } = useLeads();
-  const { services: servicos = [] } = useClinicServices(); // Corrigido: usar 'services' ao invés de 'data'
+  const { services: servicos = [] } = useClinicServices();
   const { clinicaAtiva } = useClinica();
   const { userProfile } = useAuthUser();
   
   // Hooks para mutações
   const createAgendamentoMutation = useCreateAgendamento();
-  const { createLead } = useClinicaOperations(); // Corrigido: usar createLead do hook
+  const updateAgendamentoMutation = useUpdateAgendamento();
+  const deleteAgendamentoMutation = useDeleteAgendamento();
+  const { createLead } = useClinicaOperations();
 
   // Configuração do formulário
   const form = useForm<AgendamentoFormData>({
     defaultValues: {
-      cliente_id: agendamento?.cliente_id || '',
-      titulo: agendamento?.titulo || '',
-      data_inicio: agendamento?.data_inicio ? new Date(agendamento.data_inicio) : new Date(),
-      data_fim: agendamento?.data_fim ? new Date(agendamento.data_fim) : new Date(),
-      valor: agendamento?.valor || 0,
-      status: agendamento?.status || 'AGENDADO',
-      descricao: agendamento?.descricao || '',
+      cliente_id: '',
+      titulo: '',
+      data_inicio: new Date(),
+      data_fim: new Date(),
+      valor: 0,
+      status: 'AGENDADO',
+      descricao: '',
       clinica_id: clinicaAtiva?.id || '',
       usuario_id: userProfile?.user_id || '',
     },
   });
+
+  // Preencher formulário quando estiver em modo de edição
+  useEffect(() => {
+    if (agendamentoParaEditar && isOpen) {
+      console.log('🔄 Preenchendo formulário para edição:', agendamentoParaEditar);
+      
+      // Buscar o cliente/lead correspondente
+      const clienteEncontrado = leads.find(lead => lead.id === agendamentoParaEditar.cliente_id);
+      if (clienteEncontrado) {
+        setClienteBusca(clienteEncontrado.nome);
+      }
+
+      form.reset({
+        cliente_id: agendamentoParaEditar.cliente_id,
+        titulo: agendamentoParaEditar.titulo,
+        data_inicio: new Date(agendamentoParaEditar.data_inicio),
+        data_fim: new Date(agendamentoParaEditar.data_fim),
+        valor: agendamentoParaEditar.valor || 0,
+        status: agendamentoParaEditar.status,
+        descricao: agendamentoParaEditar.descricao || '',
+        clinica_id: agendamentoParaEditar.clinica_id,
+        usuario_id: agendamentoParaEditar.usuario_id,
+      });
+    }
+  }, [agendamentoParaEditar, isOpen, leads, form]);
 
   // Função para formatar data e hora para exibição
   const formatarDataHora = (data: Date) => {
@@ -156,6 +203,18 @@ export const RegistroAgendamentoModal = ({
     setClienteComboboxOpen(false);
   };
 
+  // Função para lidar com exclusão do agendamento
+  const handleDeleteAgendamento = async () => {
+    if (!agendamentoParaEditar) return;
+
+    try {
+      await deleteAgendamentoMutation.mutateAsync(agendamentoParaEditar.id);
+      handleCancel(); // Fechar modal após exclusão
+    } catch (error) {
+      console.error('❌ Erro ao excluir agendamento:', error);
+    }
+  };
+
   // Função para lidar com salvamento do agendamento
   const handleSaveAgendamento = async (dados: AgendamentoFormData) => {
     try {
@@ -189,23 +248,38 @@ export const RegistroAgendamentoModal = ({
         }
       }
       
-      // Construir dados do agendamento
-      const agendamentoData: CreateAgendamentoData = {
-        cliente_id: cliente_id_final,
-        clinica_id: clinicaAtiva?.id || '',
-        usuario_id: userProfile?.user_id || '',
-        titulo: titulo_final,
-        data_inicio: formatarDataParaISO(dados.data_inicio),
-        data_fim: formatarDataParaISO(dados.data_fim),
-        valor: dados.valor || 0,
-        status: dados.status,
-        descricao: dados.descricao || '',
-      };
-      
-      console.log('🔄 Dados do agendamento para salvar:', agendamentoData);
-      
-      // Salvar agendamento
-      await createAgendamentoMutation.mutateAsync(agendamentoData);
+      if (isEdicaoMode && agendamentoParaEditar) {
+        // Modo de edição - atualizar agendamento existente
+        const agendamentoData = {
+          id: agendamentoParaEditar.id,
+          cliente_id: cliente_id_final,
+          titulo: titulo_final,
+          data_inicio: formatarDataParaISO(dados.data_inicio),
+          data_fim: formatarDataParaISO(dados.data_fim),
+          valor: dados.valor || 0,
+          status: dados.status,
+          descricao: dados.descricao || '',
+        };
+        
+        console.log('🔄 Dados do agendamento para atualizar:', agendamentoData);
+        await updateAgendamentoMutation.mutateAsync(agendamentoData);
+      } else {
+        // Modo de criação - criar novo agendamento
+        const agendamentoData: CreateAgendamentoData = {
+          cliente_id: cliente_id_final,
+          clinica_id: clinicaAtiva?.id || '',
+          usuario_id: userProfile?.user_id || '',
+          titulo: titulo_final,
+          data_inicio: formatarDataParaISO(dados.data_inicio),
+          data_fim: formatarDataParaISO(dados.data_fim),
+          valor: dados.valor || 0,
+          status: dados.status,
+          descricao: dados.descricao || '',
+        };
+        
+        console.log('🔄 Dados do agendamento para criar:', agendamentoData);
+        await createAgendamentoMutation.mutateAsync(agendamentoData);
+      }
       
       console.log('✅ Agendamento salvo com sucesso');
       
@@ -229,22 +303,62 @@ export const RegistroAgendamentoModal = ({
     onClose();
   };
 
+  const isLoading = createAgendamentoMutation.isPending || 
+                   updateAgendamentoMutation.isPending || 
+                   deleteAgendamentoMutation.isPending;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex justify-between items-center">
             <DialogTitle className="text-xl font-semibold">
-              {agendamento ? 'Editar Agendamento' : 'Novo Agendamento'}
+              {isEdicaoMode ? 'Editar Agendamento' : 'Novo Agendamento'}
             </DialogTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleCancel}
-              className="h-6 w-6"
-            >
-              <X size={16} />
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Botão de exclusão (apenas em modo de edição) */}
+              {isEdicaoMode && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-600 hover:bg-red-50"
+                      disabled={isLoading}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDeleteAgendamento}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        Excluir
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleCancel}
+                className="h-6 w-6"
+                disabled={isLoading}
+              >
+                <X size={16} />
+              </Button>
+            </div>
           </div>
         </DialogHeader>
 
@@ -647,18 +761,18 @@ export const RegistroAgendamentoModal = ({
                 type="button"
                 variant="outline"
                 onClick={handleCancel}
-                disabled={createAgendamentoMutation.isPending}
+                disabled={isLoading}
               >
                 Cancelar
               </Button>
               <Button 
                 type="submit" 
                 className="bg-blue-600 hover:bg-blue-700"
-                disabled={createAgendamentoMutation.isPending}
+                disabled={isLoading}
               >
-                {createAgendamentoMutation.isPending 
+                {isLoading 
                   ? 'Salvando...' 
-                  : (agendamento ? 'Atualizar' : 'Criar') + ' Agendamento'
+                  : isEdicaoMode ? 'Salvar Alterações' : 'Criar Agendamento'
                 }
               </Button>
             </div>

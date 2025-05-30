@@ -1,12 +1,18 @@
+
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Edit, Clock, User } from 'lucide-react';
 import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
+import { useFetchAgendamentos, AgendamentoFromDatabase } from '@/hooks/useAgendamentosData';
+import { useLeads } from '@/hooks/useLeadsData';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 /**
  * Página de Agenda/Calendário
  * 
  * Funcionalidades:
  * - Visualização em dia, semana e mês
+ * - Busca de agendamentos reais do Supabase
  * - Criação, edição e exclusão de agendamentos
  * - Integração com dados de clientes
  * - Notificações e lembretes
@@ -18,53 +24,15 @@ import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgen
  * - Status (agendado, confirmado, realizado, cancelado)
  */
 
-interface Appointment {
-  id: string;
-  clientName: string;
-  clientPhone: string;
-  procedure: string;
-  date: Date;
-  duration: number; // em minutos
-  status: 'scheduled' | 'confirmed' | 'completed' | 'cancelled';
-  notes?: string;
-}
-
 export const CalendarPage = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
   const [isAgendamentoModalOpen, setIsAgendamentoModalOpen] = useState(false);
+  const [agendamentoParaEditar, setAgendamentoParaEditar] = useState<AgendamentoFromDatabase | null>(null);
 
-  // Dados mockados de agendamentos
-  const appointments: Appointment[] = [
-    {
-      id: '1',
-      clientName: 'Maria Silva',
-      clientPhone: '(11) 99999-9999',
-      procedure: 'Consulta de Rotina',
-      date: new Date('2024-01-15T09:00:00'),
-      duration: 60,
-      status: 'confirmed',
-      notes: 'Paciente pontual'
-    },
-    {
-      id: '2',
-      clientName: 'João Santos',
-      clientPhone: '(11) 88888-8888',
-      procedure: 'Implante Dentário',
-      date: new Date('2024-01-15T14:30:00'),
-      duration: 120,
-      status: 'scheduled'
-    },
-    {
-      id: '3',
-      clientName: 'Ana Costa',
-      clientPhone: '(11) 77777-7777',
-      procedure: 'Limpeza',
-      date: new Date('2024-01-16T10:00:00'),
-      duration: 45,
-      status: 'confirmed'
-    }
-  ];
+  // Buscar agendamentos reais do Supabase
+  const { data: agendamentos = [], isLoading: loadingAgendamentos } = useFetchAgendamentos();
+  const { data: leads = [] } = useLeads();
 
   // Função para navegar entre datas
   const navigateDate = (direction: 'prev' | 'next') => {
@@ -112,13 +80,13 @@ export const CalendarPage = () => {
   // Função para obter cor do status
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed':
+      case 'CONFIRMADO':
         return 'bg-green-100 text-green-800 border-green-200';
-      case 'scheduled':
+      case 'AGENDADO':
         return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'completed':
+      case 'REALIZADO':
         return 'bg-gray-100 text-gray-800 border-gray-200';
-      case 'cancelled':
+      case 'CANCELADO':
         return 'bg-red-100 text-red-800 border-red-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -128,18 +96,71 @@ export const CalendarPage = () => {
   // Função para obter texto do status
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'confirmed':
+      case 'CONFIRMADO':
         return 'Confirmado';
-      case 'scheduled':
+      case 'AGENDADO':
         return 'Agendado';
-      case 'completed':
+      case 'REALIZADO':
         return 'Realizado';
-      case 'cancelled':
+      case 'CANCELADO':
         return 'Cancelado';
       default:
         return status;
     }
   };
+
+  // Função para obter nome do cliente pelo ID
+  const getClienteNome = (clienteId: string) => {
+    const cliente = leads.find(lead => lead.id === clienteId);
+    return cliente?.nome || 'Cliente não encontrado';
+  };
+
+  // Função para obter telefone do cliente pelo ID
+  const getClienteTelefone = (clienteId: string) => {
+    const cliente = leads.find(lead => lead.id === clienteId);
+    return cliente?.telefone || '';
+  };
+
+  // Função para abrir modal de edição
+  const handleEditAgendamento = (agendamento: AgendamentoFromDatabase) => {
+    setAgendamentoParaEditar(agendamento);
+    setIsAgendamentoModalOpen(true);
+  };
+
+  // Função para abrir modal de criação
+  const handleNovoAgendamento = () => {
+    setAgendamentoParaEditar(null);
+    setIsAgendamentoModalOpen(true);
+  };
+
+  // Função para fechar modal
+  const handleCloseModal = () => {
+    setAgendamentoParaEditar(null);
+    setIsAgendamentoModalOpen(false);
+  };
+
+  // Filtrar agendamentos para a visualização atual (implementação básica)
+  const agendamentosFiltrados = agendamentos.filter(agendamento => {
+    const dataAgendamento = new Date(agendamento.data_inicio);
+    const dataAtual = new Date(currentDate);
+    
+    switch (viewMode) {
+      case 'day':
+        return dataAgendamento.toDateString() === dataAtual.toDateString();
+      case 'week':
+        // Semana atual (simplificado)
+        const startOfWeek = new Date(dataAtual);
+        startOfWeek.setDate(dataAtual.getDate() - dataAtual.getDay());
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        return dataAgendamento >= startOfWeek && dataAgendamento <= endOfWeek;
+      case 'month':
+        return dataAgendamento.getMonth() === dataAtual.getMonth() && 
+               dataAgendamento.getFullYear() === dataAtual.getFullYear();
+      default:
+        return true;
+    }
+  });
 
   return (
     <div className="h-full flex flex-col">
@@ -152,7 +173,7 @@ export const CalendarPage = () => {
           </p>
         </div>
         <button 
-          onClick={() => setIsAgendamentoModalOpen(true)}
+          onClick={handleNovoAgendamento}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
         >
           <Plus size={20} />
@@ -212,69 +233,101 @@ export const CalendarPage = () => {
 
       {/* Área do calendário */}
       <div className="flex-1 bg-white rounded-lg border border-gray-200 p-6">
-        {viewMode === 'week' && (
+        {loadingAgendamentos ? (
+          <div className="flex items-center justify-center h-48">
+            <div className="text-gray-500">Carregando agendamentos...</div>
+          </div>
+        ) : (
           <div>
-            {/* Grid de horários para visualização semanal */}
-            <div className="space-y-4">
-              {appointments.map((appointment) => (
-                <div
-                  key={appointment.id}
-                  className={`p-4 rounded-lg border-l-4 ${getStatusColor(appointment.status)}`}
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">
+                Agendamentos {viewMode === 'day' ? 'do dia' : viewMode === 'week' ? 'da semana' : 'do mês'}
+              </h3>
+              <span className="text-sm text-gray-500">
+                {agendamentosFiltrados.length} agendamento(s) encontrado(s)
+              </span>
+            </div>
+
+            {agendamentosFiltrados.length === 0 ? (
+              <div className="text-center py-12">
+                <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum agendamento encontrado</h3>
+                <p className="text-gray-500 mb-4">
+                  Não há agendamentos para o período selecionado.
+                </p>
+                <button
+                  onClick={handleNovoAgendamento}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-semibold text-gray-900">
-                        {appointment.clientName}
-                      </h4>
-                      <p className="text-sm text-gray-600">
-                        {appointment.procedure}
-                      </p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        {appointment.date.toLocaleTimeString('pt-BR', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })} - {appointment.duration} min
-                      </p>
+                  Criar primeiro agendamento
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {agendamentosFiltrados.map((agendamento) => (
+                  <div
+                    key={agendamento.id}
+                    className={`p-4 rounded-lg border-l-4 cursor-pointer hover:shadow-md transition-shadow ${getStatusColor(agendamento.status)}`}
+                    onClick={() => handleEditAgendamento(agendamento)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <User size={16} className="text-gray-600" />
+                          <h4 className="font-semibold text-gray-900">
+                            {getClienteNome(agendamento.cliente_id)}
+                          </h4>
+                        </div>
+                        
+                        <p className="text-sm text-gray-600 mb-1">
+                          <strong>Serviço:</strong> {agendamento.titulo}
+                        </p>
+                        
+                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                          <span>
+                            <Clock size={14} className="inline mr-1" />
+                            {format(new Date(agendamento.data_inicio), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} - 
+                            {format(new Date(agendamento.data_fim), " HH:mm", { locale: ptBR })}
+                          </span>
+                          {agendamento.valor && agendamento.valor > 0 && (
+                            <span>
+                              <strong>Valor:</strong> R$ {agendamento.valor.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-xs text-gray-500 mt-1">
+                          {getClienteTelefone(agendamento.cliente_id)}
+                        </p>
+                      </div>
+                      
+                      <div className="text-right flex flex-col items-end gap-2">
+                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(agendamento.status)}`}>
+                          {getStatusText(agendamento.status)}
+                        </span>
+                        
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditAgendamento(agendamento);
+                          }}
+                          className="p-1 hover:bg-gray-200 rounded text-gray-500 hover:text-gray-700"
+                          title="Editar agendamento"
+                        >
+                          <Edit size={14} />
+                        </button>
+                      </div>
                     </div>
                     
-                    <div className="text-right">
-                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(appointment.status)}`}>
-                        {getStatusText(appointment.status)}
-                      </span>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {appointment.clientPhone}
+                    {agendamento.descricao && (
+                      <p className="text-sm text-gray-600 mt-2 italic">
+                        <strong>Observações:</strong> {agendamento.descricao}
                       </p>
-                    </div>
+                    )}
                   </div>
-                  
-                  {appointment.notes && (
-                    <p className="text-sm text-gray-600 mt-2 italic">
-                      {appointment.notes}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {viewMode === 'day' && (
-          <div className="space-y-2">
-            <h3 className="text-lg font-semibold mb-4">
-              Agendamentos do dia
-            </h3>
-            {/* Aqui seria implementada a visualização de dia */}
-            <p className="text-gray-500">Visualização de dia em desenvolvimento</p>
-          </div>
-        )}
-
-        {viewMode === 'month' && (
-          <div>
-            <h3 className="text-lg font-semibold mb-4">
-              Visão mensal
-            </h3>
-            {/* Aqui seria implementada a visualização de mês */}
-            <p className="text-gray-500">Visualização de mês em desenvolvimento</p>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -282,27 +335,34 @@ export const CalendarPage = () => {
       {/* Resumo estatístico */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
         <div className="bg-white rounded-lg p-4 border border-gray-200">
-          <h4 className="text-sm font-medium text-gray-600">Hoje</h4>
-          <p className="text-2xl font-bold text-blue-600">3</p>
+          <h4 className="text-sm font-medium text-gray-600">Total</h4>
+          <p className="text-2xl font-bold text-blue-600">{agendamentos.length}</p>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200">
-          <h4 className="text-sm font-medium text-gray-600">Esta Semana</h4>
-          <p className="text-2xl font-bold text-green-600">12</p>
+          <h4 className="text-sm font-medium text-gray-600">Agendados</h4>
+          <p className="text-2xl font-bold text-yellow-600">
+            {agendamentos.filter(a => a.status === 'AGENDADO').length}
+          </p>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200">
           <h4 className="text-sm font-medium text-gray-600">Confirmados</h4>
-          <p className="text-2xl font-bold text-purple-600">8</p>
+          <p className="text-2xl font-bold text-green-600">
+            {agendamentos.filter(a => a.status === 'CONFIRMADO').length}
+          </p>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200">
-          <h4 className="text-sm font-medium text-gray-600">Pendentes</h4>
-          <p className="text-2xl font-bold text-orange-600">4</p>
+          <h4 className="text-sm font-medium text-gray-600">Realizados</h4>
+          <p className="text-2xl font-bold text-purple-600">
+            {agendamentos.filter(a => a.status === 'REALIZADO').length}
+          </p>
         </div>
       </div>
 
-      {/* Modal de Registro de Agendamento */}
+      {/* Modal de Registro/Edição de Agendamento */}
       <RegistroAgendamentoModal
         isOpen={isAgendamentoModalOpen}
-        onClose={() => setIsAgendamentoModalOpen(false)}
+        onClose={handleCloseModal}
+        agendamentoParaEditar={agendamentoParaEditar}
       />
     </div>
   );
