@@ -128,6 +128,18 @@ export const RegistroAgendamentoModal = ({
   const deleteAgendamentoMutation = useDeleteAgendamento();
   const { createLead } = useClinicaOperations();
 
+  // Garantir que os dados sejam sempre arrays válidos
+  const leadsSeguro = Array.isArray(leads) ? leads : [];
+  const servicosSeguro = Array.isArray(servicos) ? servicos : [];
+  
+  console.log('🔍 Estado dos dados no modal:', {
+    leads: leads,
+    leadsSeguro: leadsSeguro,
+    leadsLength: leadsSeguro.length,
+    loadingLeads,
+    isOpen
+  });
+
   // Configuração do formulário
   const form = useForm<AgendamentoFormData>({
     defaultValues: {
@@ -145,11 +157,11 @@ export const RegistroAgendamentoModal = ({
 
   // Preencher formulário quando estiver em modo de edição
   useEffect(() => {
-    if (agendamentoParaEditar && isOpen && leads) {
+    if (agendamentoParaEditar && isOpen && leadsSeguro.length > 0) {
       console.log('🔄 Preenchendo formulário para edição:', agendamentoParaEditar);
       
       // Buscar o cliente/lead correspondente
-      const clienteEncontrado = leads.find(lead => lead.id === agendamentoParaEditar.cliente_id);
+      const clienteEncontrado = leadsSeguro.find(lead => lead.id === agendamentoParaEditar.cliente_id);
       if (clienteEncontrado) {
         setClienteBusca(clienteEncontrado.nome);
       }
@@ -166,7 +178,7 @@ export const RegistroAgendamentoModal = ({
         usuario_id: agendamentoParaEditar.usuario_id,
       });
     }
-  }, [agendamentoParaEditar, isOpen, leads, form]);
+  }, [agendamentoParaEditar, isOpen, leadsSeguro, form]);
 
   // Função para formatar data e hora para exibição
   const formatarDataHora = (data: Date) => {
@@ -180,7 +192,7 @@ export const RegistroAgendamentoModal = ({
 
   // Função para lidar com seleção de serviço
   const handleServicoSelect = (servicoId: string) => {
-    const servico = servicos.find(s => s.id === servicoId);
+    const servico = servicosSeguro.find(s => s.id === servicoId);
     if (servico) {
       setServicoSelecionadoId(servicoId);
       form.setValue('titulo', servico.nome_servico);
@@ -189,13 +201,14 @@ export const RegistroAgendamentoModal = ({
 
   // Função para lidar com seleção de cliente
   const handleClienteSelect = (clienteId: string) => {
+    console.log('🔄 Selecionando cliente:', clienteId);
     if (clienteId === 'novo_cliente') {
       setRegistrandoNovoCliente(true);
       form.setValue('cliente_id', '');
     } else {
       setRegistrandoNovoCliente(false);
       form.setValue('cliente_id', clienteId);
-      const cliente = leads.find(l => l.id === clienteId);
+      const cliente = leadsSeguro.find(l => l.id === clienteId);
       if (cliente) {
         setClienteBusca(cliente.nome);
       }
@@ -242,7 +255,7 @@ export const RegistroAgendamentoModal = ({
       // Determinar título final baseado no modo de serviço
       let titulo_final = dados.titulo;
       if (modoServico === 'selecionar' && servicoSelecionadoId) {
-        const servicoSelecionado = servicos.find(s => s.id === servicoSelecionadoId);
+        const servicoSelecionado = servicosSeguro.find(s => s.id === servicoSelecionadoId);
         if (servicoSelecionado) {
           titulo_final = servicoSelecionado.nome_servico;
         }
@@ -306,13 +319,6 @@ export const RegistroAgendamentoModal = ({
   const isLoading = createAgendamentoMutation.isPending || 
                    updateAgendamentoMutation.isPending || 
                    deleteAgendamentoMutation.isPending;
-
-  // Garantir que os dados sejam sempre arrays válidos e aguardar carregamento
-  const leadsSeguro = Array.isArray(leads) ? leads : [];
-  const servicosSeguro = Array.isArray(servicos) ? servicos : [];
-  
-  // Se os dados ainda estão carregando, não renderizar o combobox
-  const dadosCarregados = !loadingLeads && !loadingServices;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -379,7 +385,7 @@ export const RegistroAgendamentoModal = ({
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Cliente *</FormLabel>
-                  {!dadosCarregados ? (
+                  {loadingLeads ? (
                     <div className="w-full h-10 bg-gray-100 rounded-md flex items-center justify-center">
                       <span className="text-sm text-gray-500">Carregando clientes...</span>
                     </div>
@@ -424,7 +430,7 @@ export const RegistroAgendamentoModal = ({
                             </div>
                           </CommandEmpty>
                           <CommandGroup>
-                            {leadsSeguro.length > 0 && leadsSeguro.map((lead) => (
+                            {leadsSeguro.map((lead) => (
                               <CommandItem
                                 key={lead.id}
                                 value={lead.nome}
@@ -498,7 +504,7 @@ export const RegistroAgendamentoModal = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Serviço/Procedimento *</FormLabel>
-                      {!dadosCarregados ? (
+                      {loadingServices ? (
                         <div className="w-full h-10 bg-gray-100 rounded-md flex items-center justify-center">
                           <span className="text-sm text-gray-500">Carregando serviços...</span>
                         </div>
@@ -510,7 +516,7 @@ export const RegistroAgendamentoModal = ({
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {servicosSeguro.length > 0 && servicosSeguro.map((servico) => (
+                            {servicosSeguro.map((servico) => (
                               <SelectItem key={servico.id} value={servico.id}>
                                 {servico.nome_servico}
                               </SelectItem>
