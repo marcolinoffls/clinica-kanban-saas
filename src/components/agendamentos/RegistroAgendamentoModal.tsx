@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Calendar, Clock, X, ChevronDown, Check } from 'lucide-react';
@@ -49,7 +48,7 @@ import { useClinica } from '@/contexts/ClinicaContext';
 import { useAuthUser } from '@/hooks/useAuthUser';
 import { useClinicServices } from '@/hooks/useClinicServices';
 import { useCreateAgendamento, CreateAgendamentoData } from '@/hooks/useAgendamentosData';
-import { useCreateLead } from '@/hooks/useClinicaOperations';
+import { useClinicaOperations } from '@/hooks/useClinicaOperations';
 import { AGENDAMENTO_STATUS_OPTIONS, AgendamentoFormData } from '@/constants/agendamentos';
 
 /**
@@ -99,13 +98,13 @@ export const RegistroAgendamentoModal = ({
 
   // Hooks para obter dados necessários
   const { data: leads = [] } = useLeads();
-  const { data: servicos = [] } = useClinicServices();
+  const { services: servicos = [] } = useClinicServices(); // Corrigido: usar 'services' ao invés de 'data'
   const { clinicaAtiva } = useClinica();
   const { userProfile } = useAuthUser();
   
   // Hooks para mutações
   const createAgendamentoMutation = useCreateAgendamento();
-  const createLeadMutation = useCreateLead();
+  const { createLead } = useClinicaOperations(); // Corrigido: usar createLead do hook
 
   // Configuração do formulário
   const form = useForm<AgendamentoFormData>({
@@ -172,10 +171,9 @@ export const RegistroAgendamentoModal = ({
         
         console.log('🔄 Criando novo cliente:', { nome: novoClienteNome, telefone: novoClienteTelefone });
         
-        const novoLead = await createLeadMutation.mutateAsync({
+        const novoLead = await createLead({
           nome: novoClienteNome.trim(),
           telefone: novoClienteTelefone.trim(),
-          clinica_id: clinicaAtiva?.id || '',
         });
         
         cliente_id_final = novoLead.id;
@@ -649,16 +647,16 @@ export const RegistroAgendamentoModal = ({
                 type="button"
                 variant="outline"
                 onClick={handleCancel}
-                disabled={createAgendamentoMutation.isPending || createLeadMutation.isPending}
+                disabled={createAgendamentoMutation.isPending}
               >
                 Cancelar
               </Button>
               <Button 
                 type="submit" 
                 className="bg-blue-600 hover:bg-blue-700"
-                disabled={createAgendamentoMutation.isPending || createLeadMutation.isPending}
+                disabled={createAgendamentoMutation.isPending}
               >
-                {createAgendamentoMutation.isPending || createLeadMutation.isPending 
+                {createAgendamentoMutation.isPending 
                   ? 'Salvando...' 
                   : (agendamento ? 'Atualizar' : 'Criar') + ' Agendamento'
                 }
