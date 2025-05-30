@@ -129,7 +129,7 @@ export const RegistroAgendamentoModal = ({
   const { createLead } = useClinicaOperations();
 
   // Garantir que os dados sejam sempre arrays válidos
-  const leadsSeguro = Array.isArray(leads) ? leads : [];
+  const leadsSeguro = leads || []; // Garante que seja sempre um array, mesmo que vazio, se leads for undefined ou null.
   const servicosSeguro = Array.isArray(servicos) ? servicos : [];
   
   console.log('🔍 Estado dos dados no modal:', {
