@@ -1,6 +1,6 @@
-
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
 
 /**
  * Página de Agenda/Calendário
@@ -32,6 +32,7 @@ interface Appointment {
 export const CalendarPage = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
+  const [isAgendamentoModalOpen, setIsAgendamentoModalOpen] = useState(false);
 
   // Dados mockados de agendamentos
   const appointments: Appointment[] = [
@@ -150,7 +151,10 @@ export const CalendarPage = () => {
             Gerencie os agendamentos da sua clínica
           </p>
         </div>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+        <button 
+          onClick={() => setIsAgendamentoModalOpen(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+        >
           <Plus size={20} />
           Novo Agendamento
         </button>
@@ -294,6 +298,12 @@ export const CalendarPage = () => {
           <p className="text-2xl font-bold text-orange-600">4</p>
         </div>
       </div>
+
+      {/* Modal de Registro de Agendamento */}
+      <RegistroAgendamentoModal
+        isOpen={isAgendamentoModalOpen}
+        onClose={() => setIsAgendamentoModalOpen(false)}
+      />
     </div>
   );
 };

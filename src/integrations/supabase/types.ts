@@ -131,6 +131,39 @@ export type Database = {
           },
         ]
       }
+      buffer: {
+        Row: {
+          created_at: string
+          id: number
+          id_mensagem: string | null
+          Mensagem: string | null
+          Mensagem_audio: string | null
+          Nome: string | null
+          timestamp_webhook: number | null
+          Whatsapp: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          id_mensagem?: string | null
+          Mensagem?: string | null
+          Mensagem_audio?: string | null
+          Nome?: string | null
+          timestamp_webhook?: number | null
+          Whatsapp?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          id_mensagem?: string | null
+          Mensagem?: string | null
+          Mensagem_audio?: string | null
+          Nome?: string | null
+          timestamp_webhook?: number | null
+          Whatsapp?: string | null
+        }
+        Relationships: []
+      }
       chat_mensagens: {
         Row: {
           anexo_url: string | null
