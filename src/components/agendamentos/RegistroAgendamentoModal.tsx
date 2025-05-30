@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Calendar as CalendarIcon, Clock, X, ChevronDown, Check, Trash2, UserPlus, ListPlus, Edit3 } from 'lucide-react';
-import { format, parse, setHours, setMinutes, setSeconds, setMilliseconds } from 'date-fns';
+import { Calendar as CalendarIcon, Clock, X, Trash2 } from 'lucide-react';
+import { format, setHours, setMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 import {
@@ -12,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription,
   DialogClose,
 } from '@/components/ui/dialog';
 import {
@@ -46,14 +44,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -62,10 +52,10 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 // Hooks de dados
-import { useLeads, Lead } from '@/hooks/useLeadsData';
+import { useLeads } from '@/hooks/useLeadsData';
 import { useClinica } from '@/contexts/ClinicaContext';
 import { useAuthUser } from '@/hooks/useAuthUser';
-import { useClinicServices, ClinicaServico } from '@/hooks/useClinicServices';
+import { useClinicServices } from '@/hooks/useClinicServices';
 import {
   useCreateAgendamento,
   useUpdateAgendamento,
@@ -75,45 +65,33 @@ import {
 } from '@/hooks/useAgendamentosData';
 import { useClinicaOperations } from '@/hooks/useClinicaOperations';
 
-// Constantes e Tipos - Corrigindo a importação
+// Constantes e Tipos
 import { AGENDAMENTO_STATUS_OPTIONS } from '@/constants/agendamentos';
+import { 
+  AgendamentoFormData, 
+  AgendamentoStatus, 
+  agendamentoFormSchema, 
+  formatarDataParaISO 
+} from './types';
 
-// Definindo o enum AgendamentoStatus diretamente aqui para resolver o erro de importação
-enum AgendamentoStatus {
-  AGENDADO = 'AGENDADO',
-  CONFIRMADO = 'CONFIRMADO',
-  REALIZADO = 'REALIZADO',
-  PAGO = 'PAGO',
-  CANCELADO = 'CANCELADO',
-  NAO_COMPARECEU = 'NAO_COMPARECEU',
-}
+// Componentes refatorados
+import { ClienteSelector } from './ClienteSelector';
+import { NovoClienteFields } from './NovoClienteFields';
+import { ServicoSelector } from './ServicoSelector';
 
-// Função para converter data para ISO string
-const formatarDataParaISO = (data: Date): string => {
-  return data.toISOString();
-};
-
-// Schema de validação com Zod
-const agendamentoFormSchema = z.object({
-  cliente_id: z.string().min(1, { message: "Selecione um cliente ou cadastre um novo." }),
-  titulo: z.string().min(1, { message: "Título ou serviço é obrigatório." }),
-  data_inicio: z.date({ required_error: "Data de início é obrigatória." }),
-  hora_inicio: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Hora de início inválida." }),
-  data_fim: z.date({ required_error: "Data de fim é obrigatória." }),
-  hora_fim: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Hora de fim inválida." }),
-  valor: z.number().min(0, { message: "Valor não pode ser negativo." }).optional(),
-  status: z.nativeEnum(AgendamentoStatus, { required_error: "Status é obrigatório." }),
-  descricao: z.string().optional(),
-  clinica_id: z.string(),
-  usuario_id: z.string(),
-  novo_cliente_nome: z.string().optional(),
-  novo_cliente_telefone: z.string().optional(),
-}).refine(data => data.data_fim >= data.data_inicio, {
-  message: "Data/hora de fim deve ser após a data/hora de início.",
-  path: ["data_fim"],
-});
-
-export type AgendamentoFormData = z.infer<typeof agendamentoFormSchema>;
+/**
+ * Modal para registro e edição de agendamentos
+ * 
+ * Este componente permite criar novos agendamentos ou editar existentes.
+ * Integra com o sistema de leads para seleção de clientes e permite
+ * cadastro de novos clientes durante o processo de agendamento.
+ * 
+ * Conecta com:
+ * - Tabela 'agendamentos' no Supabase
+ * - Sistema de leads/clientes
+ * - Serviços da clínica
+ * - Sistema de autenticação
+ */
 
 interface RegistroAgendamentoModalProps {
   isOpen: boolean;
@@ -133,7 +111,6 @@ export const RegistroAgendamentoModal = ({
   // Estados para controles de UI
   const [dataInicioPopoverOpen, setDataInicioPopoverOpen] = useState(false);
   const [dataFimPopoverOpen, setDataFimPopoverOpen] = useState(false);
-  const [clienteComboboxOpen, setClienteComboboxOpen] = useState(false);
 
   // Estados para modo de serviço
   const [modoServico, setModoServico] = useState<'selecionar' | 'manual'>('selecionar');
@@ -152,20 +129,9 @@ export const RegistroAgendamentoModal = ({
   const { clinicaAtiva } = useClinica();
   const { userProfile } = useAuthUser();
 
-  // Garantir que os dados sejam sempre arrays válidos - CORREÇÃO PRINCIPAL DO ERRO
+  // Garantir que os dados sejam sempre arrays válidos
   const leadsSeguro = Array.isArray(leadsData) ? leadsData : [];
   const servicosSeguro = Array.isArray(servicosData) ? servicosData : [];
-
-  console.log('[ModalAgendamento] Estado dos dados:', {
-    leadsData,
-    leadsSeguro,
-    loadingLeads,
-    servicosData,
-    servicosSeguro,
-    loadingServices,
-    clinicaId: clinicaAtiva?.id,
-    userId: userProfile?.user_id
-  });
 
   // Configuração do formulário
   const form = useForm<AgendamentoFormData>({
@@ -187,7 +153,7 @@ export const RegistroAgendamentoModal = ({
     },
   });
 
-  // Preencher formulário quando estiver em modo de edição ou com lead pré-selecionado
+  // // ... keep existing code (useEffect para preencher formulário em modo de edição)
   useEffect(() => {
     console.log('[ModalAgendamento] useEffect de Edição/Pré-seleção. isOpen:', isOpen, 'agendamentoParaEditar:', agendamentoParaEditar, 'leadPreSelecionadoId:', leadPreSelecionadoId);
     if (!isOpen) {
@@ -280,7 +246,7 @@ export const RegistroAgendamentoModal = ({
   const deleteAgendamentoMutation = useDeleteAgendamento();
   const { createLead, isCreatingLead } = useClinicaOperations();
 
-  // Função para combinar data (do DatePicker) e hora (do input type="time") em um objeto Date
+  // Função para combinar data e hora em um objeto Date
   const combinarDataHora = (data: Date, horaString: string): Date => {
     const [horas, minutos] = horaString.split(':').map(Number);
     const novaData = new Date(data);
@@ -288,43 +254,7 @@ export const RegistroAgendamentoModal = ({
     return novaData;
   };
 
-  // Função para lidar com seleção de serviço no Select
-  const handleServicoChange = (servicoIdValue: string) => {
-    const servico = servicosSeguro.find(s => s.id === servicoIdValue);
-    if (servico) {
-      setServicoSelecionadoIdHook(servicoIdValue);
-      form.setValue('titulo', servico.nome_servico, { shouldValidate: true });
-      console.log(`[ModalAgendamento] Serviço selecionado: ${servico.nome_servico}, ID: ${servicoIdValue}`);
-    } else {
-      setServicoSelecionadoIdHook(null);
-      if(modoServico === 'selecionar') form.setValue('titulo', '', { shouldValidate: true });
-    }
-  };
-
-  // Função para lidar com seleção de cliente no Combobox
-  const handleClienteSelect = useCallback((value: string) => {
-    const leadSelecionado = leadsSeguro.find(l => l.id === value);
-
-    if (leadSelecionado) {
-      form.setValue('cliente_id', leadSelecionado.id, { shouldValidate: true });
-      form.clearErrors('cliente_id');
-      setClienteBuscaInput(leadSelecionado.nome);
-      setRegistrandoNovoCliente(false);
-      form.setValue('novo_cliente_nome', '');
-      form.setValue('novo_cliente_telefone', '');
-      console.log(`[ModalAgendamento] Cliente existente selecionado: ${leadSelecionado.nome}, ID: ${leadSelecionado.id}`);
-    } else if (value.startsWith('criar_novo_cliente:')) {
-      const nomeDigitado = value.substring('criar_novo_cliente:'.length);
-      setRegistrandoNovoCliente(true);
-      form.setValue('cliente_id', '');
-      form.setValue('novo_cliente_nome', nomeDigitado);
-      setClienteBuscaInput(nomeDigitado);
-      console.log(`[ModalAgendamento] Iniciando cadastro de novo cliente com nome: ${nomeDigitado}`);
-    }
-    setClienteComboboxOpen(false);
-  }, [form, leadsSeguro]);
-
-  // Função principal de salvamento (onSubmit do react-hook-form)
+  // // ... keep existing code (função onSubmit principal)
   const onSubmit = async (data: AgendamentoFormData) => {
     console.log('[ModalAgendamento] Tentando salvar. Dados do formulário:', data);
     if (!clinicaAtiva?.id || !userProfile?.user_id) {
@@ -424,7 +354,6 @@ export const RegistroAgendamentoModal = ({
     setClienteBuscaInput(leadPreSelecionadoId && leadsSeguro.find(l=>l.id === leadPreSelecionadoId)?.nome || '');
     setDataInicioPopoverOpen(false);
     setDataFimPopoverOpen(false);
-    setClienteComboboxOpen(false);
     onClose();
     console.log('[ModalAgendamento] Modal fechado e formulário resetado.');
   };
@@ -441,14 +370,6 @@ export const RegistroAgendamentoModal = ({
   };
   
   const isLoadingMutation = createAgendamentoMutation.isPending || updateAgendamentoMutation.isPending || deleteAgendamentoMutation.isPending || isCreatingLead;
-
-  // Filtrar leads para o Combobox - CORREÇÃO ADICIONAL
-  const leadsFiltradosParaCombobox = clienteBuscaInput
-    ? leadsSeguro.filter(lead =>
-        lead.nome.toLowerCase().includes(clienteBuscaInput.toLowerCase()) ||
-        lead.telefone?.includes(clienteBuscaInput)
-      )
-    : leadsSeguro;
 
   // Se ainda está carregando dados essenciais, mostrar loading
   if (loadingLeads && leadsSeguro.length === 0) {
@@ -522,189 +443,36 @@ export const RegistroAgendamentoModal = ({
         <div className="flex-grow overflow-y-auto pr-2 pl-0.5 py-1">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              {/* SELEÇÃO DE CLIENTE (COMBOBOX) - CORREÇÃO PRINCIPAL */}
-              <FormField
-                control={form.control}
-                name="cliente_id"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Cliente *</FormLabel>
-                    <Popover open={clienteComboboxOpen} onOpenChange={setClienteComboboxOpen}>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            aria-expanded={clienteComboboxOpen}
-                            className={cn(
-                              "w-full justify-between",
-                              !field.value && !registrandoNovoCliente && "text-muted-foreground"
-                            )}
-                            disabled={loadingLeads}
-                          >
-                            {registrandoNovoCliente
-                              ? `Registrando: ${form.getValues("novo_cliente_nome") || clienteBuscaInput || 'Novo Cliente...'}`
-                              : field.value
-                              ? leadsSeguro.find(lead => lead.id === field.value)?.nome || clienteBuscaInput || "Selecione..."
-                              : clienteBuscaInput || "Selecione um cliente..."
-                            }
-                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[--radix-popover-trigger-width] max-h-[300px] overflow-y-auto p-0">
-                        <Command shouldFilter={false}>
-                          <CommandInput
-                            placeholder="Buscar cliente por nome ou telefone..."
-                            value={clienteBuscaInput}
-                            onValueChange={(search) => {
-                                setClienteBuscaInput(search);
-                                if (!search && registrandoNovoCliente) {
-                                    setRegistrandoNovoCliente(false);
-                                    form.setValue('novo_cliente_nome', '');
-                                }
-                            }}
-                          />
-                          <CommandList>
-                            {loadingLeads && <div className="p-2 text-sm text-center">Carregando clientes...</div>}
-                            <CommandEmpty>
-                                <Button
-                                    variant="ghost"
-                                    className="w-full justify-start text-sm p-2"
-                                    onClick={() => handleClienteSelect(`criar_novo_cliente:${clienteBuscaInput}`)}
-                                >
-                                    <UserPlus className="mr-2 h-4 w-4" />
-                                    Criar novo cliente: "{clienteBuscaInput || 'Digite o nome'}"
-                                </Button>
-                            </CommandEmpty>
-                            {/* CORREÇÃO CRÍTICA: Sempre garantir que temos um array para mapear */}
-                            {leadsFiltradosParaCombobox && leadsFiltradosParaCombobox.length > 0 && (
-                              <CommandGroup>
-                                {leadsFiltradosParaCombobox.map((lead) => (
-                                  <CommandItem
-                                    key={lead.id}
-                                    value={`${lead.nome} ${lead.telefone || ''} ${lead.id}`}
-                                    onSelect={() => {
-                                      handleClienteSelect(lead.id);
-                                    }}
-                                  >
-                                    <Check 
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        field.value === lead.id ? "opacity-100" : "opacity-0"
-                                      )}
-                                    />
-                                    {lead.nome} {lead.telefone && `- ${lead.telefone}`}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            )}
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
+              {/* SELEÇÃO DE CLIENTE */}
+              <ClienteSelector
+                form={form}
+                leads={leadsSeguro}
+                loadingLeads={loadingLeads}
+                registrandoNovoCliente={registrandoNovoCliente}
+                setRegistrandoNovoCliente={setRegistrandoNovoCliente}
+                clienteBuscaInput={clienteBuscaInput}
+                setClienteBuscaInput={setClienteBuscaInput}
               />
 
-              {/* CAMPOS PARA NOVO CLIENTE (CONDICIONAL) */}
+              {/* CAMPOS PARA NOVO CLIENTE */}
               {registrandoNovoCliente && (
-                <div className="space-y-4 p-4 border rounded-md bg-gray-50 my-4">
-                  <h4 className="font-medium text-gray-800 text-sm">Detalhes do Novo Cliente</h4>
-                  <FormField
-                    control={form.control}
-                    name="novo_cliente_nome"
-                    rules={{ required: registrandoNovoCliente ? 'Nome do novo cliente é obrigatório.' : false }}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nome Completo *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Nome completo do novo cliente" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="novo_cliente_telefone"
-                    rules={{ required: registrandoNovoCliente ? 'Telefone do novo cliente é obrigatório.' : false }}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Telefone *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="(XX) XXXXX-XXXX" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                   <Button
-                        type="button"
-                        variant="link"
-                        size="sm"
-                        className="p-0 h-auto text-xs text-red-600"
-                        onClick={() => {
-                            setRegistrandoNovoCliente(false);
-                            form.setValue('novo_cliente_nome', '');
-                            form.setValue('novo_cliente_telefone', '');
-                            setClienteBuscaInput(form.getValues('cliente_id') ? leadsSeguro.find(l => l.id === form.getValues('cliente_id'))?.nome || '' : '');
-                        }}
-                    >
-                        Cancelar Novo Cliente
-                    </Button>
-                </div>
+                <NovoClienteFields
+                  form={form}
+                  setRegistrandoNovoCliente={setRegistrandoNovoCliente}
+                  setClienteBuscaInput={setClienteBuscaInput}
+                  leads={leadsSeguro}
+                />
               )}
 
-              {/* CAMPO TÍTULO/SERVIÇO */}
-              <FormField
-                control={form.control}
-                name="titulo"
-                rules={{ required: "Título ou serviço é obrigatório."}}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Título/Serviço *</FormLabel>
-                    {modoServico === 'selecionar' ? (
-                      <>
-                        <Select
-                          onValueChange={(value) => {
-                            handleServicoChange(value);
-                          }}
-                          value={servicoSelecionadoIdHook || ""}
-                          disabled={loadingServices}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione um serviço..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {loadingServices && <SelectItem value="loading" disabled>Carregando...</SelectItem>}
-                            {servicosSeguro.map((servico) => (
-                              <SelectItem key={servico.id} value={servico.id}>
-                                {servico.nome_servico}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button type="button" variant="link" size="sm" className="p-0 h-auto text-xs" onClick={() => {setModoServico('manual'); form.setValue('titulo', ''); setServicoSelecionadoIdHook(null); }}>
-                           <Edit3 className="mr-1 h-3 w-3" /> Digitar manualmente
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <FormControl>
-                          <Input placeholder="Ex: Consulta de Retorno, Venda Produto X" {...field} />
-                        </FormControl>
-                        <Button type="button" variant="link" size="sm" className="p-0 h-auto text-xs" onClick={() => setModoServico('selecionar')}>
-                          <ListPlus className="mr-1 h-3 w-3" /> Selecionar da lista
-                        </Button>
-                      </>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
+              {/* SELEÇÃO DE SERVIÇO */}
+              <ServicoSelector
+                form={form}
+                servicos={servicosSeguro}
+                loadingServices={loadingServices}
+                modoServico={modoServico}
+                setModoServico={setModoServico}
+                servicoSelecionadoId={servicoSelecionadoIdHook}
+                setServicoSelecionadoId={setServicoSelecionadoIdHook}
               />
 
               {/* DATA E HORA DE INÍCIO */}
