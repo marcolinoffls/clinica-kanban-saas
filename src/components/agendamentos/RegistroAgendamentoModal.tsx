@@ -11,9 +11,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter, // Importado para o rodapé
-  DialogDescription, // Importado para descrições
-  DialogClose, // Importado para botão de fechar explícito se necessário
+  DialogFooter,
+  DialogDescription,
+  DialogClose,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -52,36 +52,50 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
-  CommandList, // Importar CommandList para rolagem se necessário
+  CommandList,
 } from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner'; // Usando sonner para toasts
+import { toast } from 'sonner';
 
 // Hooks de dados
-import { useLeads, Lead } from '@/hooks/useLeadsData'; // Assumindo que Lead é exportado
+import { useLeads, Lead } from '@/hooks/useLeadsData';
 import { useClinica } from '@/contexts/ClinicaContext';
 import { useAuthUser } from '@/hooks/useAuthUser';
-import { useClinicServices, ClinicaServico } from '@/hooks/useClinicServices'; // Assumindo que ClinicaServico é exportado
+import { useClinicServices, ClinicaServico } from '@/hooks/useClinicServices';
 import {
   useCreateAgendamento,
   useUpdateAgendamento,
   useDeleteAgendamento,
   CreateAgendamentoData,
-  AgendamentoFromDatabase // Este tipo deve ser definido em useAgendamentosData.ts
-} from '@/hooks/useAgendamentosData'; // Criar este hook na Etapa 2
+  AgendamentoFromDatabase
+} from '@/hooks/useAgendamentosData';
 import { useClinicaOperations } from '@/hooks/useClinicaOperations';
 
-// Constantes e Tipos
-import { AGENDAMENTO_STATUS_OPTIONS, AgendamentoStatus } from '@/constants/agendamentos'; // Criar este arquivo
+// Constantes e Tipos - Corrigindo a importação
+import { AGENDAMENTO_STATUS_OPTIONS } from '@/constants/agendamentos';
+
+// Definindo o enum AgendamentoStatus diretamente aqui para resolver o erro de importação
+enum AgendamentoStatus {
+  AGENDADO = 'AGENDADO',
+  CONFIRMADO = 'CONFIRMADO',
+  REALIZADO = 'REALIZADO',
+  PAGO = 'PAGO',
+  CANCELADO = 'CANCELADO',
+  NAO_COMPARECEU = 'NAO_COMPARECEU',
+}
+
+// Função para converter data para ISO string
+const formatarDataParaISO = (data: Date): string => {
+  return data.toISOString();
+};
 
 // Schema de validação com Zod
 const agendamentoFormSchema = z.object({
   cliente_id: z.string().min(1, { message: "Selecione um cliente ou cadastre um novo." }),
-  // O título pode ser opcional se um serviço for selecionado, mas obrigatório se manual
   titulo: z.string().min(1, { message: "Título ou serviço é obrigatório." }),
   data_inicio: z.date({ required_error: "Data de início é obrigatória." }),
   hora_inicio: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Hora de início inválida." }),
@@ -90,24 +104,21 @@ const agendamentoFormSchema = z.object({
   valor: z.number().min(0, { message: "Valor não pode ser negativo." }).optional(),
   status: z.nativeEnum(AgendamentoStatus, { required_error: "Status é obrigatório." }),
   descricao: z.string().optional(),
-  // Campos não visíveis, mas parte do data object
   clinica_id: z.string(),
   usuario_id: z.string(),
-  // Campos condicionais para novo cliente
   novo_cliente_nome: z.string().optional(),
   novo_cliente_telefone: z.string().optional(),
 }).refine(data => data.data_fim >= data.data_inicio, {
   message: "Data/hora de fim deve ser após a data/hora de início.",
-  path: ["data_fim"], // ou path: ["hora_fim"] se quiser focar no tempo
+  path: ["data_fim"],
 });
 
-// Tipagem para os dados do formulário
 export type AgendamentoFormData = z.infer<typeof agendamentoFormSchema>;
 
 interface RegistroAgendamentoModalProps {
   isOpen: boolean;
   onClose: () => void;
-  agendamentoParaEditar?: AgendamentoFromDatabase | null; // Tipo vindo do hook
+  agendamentoParaEditar?: AgendamentoFromDatabase | null;
   leadPreSelecionadoId?: string | null;
 }
 
@@ -124,15 +135,12 @@ export const RegistroAgendamentoModal = ({
   const [dataFimPopoverOpen, setDataFimPopoverOpen] = useState(false);
   const [clienteComboboxOpen, setClienteComboboxOpen] = useState(false);
 
-  // Estados para modo de serviço (selecionar da lista ou manual)
+  // Estados para modo de serviço
   const [modoServico, setModoServico] = useState<'selecionar' | 'manual'>('selecionar');
-  const [servicoSelecionadoIdHook, setServicoSelecionadoIdHook] = useState<string | null>(null); // Para o Select de serviço
+  const [servicoSelecionadoIdHook, setServicoSelecionadoIdHook] = useState<string | null>(null);
 
   // Estados para criação de novo cliente
   const [registrandoNovoCliente, setRegistrandoNovoCliente] = useState(false);
-  // novoClienteNome e novoClienteTelefone serão gerenciados pelo react-hook-form agora
-
-  // Estado para o input de busca do Combobox de cliente
   const [clienteBuscaInput, setClienteBuscaInput] = useState('');
 
   // Determinar se estamos em modo de edição
@@ -141,17 +149,16 @@ export const RegistroAgendamentoModal = ({
   // Hooks para obter dados necessários
   const { data: leadsData, isLoading: loadingLeads } = useLeads();
   const { services: servicosData, isLoading: loadingServices } = useClinicServices();
-  const { clinicaAtiva } = useClinica(); // Usar clinicaAtiva para clinica_id
+  const { clinicaAtiva } = useClinica();
   const { userProfile } = useAuthUser();
 
-  // Garantir que os dados sejam sempre arrays válidos para iteração
-  // Esta é a correção crucial para o erro "undefined is not iterable"
+  // Garantir que os dados sejam sempre arrays válidos - CORREÇÃO PRINCIPAL DO ERRO
   const leadsSeguro = Array.isArray(leadsData) ? leadsData : [];
   const servicosSeguro = Array.isArray(servicosData) ? servicosData : [];
 
   console.log('[ModalAgendamento] Estado dos dados:', {
-    leadsData, // O que vem do hook
-    leadsSeguro, // O que será usado no map
+    leadsData,
+    leadsSeguro,
     loadingLeads,
     servicosData,
     servicosSeguro,
@@ -160,7 +167,7 @@ export const RegistroAgendamentoModal = ({
     userId: userProfile?.user_id
   });
 
-  // Configuração do formulário com react-hook-form e Zod
+  // Configuração do formulário
   const form = useForm<AgendamentoFormData>({
     resolver: zodResolver(agendamentoFormSchema),
     defaultValues: {
@@ -169,7 +176,7 @@ export const RegistroAgendamentoModal = ({
       data_inicio: new Date(),
       hora_inicio: format(new Date(), 'HH:mm'),
       data_fim: new Date(),
-      hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'), // Default 1 hora depois
+      hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'),
       valor: 0,
       status: AgendamentoStatus.AGENDADO,
       descricao: '',
@@ -184,7 +191,6 @@ export const RegistroAgendamentoModal = ({
   useEffect(() => {
     console.log('[ModalAgendamento] useEffect de Edição/Pré-seleção. isOpen:', isOpen, 'agendamentoParaEditar:', agendamentoParaEditar, 'leadPreSelecionadoId:', leadPreSelecionadoId);
     if (!isOpen) {
-        // Resetar o formulário e estados quando o modal fecha
         form.reset({
             cliente_id: '',
             titulo: '',
@@ -214,7 +220,7 @@ export const RegistroAgendamentoModal = ({
 
       form.reset({
         cliente_id: agendamentoParaEditar.cliente_id || '',
-        titulo: agendamentoParaEditar.titulo || '', // Será sobrescrito se um serviço for encontrado
+        titulo: agendamentoParaEditar.titulo || '',
         data_inicio: dataInicio,
         hora_inicio: format(dataInicio, 'HH:mm'),
         data_fim: dataFim,
@@ -226,33 +232,29 @@ export const RegistroAgendamentoModal = ({
         usuario_id: agendamentoParaEditar.usuario_id,
       });
 
-      // Tentar encontrar o serviço correspondente ao título para pré-selecionar
       const servicoOriginal = servicosSeguro.find(s => s.nome_servico === agendamentoParaEditar.titulo);
       if (servicoOriginal) {
         setModoServico('selecionar');
         setServicoSelecionadoIdHook(servicoOriginal.id);
-        form.setValue('titulo', servicoOriginal.nome_servico); // Garante que o título do form é o do serviço
+        form.setValue('titulo', servicoOriginal.nome_servico);
       } else {
-        setModoServico('manual'); // Se não achar, assume que foi título manual
+        setModoServico('manual');
         form.setValue('titulo', agendamentoParaEditar.titulo || '');
       }
       
-      // Preencher busca de cliente para exibição no ComboboxTrigger
       const clienteDoAgendamento = leadsSeguro.find(l => l.id === agendamentoParaEditar.cliente_id);
       if (clienteDoAgendamento) {
         setClienteBuscaInput(clienteDoAgendamento.nome);
       }
-
 
     } else if (leadPreSelecionadoId) {
         console.log('[ModalAgendamento] Pré-selecionando lead ID:', leadPreSelecionadoId);
         form.setValue('cliente_id', leadPreSelecionadoId);
         const clientePre = leadsSeguro.find(l => l.id === leadPreSelecionadoId);
         if (clientePre) {
-            setClienteBuscaInput(clientePre.nome); // Atualiza o texto exibido no ComboboxTrigger
+            setClienteBuscaInput(clientePre.nome);
         }
     } else {
-        // Modo de criação sem pré-seleção, resetar para defaults
         form.reset({
             cliente_id: '',
             titulo: '',
@@ -272,19 +274,17 @@ export const RegistroAgendamentoModal = ({
     }
   }, [agendamentoParaEditar, isOpen, form, leadPreSelecionadoId, clinicaAtiva, userProfile, leadsSeguro, servicosSeguro]);
 
-
   // Hooks de mutação do Supabase
   const createAgendamentoMutation = useCreateAgendamento();
   const updateAgendamentoMutation = useUpdateAgendamento();
   const deleteAgendamentoMutation = useDeleteAgendamento();
-  const { createLead, isCreatingLead } = useClinicaOperations(); // Usar estado de loading daqui
-
+  const { createLead, isCreatingLead } = useClinicaOperations();
 
   // Função para combinar data (do DatePicker) e hora (do input type="time") em um objeto Date
   const combinarDataHora = (data: Date, horaString: string): Date => {
     const [horas, minutos] = horaString.split(':').map(Number);
     const novaData = new Date(data);
-    novaData.setHours(horas, minutos, 0, 0); // Zera segundos e milissegundos
+    novaData.setHours(horas, minutos, 0, 0);
     return novaData;
   };
 
@@ -294,40 +294,35 @@ export const RegistroAgendamentoModal = ({
     if (servico) {
       setServicoSelecionadoIdHook(servicoIdValue);
       form.setValue('titulo', servico.nome_servico, { shouldValidate: true });
-      // Poderia pré-preencher o valor aqui se o serviço tivesse preço
-      // form.setValue('valor', servico.preco || 0);
       console.log(`[ModalAgendamento] Serviço selecionado: ${servico.nome_servico}, ID: ${servicoIdValue}`);
     } else {
-      // Caso o valor seja 'outro' ou inválido, limpar
       setServicoSelecionadoIdHook(null);
-      if(modoServico === 'selecionar') form.setValue('titulo', '', { shouldValidate: true }); // Limpa o título se estava no modo selecionar e não achou
+      if(modoServico === 'selecionar') form.setValue('titulo', '', { shouldValidate: true });
     }
   };
 
   // Função para lidar com seleção de cliente no Combobox
   const handleClienteSelect = useCallback((value: string) => {
-    // 'value' aqui será o que foi definido no `value` do `CommandItem`, ex: lead.id ou "novo_cliente_dynamic"
     const leadSelecionado = leadsSeguro.find(l => l.id === value);
 
     if (leadSelecionado) {
       form.setValue('cliente_id', leadSelecionado.id, { shouldValidate: true });
-      form.clearErrors('cliente_id'); // Limpa erro de cliente_id se houver
-      setClienteBuscaInput(leadSelecionado.nome); // Atualiza o texto do input de busca/display do Combobox
+      form.clearErrors('cliente_id');
+      setClienteBuscaInput(leadSelecionado.nome);
       setRegistrandoNovoCliente(false);
-      form.setValue('novo_cliente_nome', ''); // Limpa campos de novo cliente
+      form.setValue('novo_cliente_nome', '');
       form.setValue('novo_cliente_telefone', '');
       console.log(`[ModalAgendamento] Cliente existente selecionado: ${leadSelecionado.nome}, ID: ${leadSelecionado.id}`);
     } else if (value.startsWith('criar_novo_cliente:')) {
       const nomeDigitado = value.substring('criar_novo_cliente:'.length);
       setRegistrandoNovoCliente(true);
-      form.setValue('cliente_id', ''); // Limpa cliente_id pois será um novo
-      form.setValue('novo_cliente_nome', nomeDigitado); // Pré-preenche nome
-      setClienteBuscaInput(nomeDigitado); // Atualiza input de busca
+      form.setValue('cliente_id', '');
+      form.setValue('novo_cliente_nome', nomeDigitado);
+      setClienteBuscaInput(nomeDigitado);
       console.log(`[ModalAgendamento] Iniciando cadastro de novo cliente com nome: ${nomeDigitado}`);
     }
-    setClienteComboboxOpen(false); // Fecha o popover do combobox
+    setClienteComboboxOpen(false);
   }, [form, leadsSeguro]);
-
 
   // Função principal de salvamento (onSubmit do react-hook-form)
   const onSubmit = async (data: AgendamentoFormData) => {
@@ -350,7 +345,7 @@ export const RegistroAgendamentoModal = ({
       }
       try {
         console.log('[ModalAgendamento] Criando novo lead:', { nome: data.novo_cliente_nome, telefone: data.novo_cliente_telefone });
-        const novoLead = await createLead({ // createLead já deve incluir clinica_id
+        const novoLead = await createLead({
           nome: data.novo_cliente_nome,
           telefone: data.novo_cliente_telefone,
         });
@@ -364,27 +359,25 @@ export const RegistroAgendamentoModal = ({
     }
 
     if (!cliente_id_final && !registrandoNovoCliente) {
-        // Isso pode acontecer se o usuário limpou o campo e não selecionou "novo cliente"
         form.setError("cliente_id", { type: "manual", message: "Cliente é obrigatório."});
         toast.error("Por favor, selecione um cliente ou cadastre um novo.");
         console.warn("[ModalAgendamento] Validação falhou: cliente_id_final está vazio e não está registrando novo cliente.");
         return;
     }
 
-
     const dataInicioFinal = combinarDataHora(data.data_inicio, data.hora_inicio);
     const dataFimFinal = combinarDataHora(data.data_fim, data.hora_fim);
 
     if (dataFimFinal <= dataInicioFinal) {
       form.setError("data_fim", { type: "manual", message: "Data/hora de fim deve ser posterior à de início."});
-      form.setError("hora_fim", { type: "manual", message: " "}); // Para destacar o campo de hora também
+      form.setError("hora_fim", { type: "manual", message: " "});
       toast.error("Data ou hora de fim inválida.");
       console.warn("[ModalAgendamento] Validação falhou: Data/hora de fim não é posterior à de início.");
       return;
     }
 
     const agendamentoPayload: CreateAgendamentoData | (Partial<AgendamentoFromDatabase> & { id: string }) = {
-      ...(isEdicaoMode && agendamentoParaEditar && { id: agendamentoParaEditar.id }), // ID para edição
+      ...(isEdicaoMode && agendamentoParaEditar && { id: agendamentoParaEditar.id }),
       cliente_id: cliente_id_final,
       clinica_id: clinicaAtiva.id,
       usuario_id: userProfile.user_id,
@@ -403,15 +396,14 @@ export const RegistroAgendamentoModal = ({
       } else {
         await createAgendamentoMutation.mutateAsync(agendamentoPayload as CreateAgendamentoData);
       }
-      handleCloseModal(); // Chama a função que reseta e fecha
+      handleCloseModal();
     } catch (error) {
-      // O toast de erro já é tratado dentro das mutações
       console.error('[ModalAgendamento] Erro na mutação de salvar/atualizar agendamento:', error);
     }
   };
 
   const handleCloseModal = () => {
-    form.reset({ // Reseta para os valores default definidos no useForm
+    form.reset({
         cliente_id: leadPreSelecionadoId || '',
         titulo: '',
         data_inicio: new Date(),
@@ -433,10 +425,9 @@ export const RegistroAgendamentoModal = ({
     setDataInicioPopoverOpen(false);
     setDataFimPopoverOpen(false);
     setClienteComboboxOpen(false);
-    onClose(); // Chama a prop onClose para fechar o Dialog
+    onClose();
     console.log('[ModalAgendamento] Modal fechado e formulário resetado.');
   };
-
 
   const handleDelete = async () => {
     if (!agendamentoParaEditar?.id) return;
@@ -445,14 +436,13 @@ export const RegistroAgendamentoModal = ({
       await deleteAgendamentoMutation.mutateAsync(agendamentoParaEditar.id);
       handleCloseModal();
     } catch (error) {
-        // toast de erro já é tratado na mutação
         console.error(`[ModalAgendamento] Erro ao excluir agendamento ID: ${agendamentoParaEditar.id}`, error);
     }
   };
   
   const isLoadingMutation = createAgendamentoMutation.isPending || updateAgendamentoMutation.isPending || deleteAgendamentoMutation.isPending || isCreatingLead;
 
-  // Filtrar leads para o Combobox baseado no input de busca
+  // Filtrar leads para o Combobox - CORREÇÃO ADICIONAL
   const leadsFiltradosParaCombobox = clienteBuscaInput
     ? leadsSeguro.filter(lead =>
         lead.nome.toLowerCase().includes(clienteBuscaInput.toLowerCase()) ||
@@ -460,6 +450,21 @@ export const RegistroAgendamentoModal = ({
       )
     : leadsSeguro;
 
+  // Se ainda está carregando dados essenciais, mostrar loading
+  if (loadingLeads && leadsSeguro.length === 0) {
+    return (
+      <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseModal()}>
+        <DialogContent className="max-w-2xl">
+          <div className="flex items-center justify-center p-8">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p>Carregando dados...</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   if (!isOpen) return null;
 
@@ -514,10 +519,10 @@ export const RegistroAgendamentoModal = ({
           </div>
         </DialogHeader>
 
-        <div className="flex-grow overflow-y-auto pr-2 pl-0.5 py-1"> {/* Adicionado padding e scroll */}
+        <div className="flex-grow overflow-y-auto pr-2 pl-0.5 py-1">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              {/* SELEÇÃO DE CLIENTE (COMBOBOX) */}
+              {/* SELEÇÃO DE CLIENTE (COMBOBOX) - CORREÇÃO PRINCIPAL */}
               <FormField
                 control={form.control}
                 name="cliente_id"
@@ -548,13 +553,12 @@ export const RegistroAgendamentoModal = ({
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-[--radix-popover-trigger-width] max-h-[300px] overflow-y-auto p-0">
-                        <Command shouldFilter={false}> {/* Desabilitar filtro interno se já filtramos com clienteBuscaInput */}
+                        <Command shouldFilter={false}>
                           <CommandInput
                             placeholder="Buscar cliente por nome ou telefone..."
                             value={clienteBuscaInput}
                             onValueChange={(search) => {
                                 setClienteBuscaInput(search);
-                                // Se o usuário limpar a busca e estava registrando novo cliente, resetar
                                 if (!search && registrandoNovoCliente) {
                                     setRegistrandoNovoCliente(false);
                                     form.setValue('novo_cliente_nome', '');
@@ -562,7 +566,7 @@ export const RegistroAgendamentoModal = ({
                             }}
                           />
                           <CommandList>
-                            {loadingLeads && <div className="p-2 text-sm text-center">Carregando...</div>}
+                            {loadingLeads && <div className="p-2 text-sm text-center">Carregando clientes...</div>}
                             <CommandEmpty>
                                 <Button
                                     variant="ghost"
@@ -573,20 +577,28 @@ export const RegistroAgendamentoModal = ({
                                     Criar novo cliente: "{clienteBuscaInput || 'Digite o nome'}"
                                 </Button>
                             </CommandEmpty>
+                            {/* CORREÇÃO CRÍTICA: Sempre garantir que temos um array para mapear */}
+                            {leadsFiltradosParaCombobox && leadsFiltradosParaCombobox.length > 0 && (
                               <CommandGroup>
-                                {(leadsFiltradosParaCombobox || []).map((lead) => ( // <--- Você já tem o fallback aqui!
-                                  <CommandItem
-                                    key={lead.id}
-                                    value={`${lead.nome} ${lead.telefone || ''} ${lead.id}`}
-                                    onSelect={() => {
-                                      handleClienteSelect(lead.id);
-                                    }}
-                                  >
-                                    <Check /* ... */ />
-                                    {lead.nome} {lead.telefone && `- ${lead.telefone}`}
-                                  </CommandItem>
-                                ))}
+                                {leadsFiltradosParaCombobox.map((lead) => (
+                                  <CommandItem
+                                    key={lead.id}
+                                    value={`${lead.nome} ${lead.telefone || ''} ${lead.id}`}
+                                    onSelect={() => {
+                                      handleClienteSelect(lead.id);
+                                    }}
+                                  >
+                                    <Check 
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        field.value === lead.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {lead.nome} {lead.telefone && `- ${lead.telefone}`}
+                                  </CommandItem>
+                                ))}
                               </CommandGroup>
+                            )}
                           </CommandList>
                         </Command>
                       </PopoverContent>
@@ -657,9 +669,9 @@ export const RegistroAgendamentoModal = ({
                       <>
                         <Select
                           onValueChange={(value) => {
-                            handleServicoChange(value); // Isso vai setar field.onChange para 'titulo'
+                            handleServicoChange(value);
                           }}
-                          value={servicoSelecionadoIdHook || ""} // Controlado pelo estado local
+                          value={servicoSelecionadoIdHook || ""}
                           disabled={loadingServices}
                         >
                           <FormControl>
@@ -669,7 +681,7 @@ export const RegistroAgendamentoModal = ({
                           </FormControl>
                           <SelectContent>
                             {loadingServices && <SelectItem value="loading" disabled>Carregando...</SelectItem>}
-                            {(servicosSeguro || []).map((servico) => (
+                            {servicosSeguro.map((servico) => (
                               <SelectItem key={servico.id} value={servico.id}>
                                 {servico.nome_servico}
                               </SelectItem>
@@ -803,7 +815,7 @@ export const RegistroAgendamentoModal = ({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {(AGENDAMENTO_STATUS_OPTIONS || []).map(option => (
+                          {AGENDAMENTO_STATUS_OPTIONS.map(option => (
                             <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                           ))}
                         </SelectContent>
