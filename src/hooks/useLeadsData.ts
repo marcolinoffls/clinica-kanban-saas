@@ -185,12 +185,14 @@ export const useDeleteLead = () => {
 /**
  * Hook para mover lead entre etapas com atualização otimista
  */
+// ...existing code...
+
 export const useMoveLeadToStage = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ leadId, etapaId }: { leadId: string; etapaId: string }): Promise<Lead> => {
-      console.log('[useMoveLeadToStage] 📡 Atualizando lead no Supabase:', { leadId, etapaId });
+      console.log('🚀 [useMoveLeadToStage] Iniciando mutationFn:', { leadId, etapaId });
 
       if (!leadId || !etapaId) {
         throw new Error('leadId e etapaId são obrigatórios');
@@ -208,7 +210,7 @@ export const useMoveLeadToStage = () => {
         .single();
 
       if (error) {
-        console.error('[useMoveLeadToStage] ❌ Erro no Supabase:', error);
+        console.error('❌ [useMoveLeadToStage] Erro no Supabase:', error);
         throw new Error(error.message);
       }
 
@@ -216,18 +218,17 @@ export const useMoveLeadToStage = () => {
         throw new Error('Lead não encontrado após atualização');
       }
 
-      console.log('[useMoveLeadToStage] ✅ Lead atualizado com sucesso no Supabase');
+      console.log('✅ [useMoveLeadToStage] Lead atualizado com sucesso:', data);
       return data;
     },
 
+    // Atualização otimista
     onMutate: async ({ leadId, etapaId }) => {
-      // Cancela queries pendentes para evitar conflitos
+      console.log('🔄 [useMoveLeadToStage] onMutate - Atualização otimista:', { leadId, etapaId });
+      
       await queryClient.cancelQueries({ queryKey: ['leads'] });
-
-      // Salva o estado anterior para rollback se necessário
       const previousLeads = queryClient.getQueryData<Lead[]>(['leads']);
 
-      // Atualização otimista: move o lead para nova etapa imediatamente na UI
       queryClient.setQueryData<Lead[]>(['leads'], old =>
         old
           ? old.map(lead =>
@@ -238,25 +239,23 @@ export const useMoveLeadToStage = () => {
           : []
       );
 
-      console.log('[useMoveLeadToStage] 🔄 Atualização otimista aplicada');
-
       return { previousLeads };
     },
 
-    onError: (error, _variables, context) => {
-      // Reverte a atualização otimista em caso de erro
+    onError: (error, variables, context) => {
+      console.error('❌ [useMoveLeadToStage] onError:', error);
       if (context?.previousLeads) {
         queryClient.setQueryData(['leads'], context.previousLeads);
       }
-      console.error('[useMoveLeadToStage] ❌ Erro na mutação:', error);
       toast.error(`Erro ao mover lead: ${error.message}`);
     },
 
     onSuccess: (data) => {
-      // Invalida e recarrega os dados para garantir consistência
+      console.log('✅ [useMoveLeadToStage] onSuccess:', data);
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast.success(`Lead "${data.nome}" movido para nova etapa!`);
-      console.log('[useMoveLeadToStage] 🎉 Lead movido com sucesso!');
+      toast.success(`Lead "${data.nome}" movido com sucesso!`);
     },
   });
 };
+
+// ...existing code...
