@@ -33,26 +33,28 @@ export const LeadCard = ({
    * Define todos os dados necessários no dataTransfer para máxima compatibilidade.
    */
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    console.log('🟡 Iniciando drag do lead:', lead.nome, 'da coluna:', columnId);
+    // Guarda uma referência do lead sendo arrastado
+    window.__DRAGGED_LEAD__ = {
+      id: lead.id,
+      fromColumnId: columnId
+    };
   
-    // IMPORTANTE: A ordem importa! Definir itemType primeiro
-    e.dataTransfer.setData('itemType', 'leadCard');
-    e.dataTransfer.setData('leadId', lead.id);
-    e.dataTransfer.setData('fromColumnId', columnId);
-    
-    // Backup em JSON para máxima compatibilidade
+    // Define os dados no dataTransfer
     e.dataTransfer.setData('application/json', JSON.stringify({
       leadId: lead.id,
-      fromColumnId: columnId,
-      itemType: 'leadCard'
+      fromColumnId: columnId
     }));
-  
-    e.dataTransfer.effectAllowed = 'move';
   
     // Feedback visual
     e.currentTarget.style.opacity = '0.5';
+    e.dataTransfer.effectAllowed = 'move';
   };
-
+  
+  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    // Limpa a referência e restaura a opacidade
+    window.__DRAGGED_LEAD__ = null;
+    e.currentTarget.style.opacity = '1';
+  };
   /**
    * Handler para fim do drag.
    * Remove feedback visual.

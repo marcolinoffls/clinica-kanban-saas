@@ -43,33 +43,37 @@ export const KanbanColumn = ({
    * Handler para dragover na coluna.
    * Só permite drop se o item for um leadCard.
    */
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    
-    // CORREÇÃO: Não podemos ler dados do dataTransfer durante dragover
-    // Vamos confiar apenas nos types disponíveis
-    const hasLeadCardType = e.dataTransfer.types.includes('leadId') && 
-                           e.dataTransfer.types.includes('fromColumnId') &&
-                           e.dataTransfer.types.includes('itemType');
+    setIsDragOverForLeadCard(false);
   
-    if (hasLeadCardType) {
-      e.dataTransfer.dropEffect = 'move';
-      if (!isDragOverForLeadCard) setIsDragOverForLeadCard(true);
-    } else {
-      e.dataTransfer.dropEffect = 'none';
-      if (isDragOverForLeadCard) setIsDragOverForLeadCard(false);
+    // Usa a referência global do lead arrastado
+    const draggedLead = (window as any).__DRAGGED_LEAD__;
+    if (!draggedLead) {
+      console.error('[KanbanColumn] ❌ Nenhum lead sendo arrastado');
+      return;
+    }
+  
+    const { id: leadId, fromColumnId } = draggedLead;
+  
+    // Validações
+    if (!leadId || !fromColumnId) {
+      console.error('[KanbanColumn] ❌ Dados inválidos do lead arrastado:', draggedLead);
+      return;
+    }
+  
+    if (fromColumnId === column.id) {
+      console.log('[KanbanColumn] ⚪️ Lead solto na mesma coluna, ignorando...');
+      return;
+    }
+  
+    // Executa a movimentação
+    try {
+      onDropLeadInColumn(leadId, fromColumnId, column.id);
+    } catch (error) {
+      console.error('[KanbanColumn] ❌ Erro ao mover lead:', error);
     }
   };
-  /**
-   * Handler para dragleave da coluna.
-   * Remove o estado visual de dragover.
-   */
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      setIsDragOverForLeadCard(false);
-    }
-  };
-
   /**
    * Handler para drop de card de lead na coluna.
    * Faz validações e chama o callback de movimentação.
