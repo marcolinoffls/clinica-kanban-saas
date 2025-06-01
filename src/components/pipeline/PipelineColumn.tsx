@@ -40,6 +40,17 @@ export const PipelineColumn = ({
 }: PipelineColumnProps) => {
   const [isDragOverForLeadCard, setIsDragOverForLeadCard] = useState(false);
 
+  // Verificação de segurança para props obrigatórias
+  if (!etapa?.id || !etapa?.nome) {
+    console.warn('PipelineColumn: etapa inválida recebida', etapa);
+    return null;
+  }
+
+  // Garantir que leads seja sempre um array
+  const validLeads = React.useMemo(() => {
+    return Array.isArray(leads) ? leads.filter(lead => lead?.id) : [];
+  }, [leads]);
+
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     
@@ -96,7 +107,9 @@ export const PipelineColumn = ({
     }
     
     // Executar ação de mover lead
-    onDropLeadInColumn(leadId, fromColumnId, etapa.id);
+    if (onDropLeadInColumn) {
+      onDropLeadInColumn(leadId, fromColumnId, etapa.id);
+    }
   };
 
   const handleColumnMouseDown = (e: React.MouseEvent) => {
@@ -106,6 +119,24 @@ export const PipelineColumn = ({
     
     if (!isHeaderArea) {
       e.stopPropagation();
+    }
+  };
+
+  const handleEditEtapa = () => {
+    if (onEditEtapa) {
+      onEditEtapa();
+    }
+  };
+
+  const handleDeleteEtapa = () => {
+    if (onDeleteEtapa) {
+      onDeleteEtapa();
+    }
+  };
+
+  const handleCreateLead = () => {
+    if (onCreateLead && etapa.id) {
+      onCreateLead(etapa.id);
     }
   };
 
@@ -132,14 +163,14 @@ export const PipelineColumn = ({
         <div className="flex items-center gap-3">
           {/* Indicador de cor da etapa */}
           <div 
-            className={`w-4 h-4 rounded-full ${corEtapa}`}
+            className={`w-4 h-4 rounded-full ${corEtapa || 'bg-gray-400'}`}
             title={`Etapa: ${etapa.nome}`}
           />
           <h3 className="font-bold text-gray-900 text-sm">
             {etapa.nome}
           </h3>
           <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
-            {leads.length}
+            {validLeads.length}
           </span>
         </div>
         
@@ -148,7 +179,7 @@ export const PipelineColumn = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onCreateLead(etapa.id);
+              handleCreateLead();
             }}
             className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
             title="Adicionar lead nesta etapa"
@@ -158,7 +189,7 @@ export const PipelineColumn = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onEditEtapa();
+              handleEditEtapa();
             }}
             className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
             title="Editar etapa"
@@ -168,7 +199,7 @@ export const PipelineColumn = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onDeleteEtapa();
+              handleDeleteEtapa();
             }}
             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             title="Excluir etapa"
@@ -180,19 +211,19 @@ export const PipelineColumn = ({
 
       {/* Lista de leads */}
       <div className="flex-1 space-y-3 overflow-y-auto min-h-0">
-        {leads.map((lead) => (
+        {validLeads.map((lead) => (
           <PipelineLeadCard
             key={lead.id}
             lead={lead}
-            onEdit={() => onEditLead(lead)}
-            onOpenHistory={() => onOpenHistory(lead)}
-            onOpenChat={() => onOpenChat(lead)}
+            onEdit={() => onEditLead && onEditLead(lead)}
+            onOpenHistory={() => onOpenHistory && onOpenHistory(lead)}
+            onOpenChat={() => onOpenChat && onOpenChat(lead)}
             columnId={etapa.id}
           />
         ))}
         
         {/* Placeholder quando não há leads */}
-        {leads.length === 0 && (
+        {validLeads.length === 0 && (
           <div className="text-center py-8">
             <div className="text-gray-300 mb-2">
               <Plus size={32} className="mx-auto" />
@@ -203,7 +234,7 @@ export const PipelineColumn = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onCreateLead(etapa.id);
+                handleCreateLead();
               }}
               className="text-xs text-purple-600 hover:text-purple-700 font-medium"
             >

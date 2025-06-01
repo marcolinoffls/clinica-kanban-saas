@@ -20,9 +20,12 @@ const PipelinePage = () => {
   const navigate = useNavigate();
 
   // Função para navegar para o chat com um lead específico
-  const handleNavigateToChat = (leadId: string) => {
-    navigate(`/chat?leadId=${leadId}`);
-  };
+  // Garantindo que a função sempre seja válida
+  const handleNavigateToChat = React.useCallback((leadId: string) => {
+    if (leadId && typeof leadId === 'string') {
+      navigate(`/chat?leadId=${leadId}`);
+    }
+  }, [navigate]);
 
   return (
     <div className="h-full bg-gray-50">

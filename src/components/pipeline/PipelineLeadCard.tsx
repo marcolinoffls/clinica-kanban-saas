@@ -26,6 +26,13 @@ export const PipelineLeadCard = ({
   onOpenChat, 
   columnId 
 }: PipelineLeadCardProps) => {
+
+  // Verificação de segurança para props obrigatórias
+  if (!lead?.id || !lead?.nome) {
+    console.warn('PipelineLeadCard: lead inválido recebido', lead);
+    return null;
+  }
+
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     // IMPORTANTE: Parar propagação para evitar que a coluna também seja arrastada
     e.stopPropagation();
@@ -66,6 +73,24 @@ export const PipelineLeadCard = ({
   const handleMouseDown = (e: React.MouseEvent) => {
     // Parar propagação do mouse down para evitar interferência
     e.stopPropagation();
+  };
+
+  const handleEdit = () => {
+    if (onEdit) {
+      onEdit();
+    }
+  };
+
+  const handleOpenHistory = () => {
+    if (onOpenHistory) {
+      onOpenHistory();
+    }
+  };
+
+  const handleOpenChat = () => {
+    if (onOpenChat) {
+      onOpenChat();
+    }
   };
 
   return (
@@ -133,7 +158,7 @@ export const PipelineLeadCard = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onEdit();
+              handleEdit();
             }}
             className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-full transition-colors"
             title="Editar lead"
@@ -143,7 +168,7 @@ export const PipelineLeadCard = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onOpenHistory();
+              handleOpenHistory();
             }}
             className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-full transition-colors"
             title="Ver histórico"
@@ -153,7 +178,7 @@ export const PipelineLeadCard = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onOpenChat();
+              handleOpenChat();
             }}
             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
             title="Abrir chat"
