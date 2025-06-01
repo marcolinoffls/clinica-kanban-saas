@@ -1,3 +1,4 @@
+
 // src/components/kanban/KanbanBoard.tsx
 import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
@@ -8,12 +9,11 @@ import { ConsultasHistoryModal } from './ConsultasHistoryModal';
 import { EtapaModal } from './EtapaModal';
 import { MoveLeadsModal } from './MoveLeadsModal';
 import { useSupabaseData } from '@/hooks/useSupabaseData'; // Hook central para buscar dados
-import { useMoveLeadToStage, CreateLeadData } from '@/hooks/useLeadsData'; // Hook específico para mover leads
+import { useMoveLeadToStage, CreateLeadData, useUpdateLead, useCreateLead } from '@/hooks/useLeadsData'; // Hook específico para mover leads
 import { useUpdateEtapa, useDeleteEtapa, CreateEtapaData, Etapa } from '@/hooks/useEtapasData';
 import { useClinicaOperations } from '@/hooks/useClinicaOperations';
 import { useReorderEtapas } from '@/hooks/useEtapaReorder';
-// Certifique-se de que a interface Lead e IKanbanColumn estão corretamente definidas e exportadas se necessário.
-// Se elas já são exportadas por este arquivo, a importação delas mesmas não é necessária.
+import { toast } from 'sonner';
 
 export interface Lead {
   id: string;
@@ -63,16 +63,65 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
 
   // Hooks de dados e mutações do React Query
   const { etapas = [], leads = [], tags = [], loading } = useSupabaseData();
-  const { createLead, createEtapa } = useClinicaOperations();
+  const { createEtapa } = useClinicaOperations();
   const updateLeadMutation = useUpdateLead();
+  const createLeadMutation = useCreateLead();
   const moveLeadMutation = useMoveLeadToStage(); // Hook para mover leads entre etapas
   const updateEtapaMutation = useUpdateEtapa();
   const deleteEtapaMutation = useDeleteEtapa();
   const reorderEtapasMutation = useReorderEtapas();
 
-  // ... (outras funções como handleEditLead, handleCreateLead, handleSaveLead, etc. permanecem as mesmas) ...
-  // Essas funções não são o foco principal do problema de D&D, mas são importantes para o funcionamento geral.
-  // Certifique-se que handleSaveLead esteja passando corretamente 'etapa_kanban_id' para createLead.
+  // Função para criar novo lead
+  const handleCreateLead = () => {
+    console.log('🆕 Abrindo modal para criar novo lead');
+    setSelectedLead(null);
+    setIsLeadModalOpen(true);
+  };
+
+  // Função para editar lead existente
+  const handleEditLead = (lead: Lead) => {
+    console.log('✏️ Abrindo modal para editar lead:', lead.nome);
+    setSelectedLead(lead);
+    setIsLeadModalOpen(true);
+  };
+
+  // Função para salvar lead (criar ou atualizar)
+  const handleSaveLead = async (leadData: any) => {
+    try {
+      console.log('💾 Salvando lead:', leadData);
+      
+      if (selectedLead && selectedLead.id) {
+        // Atualizar lead existente
+        await updateLeadMutation.mutateAsync({
+          id: selectedLead.id,
+          ...leadData
+        });
+        console.log('✅ Lead atualizado com sucesso');
+      } else {
+        // Criar novo lead
+        const createData: CreateLeadData = {
+          nome: leadData.nome,
+          telefone: leadData.telefone,
+          email: leadData.email,
+          clinica_id: leadData.clinica_id,
+          etapa_kanban_id: leadData.etapa_kanban_id,
+          tag_id: leadData.tag_id,
+          anotacoes: leadData.anotacoes,
+          origem_lead: leadData.origem_lead,
+          servico_interesse: leadData.servico_interesse,
+        };
+        
+        await createLeadMutation.mutateAsync(createData);
+        console.log('✅ Lead criado com sucesso');
+      }
+      
+      setIsLeadModalOpen(false);
+      setSelectedLead(null);
+    } catch (error) {
+      console.error('❌ Erro ao salvar lead:', error);
+      throw error; // Re-lança para que o LeadModal possa tratar se necessário
+    }
+  };
 
   /**
    * Manipulador chamado quando um LeadCard é SOLTO em uma KanbanColumnComponent.
@@ -89,12 +138,10 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
     // Validações essenciais dos parâmetros.
     if (!leadId || !fromColumnId || !toColumnId) {
       console.error('[KanbanBoard] ❌ Erro em handleDropLeadInColumn: IDs inválidos ou ausentes.', { leadId, fromColumnId, toColumnId });
-      // Poderia adicionar um toast.error aqui para informar o usuário sobre a falha interna.
       return;
     }
 
     // Se o lead foi solto na mesma coluna de onde veio, não faz nada.
-    // (A lógica de reordenação de cards DENTRO da mesma coluna, se necessária, seria tratada aqui ou em KanbanColumn).
     if (fromColumnId === toColumnId) {
       console.log(`[KanbanBoard] ⚪️ Lead "${leadId}" solto na mesma coluna de origem ("${fromColumnId}"). Nenhuma atualização de etapa necessária.`);
       return;
@@ -113,43 +160,24 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
       console.log(`[KanbanBoard] 🚀 Executando mutação useMoveLeadToStage para mover lead "${leadId}" para etapa "${toColumnId}".`);
       
       // Chama a mutação para atualizar a etapa do lead no backend.
-      // O hook useMoveLeadToStage (em useLeadsData.ts) é responsável por:
-      // 1. Fazer a chamada API para o Supabase para atualizar o campo 'etapa_kanban_id' do lead.
-      // 2. No 'onSuccess', invalidar a query 'leads' para que o React Query busque os dados atualizados.
       const result = await moveLeadMutation.mutateAsync({ 
         leadId, 
         etapaId: toColumnId 
       });
       
       // Log de sucesso da mutação.
-      // Se este log aparecer, a atualização no backend (Supabase) provavelmente ocorreu.
-      // O próximo passo é a invalidação do cache do React Query funcionar corretamente.
       console.log('[KanbanBoard] ✅ Mutação useMoveLeadToStage executada com sucesso. Resultado:', result);
-      // Um toast de sucesso já deve ser disparado pelo próprio hook useMoveLeadToStage no seu onSuccess.
 
     } catch (error: any) {
       // Captura e loga qualquer erro que ocorra durante a execução da mutação.
-      // O hook useMoveLeadToStage também tem seu próprio onError que deve disparar um toast.
       console.error('[KanbanBoard] ❌ Erro detalhado ao executar moveLeadMutation.mutateAsync:', {
         errorMessage: error.message,
         leadId,
         toColumnId,
         errorStack: error.stack
       });
-      // Poderia adicionar um toast.error genérico aqui também, mas é melhor centralizar nos hooks.
-      // alert(`Erro ao mover o lead: ${error.message}`); // Use toast para melhor UX
     }
   };
-  
-  // ... (resto das funções: handleOpenHistory, handleOpenChat, handleCreateEtapa, handleEditEtapa, handleSaveEtapa, handleDeleteEtapa, handleMoveLeadsAndDeleteEtapa)
-  // ... (lógica de drag and drop para COLUNAS: handleColumnDragStart, handleColumnDragEnd, handleColumnDragOver, handleColumnDragLeave, handleColumnDrop)
-  // ... (função convertEtapaToKanbanColumn)
-  // ... (JSX de renderização, incluindo o mapeamento das colunas e a passagem de props)
-
-  // =====================================================================================
-  // MANTER O RESTANTE DO SEU CÓDIGO KANBANBOARD.TSX A PARTIR DAQUI
-  // As funções abaixo são apenas para completar a estrutura, cole seu código original aqui.
-  // =====================================================================================
   
   // Função para abrir histórico de consultas
   const handleOpenHistory = async (lead: Lead) => {
@@ -160,7 +188,7 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
       setIsHistoryModalOpen(true);
     } catch (error) {
       console.error('Erro ao buscar consultas:', error);
-      alert('Erro ao carregar histórico. Tente novamente.');
+      toast.error('Erro ao carregar histórico. Tente novamente.');
     }
   };
 
@@ -217,7 +245,7 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
         await deleteEtapaMutation.mutateAsync(etapaParaDeletar.id);
       } catch (error: any) {
         console.error('Erro ao excluir etapa:', error);
-        alert(error.message || 'Erro ao excluir etapa. Tente novamente.');
+        toast.error(error.message || 'Erro ao excluir etapa. Tente novamente.');
       }
     }
   };
@@ -237,7 +265,7 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
       setIsMoveLeadsModalOpen(false);
     } catch (error) {
       console.error('Erro ao mover leads e deletar etapa:', error);
-      alert('Ocorreu um erro ao mover os leads e deletar a etapa.');
+      toast.error('Ocorreu um erro ao mover os leads e deletar a etapa.');
     }
   };
   
@@ -263,25 +291,21 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
     if (itemType === 'kanbanColumn' && sourceColumnId && sourceColumnId !== targetColumnId) {
       e.dataTransfer.dropEffect = 'move';
       if (columnDragOverTargetId !== targetColumnId) {
-        // console.log(`[KanbanBoard] DragOver COLUNA ${sourceColumnId} sobre COLUNA ${targetColumnId}`);
         setColumnDragOverTargetId(targetColumnId);
       }
     } else {
       e.dataTransfer.dropEffect = 'none';
       if (columnDragOverTargetId && sourceColumnId === targetColumnId) {
-         setColumnDragOverTargetId(null); // Limpa se estiver sobre si mesma
+         setColumnDragOverTargetId(null);
       }
     }
   };
   
   const handleColumnDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-        // console.log(`[KanbanBoard] DragLeave da COLUNA ${columnDragOverTargetId}`);
         setColumnDragOverTargetId(null);
     }
   };
-
-// src/components/kanban/KanbanBoard.tsx
 
   const handleColumnDrop = (e: React.DragEvent<HTMLDivElement>, targetColumnId: string) => {
     e.preventDefault();
@@ -289,24 +313,19 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
     const sourceColumnId = e.dataTransfer.getData('draggedColumnId');
     const itemType = e.dataTransfer.getData('itemType');
 
-    // Log inicial para verificar os dados recebidos do dataTransfer
     console.log('[KanbanBoard] 🟢 Drop de COLUNA detectado. Dados do evento:', { 
       sourceColumnId, 
-      targetColumnId, // Este é o ID da coluna ONDE o drop ocorreu
+      targetColumnId,
       itemType,
       allTypesInDataTransfer: Array.from(e.dataTransfer.types)
     });
 
-    // Limpa os estados visuais de drag
     setDraggedColumnId(null);
     setColumnDragOverTargetId(null);
 
-    // Condições para processar o drop de uma coluna
     if (itemType === 'kanbanColumn' && sourceColumnId && targetColumnId && sourceColumnId !== targetColumnId) {
       console.log(`[KanbanBoard] Processando drop da coluna ID: ${sourceColumnId} para a posição da coluna ID: ${targetColumnId}`);
 
-      // Cria uma cópia MUTÁVEL do array de etapas, já ordenado pela ordem atual.
-      // Isso é importante para que os índices de splice e map sejam consistentes.
       const currentEtapasOrdenadas = Array.isArray(etapas) 
         ? [...etapas].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)) 
         : [];
@@ -315,73 +334,27 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
         console.warn("[KanbanBoard] ⚠️ Não há etapas para reordenar.");
         return;
       }
-      console.log("[KanbanBoard] Etapas atuais ordenadas:", JSON.parse(JSON.stringify(currentEtapasOrdenadas)));
-
 
       const sourceIndex = currentEtapasOrdenadas.findIndex(etapa => etapa.id === sourceColumnId);
       const targetIndex = currentEtapasOrdenadas.findIndex(etapa => etapa.id === targetColumnId);
 
       console.log('[KanbanBoard] Índices para reordenação:', { sourceIndex, targetIndex });
 
-      if (sourceIndex === -1) {
-        console.error(`[KanbanBoard] ❌ ERRO: Coluna de origem (ID: ${sourceColumnId}) não encontrada no array de etapas ordenadas. Abortando reordenação.`);
-        return;
-      }
-      if (targetIndex === -1) {
-        console.error(`[KanbanBoard] ❌ ERRO: Coluna de destino (ID: ${targetColumnId}) não encontrada no array de etapas ordenadas. Abortando reordenação.`);
+      if (sourceIndex === -1 || targetIndex === -1) {
+        console.error(`[KanbanBoard] ❌ ERRO: Coluna não encontrada no array de etapas ordenadas.`);
         return;
       }
 
-      // Remove o item arrastado da sua posição original
-      const [draggedItemArray] = currentEtapasOrdenadas.splice(sourceIndex, 1);
-      const draggedItem = draggedItemArray; // Atribui o primeiro elemento do array retornado por splice
-
-      if (!draggedItem || typeof draggedItem.id === 'undefined') { // Verificação mais robusta
-        console.error('[KanbanBoard] ❌ ERRO CRÍTICO: draggedItem é inválido ou não tem ID após o splice.', {draggedItem});
-        // Potencialmente restaurar currentEtapasOrdenadas para o estado anterior se a operação falhar aqui
-        return; 
-      }
-      console.log('[KanbanBoard] Item arrastado (draggedItem):', JSON.parse(JSON.stringify(draggedItem)));
-
-
-      // Insere o item arrastado na nova posição (posição da coluna alvo)
+      const [draggedItem] = currentEtapasOrdenadas.splice(sourceIndex, 1);
       currentEtapasOrdenadas.splice(targetIndex, 0, draggedItem);
-      console.log("[KanbanBoard] Etapas após reordenação local:", JSON.parse(JSON.stringify(currentEtapasOrdenadas)));
 
+      const etapasToUpdate = currentEtapasOrdenadas.map((etapa, index) => ({
+        id: etapa.id,
+        ordem: index,
+      }));
 
-      // Mapeia o array reordenado para criar o payload de atualização,
-      // atribuindo um novo índice de 'ordem' sequencial.
-      const etapasToUpdate = currentEtapasOrdenadas.map((etapa, index) => {
-        // Adiciona uma verificação para o caso de 'etapa' ser undefined (embora não devesse ser após as verificações anteriores)
-        if (!etapa || typeof etapa.id === 'undefined') {
-          console.error(`[KanbanBoard] ❌ ERRO no map: Etapa inválida no índice ${index}. Etapa:`, etapa);
-          // Pode ser necessário decidir como lidar com este caso raro: pular, lançar erro, etc.
-          // Por segurança, vamos retornar um objeto que não quebre, mas isso indica um problema anterior.
-          return { id: `ERRO_ID_UNDEFINED_INDEX_${index}`, ordem: index, nome: "ERRO_NOME_ETAPA" }; // Ou filtrar este item antes de enviar para a mutação
-        }
-        return {
-          id: etapa.id,
-          nome: etapa.nome, // Incluir nome para log/debug, a mutação só deve precisar de id e ordem
-          ordem: index, 
-        };
-      });
-      
-      // Filtrar quaisquer itens problemáticos antes de enviar para a mutação
-      const validEtapasToUpdate = etapasToUpdate.filter(etapa => !etapa.id.startsWith("ERRO_ID_UNDEFINED"));
-      if (validEtapasToUpdate.length !== etapasToUpdate.length) {
-          console.warn("[KanbanBoard] ⚠️ Algumas etapas foram filtradas devido a IDs inválidos antes de enviar para a mutação reorderEtapas.");
-      }
-
-
-      if (validEtapasToUpdate.length > 0) {
-        console.log('[KanbanBoard] 🔄 Enviando para reorderEtapasMutation:', JSON.parse(JSON.stringify(validEtapasToUpdate.map(e => ({id: e.id, ordem: e.ordem})))));
-        reorderEtapasMutation.mutate({ etapas: validEtapasToUpdate.map(e => ({id: e.id, ordem: e.ordem})) });
-      } else if (etapasToUpdate.length > 0) { // Se havia etapas mas todas foram inválidas
-        console.error("[KanbanBoard] ❌ Nenhuma etapa válida para atualizar após o processamento do map.");
-      }
-
-    } else {
-      console.log('[KanbanBoard] Drop de coluna ignorado: condições não atendidas (itemType, IDs, ou mesma coluna).', { itemType, sourceColumnId, targetColumnId });
+      console.log('[KanbanBoard] 🔄 Enviando para reorderEtapasMutation:', etapasToUpdate);
+      reorderEtapasMutation.mutate({ etapas: etapasToUpdate });
     }
   };
   
@@ -494,7 +467,7 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
         onClose={() => setIsLeadModalOpen(false)}
         lead={selectedLead}
         etapas={Array.isArray(etapas) ? etapas : []}
-        onSave={handleSaveLead as any}
+        onSave={handleSaveLead}
         onOpenHistory={selectedLead ? () => handleOpenHistory(selectedLead) : undefined}
       />
       <ConsultasHistoryModal
