@@ -1,5 +1,5 @@
-
 // src/components/kanban/LeadCard.tsx
+
 import React from 'react';
 import { History, MessageCircle, Tag } from 'lucide-react';
 import { Lead } from './KanbanBoard';
@@ -10,9 +10,14 @@ interface LeadCardProps {
   onEdit: () => void;
   onOpenHistory: () => void;
   onOpenChat: () => void;
-  columnId: string;
+  columnId: string; // ESSENCIAL para drag and drop funcionar corretamente
 }
 
+/**
+ * Componente visual de um card de lead no Kanban.
+ * - Permite drag and drop entre colunas.
+ * - Mostra informações do lead e botões de ação.
+ */
 export const LeadCard = ({
   lead,
   onEdit,
@@ -24,19 +29,17 @@ export const LeadCard = ({
   const tagDoLead = Array.isArray(tags) ? tags.find(tag => tag.id === lead.tag_id) : undefined;
 
   /**
-   * Inicia o arraste de um card de lead.
-   * Define os dados a serem transferidos de múltiplas formas para máxima compatibilidade.
+   * Handler para início do drag.
+   * Define todos os dados necessários no dataTransfer para máxima compatibilidade.
    */
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     console.log('🟡 Iniciando drag do lead:', lead.nome, 'da coluna:', columnId);
-    
-    // Múltiplas formas de definir os dados para garantir compatibilidade
-    e.dataTransfer.setData('text/plain', lead.id); // Fallback básico
+
+    // Múltiplos formatos para máxima compatibilidade cross-browser
+    e.dataTransfer.setData('text/plain', lead.id); // fallback básico
     e.dataTransfer.setData('leadId', lead.id);
     e.dataTransfer.setData('fromColumnId', columnId);
     e.dataTransfer.setData('itemType', 'leadCard');
-    
-    // Método adicional para garantir que os dados sejam preservados
     e.dataTransfer.setData('application/json', JSON.stringify({
       leadId: lead.id,
       fromColumnId: columnId,
@@ -44,14 +47,14 @@ export const LeadCard = ({
     }));
 
     e.dataTransfer.effectAllowed = 'move';
-    
-    // Adiciona classe para feedback visual
+
+    // Feedback visual
     e.currentTarget.style.opacity = '0.5';
   };
 
   /**
-   * Finaliza o arraste do card de lead.
-   * Remove a classe de feedback visual.
+   * Handler para fim do drag.
+   * Remove feedback visual.
    */
   const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
     console.log('🟡 Finalizando drag do lead:', lead.nome);
@@ -77,6 +80,7 @@ export const LeadCard = ({
       onClick={onEdit}
       data-lead-id={lead.id}
     >
+      {/* Botões de ação (chat, histórico) aparecem no hover */}
       <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">
         <button
           onClick={handleChatClick}
