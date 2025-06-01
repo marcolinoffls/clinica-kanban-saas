@@ -34,43 +34,32 @@ export const LeadCard = ({
    * Define todos os dados necessários no dataTransfer para máxima compatibilidade.
    */
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    console.log('[LeadCard] 🚀 Iniciando drag do lead:', lead.nome, 'da coluna:', columnId);
+    console.log('🟢 [LeadCard] DRAG START - Lead:', lead.nome, 'Column:', columnId);
     
-    // Define a referência global (método primário)
+    // Definir window.__DRAGGED_LEAD__
     window.__DRAGGED_LEAD__ = {
       id: lead.id,
       fromColumnId: columnId
     };
-  
-    // Define dados no dataTransfer (método de fallback)
-    const dragData = {
-      type: 'leadCard',
-      leadId: lead.id,
-      fromColumnId: columnId
-    };
     
-    e.dataTransfer.setData('application/json', JSON.stringify(dragData));
-    e.dataTransfer.setData('text/plain', `leadCard:${lead.id}:${columnId}`);
-  
-    // Configurações de feedback visual
-    e.currentTarget.style.opacity = '0.5';
+    console.log('🟢 [LeadCard] window.__DRAGGED_LEAD__ definido:', window.__DRAGGED_LEAD__);
+    
+    // Outros dados para fallback
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      leadId: lead.id,
+      fromColumnId: columnId,
+      itemType: 'leadCard'
+    }));
+    
     e.dataTransfer.effectAllowed = 'move';
+    e.currentTarget.style.opacity = '0.5';
   };
   
-  /**
-   * Handler para fim do drag.
-   * Limpa referências globais e restaura feedback visual.
-   */
   const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
-    console.log('[LeadCard] 🏁 Finalizando drag do lead:', lead.nome);
-    
-    // Limpa a referência global
+    console.log('🔴 [LeadCard] DRAG END - Limpando window.__DRAGGED_LEAD__');
     window.__DRAGGED_LEAD__ = null;
-    
-    // Restaura a opacidade
     e.currentTarget.style.opacity = '1';
   };
-
   const handleHistoryClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onOpenHistory();

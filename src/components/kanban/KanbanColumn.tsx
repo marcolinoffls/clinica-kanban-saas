@@ -56,14 +56,16 @@ export const KanbanColumn = ({
    * Chamado continuamente enquanto um item arrastável está sobre a coluna.
    */
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault(); // Necessário para permitir o drop
-
-    const draggedData = getDraggedLeadData();
+    e.preventDefault();
     
-    if (draggedData) {
+    console.log('🟡 [KanbanColumn] DRAG OVER - Coluna:', column.nome);
+    console.log('🟡 [KanbanColumn] window.__DRAGGED_LEAD__:', window.__DRAGGED_LEAD__);
+    
+    if (window.__DRAGGED_LEAD__) {
       e.dataTransfer.dropEffect = 'move';
       if (!isDragOverForLeadCard) {
         setIsDragOverForLeadCard(true);
+        console.log('🟡 [KanbanColumn] Ativando feedback visual');
       }
     } else {
       e.dataTransfer.dropEffect = 'none';
@@ -72,7 +74,35 @@ export const KanbanColumn = ({
       }
     }
   };
-
+  
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    console.log('🔥 [KanbanColumn] DROP na coluna:', column.nome);
+    e.preventDefault();
+    setIsDragOverForLeadCard(false);
+    
+    const draggedLeadData = window.__DRAGGED_LEAD__;
+    console.log('🔥 [KanbanColumn] Dados arrastados:', draggedLeadData);
+    
+    if (!draggedLeadData) {
+      console.error('❌ [KanbanColumn] Nenhum dado encontrado');
+      return;
+    }
+    
+    const { id: leadId, fromColumnId } = draggedLeadData;
+    
+    if (fromColumnId === column.id) {
+      console.log('⚪️ [KanbanColumn] Mesma coluna, ignorando');
+      return;
+    }
+    
+    console.log('✅ [KanbanColumn] Chamando onDropLeadInColumn:', {
+      leadId,
+      fromColumnId,
+      toColumnId: column.id
+    });
+    
+    onDropLeadInColumn(leadId, fromColumnId, column.id);
+  };
   /**
    * Handler para o evento onDragLeave.
    * Chamado quando um item arrastável sai da área da coluna.
