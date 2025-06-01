@@ -1,4 +1,3 @@
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -6,11 +5,11 @@ import { toast } from 'sonner';
 export interface Lead {
   id: string;
   nome: string;
-  telefone?: string;
-  email?: string;
-  origem_lead?: string;
-  servico_interesse?: string;
-  anotacoes?: string;
+  telefone?: string | null;
+  email?: string | null;
+  origem_lead?: string | null;
+  servico_interesse?: string | null;
+  anotacoes?: string | null;
   etapa_kanban_id: string;
   tag_id?: string;
   data_ultimo_contato?: string;
@@ -175,17 +174,19 @@ export const useUpdateLeadAiConversationStatus = () => {
   return useMutation({
     mutationFn: async ({ 
       leadId, 
-      status 
+      aiEnabled 
     }: { 
       leadId: string; 
-      status: 'ativo' | 'pausado' | 'finalizado' 
+      aiEnabled: boolean 
     }): Promise<Lead> => {
+      const status = aiEnabled ? 'ativo' : 'pausado';
       console.log('🤖 [useUpdateLeadAiConversationStatus] Atualizando status IA:', { leadId, status });
 
       const { data, error } = await supabase
         .from('leads')
         .update({
           status_ia_conversa: status,
+          ai_conversation_enabled: aiEnabled,
           updated_at: new Date().toISOString(),
         })
         .eq('id', leadId)

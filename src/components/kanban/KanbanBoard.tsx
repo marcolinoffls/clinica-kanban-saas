@@ -12,6 +12,7 @@ import { useKanbanLeadActions } from '@/hooks/useKanbanLeadActions';
 import { useKanbanEtapaActions } from '@/hooks/useKanbanEtapaActions';
 import { useKanbanColumnDrag } from '@/hooks/useKanbanColumnDrag';
 import { Etapa } from '@/hooks/useEtapasData';
+import { Lead } from '@/hooks/useLeadsData';
 
 /**
  * Componente principal do Kanban para gerenciamento de leads
@@ -24,22 +25,7 @@ import { Etapa } from '@/hooks/useEtapasData';
  * - useKanbanColumnDrag: drag and drop de colunas
  */
 
-export interface Lead {
-  id: string;
-  nome: string;
-  telefone: string | null;
-  email: string | null;
-  anotacoes: string | null;
-  etapa_kanban_id: string | null;
-  tag_id: string | null;
-  data_ultimo_contato: string | null;
-  created_at: string;
-  updated_at: string | null;
-  clinica_id: string | null;
-  origem_lead: string | null;
-  servico_interesse: string | null;
-  ordem?: number;
-}
+export { Lead }; // Exporta a interface Lead do useLeadsData
 
 export interface IKanbanColumn extends Etapa {
   title: string;

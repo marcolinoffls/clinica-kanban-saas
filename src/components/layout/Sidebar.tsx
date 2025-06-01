@@ -7,7 +7,8 @@ import {
   CalendarDays, 
   Settings,
   Shield,
-  Bot
+  Bot,
+  Columns
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,13 @@ const navigationItems = [
     icon: Kanban,
     description: 'Gerenciamento de leads',
     path: '/leads'
+  },
+  {
+    id: 'pipeline',
+    label: 'Funil',
+    icon: Columns,
+    description: 'Funil de vendas Kanban',
+    path: '/pipeline'
   },
   {
     id: 'contatos',

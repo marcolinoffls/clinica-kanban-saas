@@ -1,6 +1,7 @@
 
 import { useState } from 'react';
-import { Lead, IKanbanColumn } from '@/components/kanban/KanbanBoard';
+import { Lead } from '@/hooks/useLeadsData';
+import { IKanbanColumn } from '@/components/kanban/KanbanBoard';
 
 /**
  * Hook para gerenciar o estado de todos os modais do Kanban

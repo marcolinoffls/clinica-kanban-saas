@@ -1,4 +1,5 @@
-import { Lead } from '@/components/kanban/KanbanBoard';
+
+import { Lead } from '@/hooks/useLeadsData';
 import { useUpdateLead, useCreateLead, useMoveLeadToStage } from './useLeadsData';
 import { toast } from 'sonner';
 
