@@ -1,15 +1,18 @@
-
 import { useState } from 'react';
-import { User, Phone, Mail, Calendar, FileText, ChevronDown, ChevronRight, MessageSquare, History } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { User, Phone, Mail, Calendar as CalendarIconLucide, FileText, ChevronDown, ChevronRight, History } from 'lucide-react'; // Renomeado Calendar para evitar conflito
+// import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Não usado diretamente aqui
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+// Importar componentes de Avatar do shadcn/ui
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Lead } from '@/hooks/useLeadsData'; // Importar a interface Lead completa
 
 /**
  * Barra lateral com informações detalhadas do lead
- * 
+ *
  * Funcionalidades:
+ * - Exibe imagem do contato (avatar_url)
  * - Informações básicas do lead (nome, telefone, email)
  * - Histórico de interações
  * - Tags associadas
@@ -18,17 +21,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
  * - Timeline de atividades
  */
 
+// Ajustar a interface para aceitar a prop Lead completa, que inclui avatar_url
 interface LeadInfoSidebarProps {
-  lead: {
-    id: string;
-    nome: string;
-    telefone?: string;
-    email?: string;
-    anotacoes?: string;
-    created_at: string;
-    updated_at: string;
-    ltv?: number;
-  };
+  lead: Lead; // Usar a interface Lead importada que já deve ter avatar_url
   tags?: Array<{
     id: string;
     nome: string;
@@ -69,8 +64,13 @@ export const LeadInfoSidebar = ({
   };
 
   // Função para formatar data
-  const formatarData = (dataString: string) => {
+  const formatarData = (dataString: string | null | undefined) => {
+    if (!dataString) return 'N/A'; // Tratar caso a data seja nula ou indefinida
     const data = new Date(dataString);
+    // Verificar se a data é válida
+    if (isNaN(data.getTime())) {
+        return 'Data inválida';
+    }
     return data.toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
@@ -81,18 +81,20 @@ export const LeadInfoSidebar = ({
   };
 
   return (
-    <div className="w-80 bg-white border-l border-gray-200 flex flex-col h-full overflow-y-auto">
+    <div className="w-80 bg-white border-l border-gray-200 flex flex-col h-full">
       {/* Header com foto/avatar do lead */}
       <div className="p-4 border-b border-gray-200 bg-gray-50">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-            <span className="text-blue-600 font-semibold text-lg">
+          {/* Usar o componente Avatar para exibir a imagem do contato */}
+          <Avatar className="w-12 h-12">
+            <AvatarImage src={lead.avatar_url || undefined} alt={`Avatar de ${lead.nome}`} />
+            <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold text-lg">
               {lead.nome.charAt(0).toUpperCase()}
-            </span>
-          </div>
+            </AvatarFallback>
+          </Avatar>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-gray-900 truncate">{lead.nome}</h3>
-            <p className="text-sm text-gray-500">Lead ativo</p>
+            <p className="text-sm text-gray-500">Lead ativo</p> {/* Considerar tornar isso dinâmico se houver status */}
           </div>
         </div>
       </div>
@@ -115,7 +117,7 @@ export const LeadInfoSidebar = ({
             onClick={onScheduleAppointment}
             className="flex items-center gap-2"
           >
-            <Calendar size={14} />
+            <CalendarIconLucide size={14} /> {/* Usar o ícone renomeado */}
             Agendar
           </Button>
         </div>
@@ -130,41 +132,40 @@ export const LeadInfoSidebar = ({
         </Button>
       </div>
 
+      {/* Scrollable content area */}
       <div className="flex-1 overflow-y-auto">
         {/* Informações básicas */}
         <Collapsible open={expandedSections.info} onOpenChange={() => toggleSection('info')}>
-          <CollapsibleTrigger className="w-full p-4 border-b border-gray-200 hover:bg-gray-50">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-gray-900">Informações Básicas</h4>
-              {expandedSections.info ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </div>
+          <CollapsibleTrigger className="w-full p-4 border-b border-gray-200 hover:bg-gray-50 flex items-center justify-between text-left">
+            <h4 className="font-medium text-gray-900">Informações Básicas</h4>
+            {expandedSections.info ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </CollapsibleTrigger>
           <CollapsibleContent className="p-4 border-b border-gray-200 space-y-3">
             {lead.telefone && (
               <div className="flex items-center gap-3">
-                <Phone size={16} className="text-gray-400" />
-                <span className="text-sm text-gray-700">{lead.telefone}</span>
+                <Phone size={16} className="text-gray-400 flex-shrink-0" />
+                <span className="text-sm text-gray-700 break-all">{lead.telefone}</span>
               </div>
             )}
-            
+
             {lead.email && (
               <div className="flex items-center gap-3">
-                <Mail size={16} className="text-gray-400" />
-                <span className="text-sm text-gray-700">{lead.email}</span>
+                <Mail size={16} className="text-gray-400 flex-shrink-0" />
+                <span className="text-sm text-gray-700 break-all">{lead.email}</span>
               </div>
             )}
-            
+
             <div className="flex items-center gap-3">
-              <Calendar size={16} className="text-gray-400" />
+              <CalendarIconLucide size={16} className="text-gray-400 flex-shrink-0" /> {/* Usar o ícone renomeado */}
               <div className="text-sm text-gray-700">
                 <div>Criado: {formatarData(lead.created_at)}</div>
-                <div>Atualizado: {formatarData(lead.updated_at)}</div>
+                {lead.updated_at && <div>Atualizado: {formatarData(lead.updated_at)}</div>}
               </div>
             </div>
 
-            {lead.ltv && lead.ltv > 0 && (
+            {typeof lead.ltv === 'number' && lead.ltv > 0 && (
               <div className="flex items-center gap-3">
-                <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+                <div className="w-4 h-4 bg-green-500 rounded-full flex-shrink-0"></div>
                 <span className="text-sm text-gray-700">
                   LTV: <span className="font-medium text-green-600">R$ {Number(lead.ltv).toFixed(2)}</span>
                 </span>
@@ -175,11 +176,9 @@ export const LeadInfoSidebar = ({
 
         {/* Tags */}
         <Collapsible open={expandedSections.tags} onOpenChange={() => toggleSection('tags')}>
-          <CollapsibleTrigger className="w-full p-4 border-b border-gray-200 hover:bg-gray-50">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-gray-900">Tags ({tags.length})</h4>
-              {expandedSections.tags ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </div>
+          <CollapsibleTrigger className="w-full p-4 border-b border-gray-200 hover:bg-gray-50 flex items-center justify-between text-left">
+            <h4 className="font-medium text-gray-900">Tags ({tags.length})</h4>
+            {expandedSections.tags ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </CollapsibleTrigger>
           <CollapsibleContent className="p-4 border-b border-gray-200">
             {tags.length > 0 ? (
@@ -188,7 +187,7 @@ export const LeadInfoSidebar = ({
                   <Badge
                     key={tag.id}
                     style={{ backgroundColor: tag.cor }}
-                    className="text-white text-xs"
+                    className="text-white text-xs" // Shadcn Badge não tem text-white por padrão, talvez precise customizar
                   >
                     {tag.nome}
                   </Badge>
@@ -203,16 +202,14 @@ export const LeadInfoSidebar = ({
         {/* Anotações */}
         {lead.anotacoes && (
           <Collapsible open={expandedSections.anotacoes} onOpenChange={() => toggleSection('anotacoes')}>
-            <CollapsibleTrigger className="w-full p-4 border-b border-gray-200 hover:bg-gray-50">
-              <div className="flex items-center justify-between">
-                <h4 className="font-medium text-gray-900">Anotações</h4>
-                {expandedSections.anotacoes ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-              </div>
+            <CollapsibleTrigger className="w-full p-4 border-b border-gray-200 hover:bg-gray-50 flex items-center justify-between text-left">
+              <h4 className="font-medium text-gray-900">Anotações</h4>
+              {expandedSections.anotacoes ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </CollapsibleTrigger>
             <CollapsibleContent className="p-4 border-b border-gray-200">
               <div className="flex items-start gap-3">
-                <FileText size={16} className="text-gray-400 mt-0.5" />
-                <p className="text-sm text-gray-700 leading-relaxed">{lead.anotacoes}</p>
+                <FileText size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-gray-700 leading-relaxed break-words">{lead.anotacoes}</p>
               </div>
             </CollapsibleContent>
           </Collapsible>
@@ -220,20 +217,18 @@ export const LeadInfoSidebar = ({
 
         {/* Histórico de atividades */}
         <Collapsible open={expandedSections.historico} onOpenChange={() => toggleSection('historico')}>
-          <CollapsibleTrigger className="w-full p-4 border-b border-gray-200 hover:bg-gray-50">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-gray-900">Histórico ({historico.length})</h4>
-              {expandedSections.historico ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </div>
+          <CollapsibleTrigger className="w-full p-4 border-b border-gray-200 hover:bg-gray-50 flex items-center justify-between text-left">
+            <h4 className="font-medium text-gray-900">Histórico ({historico.length})</h4>
+            {expandedSections.historico ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </CollapsibleTrigger>
           <CollapsibleContent className="p-4">
             {historico.length > 0 ? (
               <div className="space-y-3">
                 {historico.map((item) => (
                   <div key={item.id} className="flex items-start gap-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0"></div> {/* Ajuste no alinhamento da bolinha */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-900">{item.descricao}</p>
+                      <p className="text-sm text-gray-900 break-words">{item.descricao}</p>
                       <p className="text-xs text-gray-500">{formatarData(item.data)}</p>
                     </div>
                   </div>
