@@ -207,13 +207,22 @@ export const useDeleteLead = () => {
   });
 };
 
+// ...existing code...
+
 /**
- * Hook APRIMORADO para mover lead entre etapas com logs detalhados
+ * Hook APRIMORADO para mover lead entre etapas com atualização otimista (optimistic update)
+ * 
+ * - Atualiza o estado do lead localmente assim que o usuário solta o card (UX instantânea)
+ * - Se o backend falhar, desfaz a alteração local e mostra erro
+ * - Após sucesso, faz refetch para garantir consistência
  */
 export const useMoveLeadToStage = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    /**
+     * Função principal de mutação: move o lead para nova etapa no Supabase
+     */
     mutationFn: async ({ leadId, etapaId }: { leadId: string; etapaId: string }): Promise<Lead> => {
       console.log('[useMoveLeadToStage] 🚀 INICIANDO mutationFn:', {
         leadId,
@@ -253,19 +262,13 @@ export const useMoveLeadToStage = () => {
           .single();
 
         if (error) {
-          console.error('[useMoveLeadToStage] ❌ Erro retornado pelo Supabase:', {
-            error,
-            code: error.code,
-            message: error.message,
-            details: error.details,
-            hint: error.hint
-          });
-          throw new Error(`Erro do Supabase ao atualizar lead: ${error.message}`);
+          console.error('[useMoveLeadToStage] ❌ Erro no Supabase:', error);
+          throw new Error(error.message);
         }
 
         if (!data) {
-          const error = new Error('Nenhum dado foi retornado pelo Supabase - lead pode não existir');
-          console.error('[useMoveLeadToStage] ❌ Dados não encontrados:', { leadId, error });
+          const error = new Error('Lead não encontrado após atualização');
+          console.error('[useMoveLeadToStage] ❌ Nenhum dado retornado:', error);
           throw error;
         }
 
@@ -290,6 +293,50 @@ export const useMoveLeadToStage = () => {
         throw supabaseError;
       }
     },
+
+    /**
+     * Atualização otimista: move o lead localmente antes do backend responder
+     */
+    onMutate: async ({ leadId, etapaId }) => {
+      // Cancela qualquer refetch pendente para evitar sobrescrever o estado otimista
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+
+      // Salva o estado anterior dos leads para possível rollback
+      const previousLeads = queryClient.getQueryData<Lead[]>(['leads']);
+
+      // Atualiza o cache local dos leads, movendo o lead para a nova etapa
+      queryClient.setQueryData<Lead[]>(['leads'], old =>
+        old
+          ? old.map(lead =>
+              lead.id === leadId
+                ? { ...lead, etapa_kanban_id: etapaId }
+                : lead
+            )
+          : []
+      );
+
+      // Retorna o estado anterior para ser usado em caso de erro
+      return { previousLeads };
+    },
+
+    /**
+     * Em caso de erro, desfaz a alteração otimista e mostra toast de erro
+     */
+    onError: (error, _variables, context) => {
+      if (context?.previousLeads) {
+        queryClient.setQueryData(['leads'], context.previousLeads);
+      }
+      console.error('[useMoveLeadToStage] ❌ CALLBACK onError executado:', {
+        error,
+        message: error.message,
+        stack: error.stack
+      });
+      toast.error(`Erro ao mover lead: ${error.message}`);
+    },
+
+    /**
+     * Após sucesso, faz refetch dos leads para garantir consistência
+     */
     onSuccess: (data) => {
       console.log('[useMoveLeadToStage] 🎉 CALLBACK onSuccess executado!');
       console.log('[useMoveLeadToStage] 📋 Lead movido com sucesso:', {
@@ -306,13 +353,6 @@ export const useMoveLeadToStage = () => {
       
       console.log('[useMoveLeadToStage] ✅ Callback onSuccess CONCLUÍDO');
     },
-    onError: (error: Error) => {
-      console.error('[useMoveLeadToStage] ❌ CALLBACK onError executado:', {
-        error,
-        message: error.message,
-        stack: error.stack
-      });
-      toast.error(`Erro ao mover lead: ${error.message}`);
-    },
   });
 };
+// ...existing code...
