@@ -22,6 +22,7 @@ interface PipelineColumnProps {
   onEditEtapa: () => void;
   onDeleteEtapa: () => void;
   onCreateLead: (etapaId: string) => void;
+  isDraggedColumn?: boolean;
 }
 
 export const PipelineColumn = ({
@@ -35,18 +36,25 @@ export const PipelineColumn = ({
   onEditEtapa,
   onDeleteEtapa,
   onCreateLead,
+  isDraggedColumn = false,
 }: PipelineColumnProps) => {
   const [isDragOverForLeadCard, setIsDragOverForLeadCard] = useState(false);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     
-    // Verificar se é um lead sendo arrastado
-    if (window.__DRAGGED_LEAD__) {
+    // Verificar se é um lead sendo arrastado (não uma coluna)
+    const draggedLead = window.__DRAGGED_LEAD__;
+    const draggedColumn = window.__DRAGGED_COLUMN__;
+    
+    if (draggedLead && draggedLead.type === 'LEAD_CARD') {
       e.dataTransfer.dropEffect = 'move';
       if (!isDragOverForLeadCard) {
         setIsDragOverForLeadCard(true);
       }
+    } else if (draggedColumn && draggedColumn.type === 'COLUMN') {
+      // Não fazer nada - o drag de coluna é gerenciado pelo PipelineBoard
+      e.dataTransfer.dropEffect = 'none';
     } else {
       e.dataTransfer.dropEffect = 'none';
     }
@@ -61,15 +69,16 @@ export const PipelineColumn = ({
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.stopPropagation(); // Importante: parar propagação
     setIsDragOverForLeadCard(false);
     
     console.log('📦 Drop na coluna:', etapa.id);
     
-    // Verificar dados do lead arrastado
+    // Verificar se é um lead sendo solto (não uma coluna)
     const draggedLeadData = window.__DRAGGED_LEAD__;
     
-    if (!draggedLeadData) {
-      console.warn('⚠️ Nenhum dado de lead arrastado encontrado');
+    if (!draggedLeadData || draggedLeadData.type !== 'LEAD_CARD') {
+      console.warn('⚠️ Drop inválido - não é um lead ou dados ausentes');
       return;
     }
     
@@ -90,20 +99,36 @@ export const PipelineColumn = ({
     onDropLeadInColumn(leadId, fromColumnId, etapa.id);
   };
 
+  const handleColumnMouseDown = (e: React.MouseEvent) => {
+    // Só iniciar drag da coluna se o clique for na área do header
+    const target = e.target as HTMLElement;
+    const isHeaderArea = target.closest('[data-column-header]');
+    
+    if (!isHeaderArea) {
+      e.stopPropagation();
+    }
+  };
+
   return (
     <div
       className={`
         bg-gray-50 rounded-xl p-4 min-w-[22rem] w-80 h-full border shadow-sm 
         flex flex-col transition-all duration-150
         ${isDragOverForLeadCard ? 'bg-purple-100 border-purple-400 border-dashed border-2' : 'border-gray-200'} 
+        ${isDraggedColumn ? 'opacity-40 scale-95' : ''}
       `}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onMouseDown={handleColumnMouseDown}
       data-column-id={etapa.id}
+      data-drag-type="column"
     >
       {/* Header da coluna */}
-      <div className="flex justify-between items-center mb-4 group">
+      <div 
+        className="flex justify-between items-center mb-4 group cursor-grab active:cursor-grabbing"
+        data-column-header
+      >
         <div className="flex items-center gap-3">
           {/* Indicador de cor da etapa */}
           <div 
@@ -121,21 +146,30 @@ export const PipelineColumn = ({
         {/* Botões de ação da etapa */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
-            onClick={() => onCreateLead(etapa.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCreateLead(etapa.id);
+            }}
             className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
             title="Adicionar lead nesta etapa"
           >
             <Plus size={14} />
           </button>
           <button
-            onClick={onEditEtapa}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditEtapa();
+            }}
             className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
             title="Editar etapa"
           >
             <Edit2 size={14} />
           </button>
           <button
-            onClick={onDeleteEtapa}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteEtapa();
+            }}
             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             title="Excluir etapa"
           >
@@ -167,7 +201,10 @@ export const PipelineColumn = ({
               Nenhum lead nesta etapa
             </p>
             <button
-              onClick={() => onCreateLead(etapa.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onCreateLead(etapa.id);
+              }}
               className="text-xs text-purple-600 hover:text-purple-700 font-medium"
             >
               Adicionar primeiro lead

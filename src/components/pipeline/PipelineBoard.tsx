@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Plus } from 'lucide-react';
 import { PipelineColumn } from './PipelineColumn';
@@ -128,6 +127,14 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
     );
   }
 
+  // Declarar variáveis globais para drag (apenas para TypeScript)
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.__DRAGGED_LEAD__ = null;
+      window.__DRAGGED_COLUMN__ = null;
+    }
+  }, []);
+
   return (
     <div className="h-full flex flex-col">
       {/* Header do Pipeline */}
@@ -162,6 +169,7 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
             .map((etapa, index) => {
               const leadsDaEtapa = leadsTyped.filter(lead => lead.etapa_kanban_id === etapa.id);
               const corDaEtapa = ETAPA_COLORS[index % ETAPA_COLORS.length];
+              const isDraggedColumn = columnDrag.draggedColumnId === etapa.id;
 
               return (
                 <div
@@ -172,8 +180,7 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
                   onDragOver={(e) => columnDrag.handleColumnDragOver(e, etapa.id)}
                   onDragLeave={columnDrag.handleColumnDragLeave}
                   onDrop={(e) => columnDrag.handleColumnDrop(e, etapa.id, etapasTyped)}
-                  className={`h-full flex flex-col transition-all duration-200 cursor-grab 
-                              ${columnDrag.draggedColumnId === etapa.id ? 'opacity-40 scale-95' : ''}
+                  className={`h-full flex flex-col transition-all duration-200 
                               ${columnDrag.columnDragOverTargetId === etapa.id && columnDrag.draggedColumnId !== etapa.id ? 'outline-2 outline-purple-500 outline-dashed rounded-xl' : ''} 
                             `}
                   data-etapa-draggable-id={etapa.id}
@@ -189,6 +196,7 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
                     onEditEtapa={() => modalControls.openEditEtapaModal(etapa)}
                     onDeleteEtapa={() => handleDeleteEtapa(etapa)}
                     onCreateLead={handleCreateLeadInEtapa}
+                    isDraggedColumn={isDraggedColumn}
                   />
                 </div>
               );

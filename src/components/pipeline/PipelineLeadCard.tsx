@@ -27,25 +27,33 @@ export const PipelineLeadCard = ({
   columnId 
 }: PipelineLeadCardProps) => {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    // IMPORTANTE: Parar propagação para evitar que a coluna também seja arrastada
+    e.stopPropagation();
+    
     console.log('🎯 Iniciando drag do lead:', lead.id);
     
-    // Armazenar dados do drag globalmente
-    window.__DRAGGED_LEAD__ = {
+    // Armazenar dados do drag com identificador de tipo
+    const dragData = {
+      type: 'LEAD_CARD',
       id: lead.id,
       fromColumnId: columnId
     };
     
+    // Armazenar dados globalmente E no dataTransfer
+    window.__DRAGGED_LEAD__ = dragData;
+    
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('application/json', JSON.stringify({
-      leadId: lead.id,
-      fromColumnId: columnId
-    }));
+    e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+    e.dataTransfer.setData('text/plain', `lead-${lead.id}`);
     
     // Feedback visual durante o drag
     e.currentTarget.style.opacity = '0.5';
   };
 
   const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    // IMPORTANTE: Parar propagação
+    e.stopPropagation();
+    
     console.log('🏁 Finalizando drag do lead');
     
     // Limpar dados globais
@@ -55,13 +63,20 @@ export const PipelineLeadCard = ({
     e.currentTarget.style.opacity = '1';
   };
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Parar propagação do mouse down para evitar interferência
+    e.stopPropagation();
+  };
+
   return (
     <div
       className="bg-white rounded-lg border shadow-sm p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-all duration-200 border-l-4 border-l-purple-500"
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onMouseDown={handleMouseDown}
       data-lead-id={lead.id}
+      data-drag-type="lead"
     >
       {/* Header com nome do lead */}
       <div className="mb-3">

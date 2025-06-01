@@ -53,10 +53,32 @@ export const usePipelineColumnDrag = () => {
 
   // Função para iniciar o drag da coluna
   const handleColumnDragStart = (e: React.DragEvent<HTMLDivElement>, columnId: string) => {
+    // Verificar se é realmente um drag de coluna (não um lead)
+    const target = e.target as HTMLElement;
+    const isColumnHeader = target.closest('[data-column-header]');
+    
+    if (!isColumnHeader) {
+      e.preventDefault();
+      return;
+    }
+
     console.log('🎯 Iniciando drag da coluna:', columnId);
     setDraggedColumnId(columnId);
+    
+    // Armazenar dados da coluna com identificador de tipo
+    const dragData = {
+      type: 'COLUMN',
+      id: columnId
+    };
+    
+    window.__DRAGGED_COLUMN__ = dragData;
+    
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', columnId);
+    e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+    e.dataTransfer.setData('text/plain', `column-${columnId}`);
+    
+    // Feedback visual
+    e.currentTarget.style.opacity = '0.7';
   };
 
   // Função para finalizar o drag da coluna
@@ -64,13 +86,22 @@ export const usePipelineColumnDrag = () => {
     console.log('🏁 Finalizando drag da coluna');
     setDraggedColumnId(null);
     setColumnDragOverTargetId(null);
+    
+    // Limpar dados globais
+    window.__DRAGGED_COLUMN__ = null;
+    
+    // Restaurar opacidade
     e.currentTarget.style.opacity = '1';
   };
 
   // Função para gerenciar o drag over da coluna
   const handleColumnDragOver = (e: React.DragEvent<HTMLDivElement>, targetColumnId: string) => {
     e.preventDefault();
-    if (draggedColumnId && draggedColumnId !== targetColumnId) {
+    
+    // Só processar se for um drag de coluna
+    const draggedColumn = window.__DRAGGED_COLUMN__;
+    
+    if (draggedColumn && draggedColumn.type === 'COLUMN' && draggedColumn.id !== targetColumnId) {
       e.dataTransfer.dropEffect = 'move';
       setColumnDragOverTargetId(targetColumnId);
     }
@@ -86,7 +117,18 @@ export const usePipelineColumnDrag = () => {
   // Função para gerenciar o drop da coluna
   const handleColumnDrop = async (e: React.DragEvent<HTMLDivElement>, targetColumnId: string, etapas: EtapaPipeline[]) => {
     e.preventDefault();
+    e.stopPropagation();
     setColumnDragOverTargetId(null);
+
+    // Verificar se é um drop de coluna
+    const draggedColumn = window.__DRAGGED_COLUMN__;
+    
+    if (!draggedColumn || draggedColumn.type !== 'COLUMN') {
+      console.log('ℹ️ Drop ignorado - não é uma coluna');
+      return;
+    }
+    
+    const draggedColumnId = draggedColumn.id;
 
     if (!draggedColumnId || draggedColumnId === targetColumnId) {
       return;
