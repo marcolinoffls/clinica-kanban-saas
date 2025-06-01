@@ -179,16 +179,21 @@ export const useUpdateLeadAiConversationStatus = () => {
       leadId: string;
       aiEnabled: boolean
     }): Promise<Lead> => {
-      // A variável 'status' aqui é apenas para o console.log, se desejar.
-      // Não será enviada para o banco de dados se a coluna 'status_ia_conversa' não existir.
-      const statusLog = aiEnabled ? 'ativo' : 'pausado';
-      console.log('🤖 [useUpdateLeadAiConversationStatus] Atualizando status IA para:', { leadId, aiEnabled, status_para_log: statusLog });
+      console.log('🤖 [useUpdateLeadAiConversationStatus] Atualizando status IA:', {
+        leadId,
+        aiEnabled,
+        timestamp: new Date().toISOString()
+      });
+
+      // Validar leadId
+      if (!leadId || typeof leadId !== 'string') {
+        throw new Error('leadId é obrigatório e deve ser uma string válida');
+      }
 
       const { data, error } = await supabase
         .from('leads')
         .update({
-          // REMOVIDO: status_ia_conversa: status, // Não atualize uma coluna que não existe ou não é a principal
-          ai_conversation_enabled: aiEnabled, // Esta é a coluna correta a ser atualizada
+          ai_conversation_enabled: aiEnabled,
           updated_at: new Date().toISOString(),
         })
         .eq('id', leadId)
@@ -196,27 +201,38 @@ export const useUpdateLeadAiConversationStatus = () => {
         .single();
 
       if (error) {
-        console.error('❌ [useUpdateLeadAiConversationStatus] Erro:', error);
-        // Verifica se o erro é sobre a coluna não encontrada e adiciona um aviso mais específico
-        if (error.message.includes("column") && error.message.includes("does not exist")) {
-            console.warn(`⚠️ Atenção: A coluna que causou o erro (${error.message.match(/column "(\w+)"/)?.[1]}) ainda pode estar referenciada em algum lugar ou a correção não foi totalmente aplicada. Verifique o objeto de update.`);
-        }
-        throw new Error(error.message);
+        console.error('❌ [useUpdateLeadAiConversationStatus] Erro detalhado:', {
+          error,
+          leadId,
+          aiEnabled,
+          message: error.message,
+          code: error.code,
+          hint: error.hint
+        });
+        throw new Error(`Erro ao atualizar status da IA: ${error.message}`);
       }
 
       if (!data) {
-        throw new Error('Lead não encontrado');
+        console.error('❌ [useUpdateLeadAiConversationStatus] Dados não retornados após update');
+        throw new Error('Lead não encontrado ou não pôde ser atualizado');
       }
 
-      console.log('✅ [useUpdateLeadAiConversationStatus] Status atualizado:', data);
+      console.log('✅ [useUpdateLeadAiConversationStatus] Status da IA atualizado com sucesso:', {
+        leadId: data.id,
+        nome: data.nome,
+        ai_conversation_enabled: data.ai_conversation_enabled,
+        updated_at: data.updated_at
+      });
+      
       return data;
     },
 
     onSuccess: (updatedLead) => {
+      console.log('✅ [useUpdateLeadAiConversationStatus] onSuccess - Invalidando queries');
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      // Ajuste a mensagem do toast para refletir o estado booleano de forma mais clara
-      const statusMensagem = updatedLead.ai_conversation_enabled ? 'Ativada' : 'Desativada';
-      toast.success(`Conversa IA ${statusMensagem} com sucesso!`);
+      
+      const statusMensagem = updatedLead.ai_conversation_enabled ? 'ativada' : 'desativada';
+      toast.success(`IA ${statusMensagem} para ${updatedLead.nome}!`);
     },
 
     onError: (error) => {
@@ -225,6 +241,7 @@ export const useUpdateLeadAiConversationStatus = () => {
     },
   });
 };
+
 /**
  * Hook para deletar um lead
  */

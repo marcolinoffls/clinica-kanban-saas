@@ -22,7 +22,7 @@ import { Lead } from '@/hooks/useLeadsData';
 
 interface UseAIConversationControlProps {
   selectedLead: Lead | null;
-  updateLeadAiConversationStatus: (params: { leadId: string; aiEnabled: boolean }) => void;
+  updateLeadAiConversationStatus: (params: { leadId: string; aiEnabled: boolean }) => Promise<Lead>;
 }
 
 export const useAIConversationControl = ({
@@ -32,6 +32,7 @@ export const useAIConversationControl = ({
   const { clinicaAtiva } = useClinica();
   const [aiEnabled, setAiEnabled] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
 
   // Função para determinar se um lead é de origem de anúncio
   const isLeadFromAd = (lead: Lead): boolean => {
@@ -95,11 +96,14 @@ export const useAIConversationControl = ({
 
     setIsInitializing(true);
 
-    console.log('🔄 [useAIConversationControl] Inicializando estado da IA para lead:', selectedLead.nome);
-    console.log('- ai_conversation_enabled atual:', selectedLead.ai_conversation_enabled);
+    console.log('🔄 [useAIConversationControl] Inicializando estado da IA para lead:', {
+      leadId: selectedLead.id,
+      nome: selectedLead.nome,
+      ai_conversation_enabled: selectedLead.ai_conversation_enabled
+    });
 
     // Se o lead já tem um valor definido para ai_conversation_enabled, usar esse valor
-    if (selectedLead.ai_conversation_enabled !== null) {
+    if (selectedLead.ai_conversation_enabled !== null && selectedLead.ai_conversation_enabled !== undefined) {
       console.log('📋 Usando estado persistido da IA:', selectedLead.ai_conversation_enabled);
       setAiEnabled(selectedLead.ai_conversation_enabled);
       setIsInitializing(false);
@@ -112,37 +116,70 @@ export const useAIConversationControl = ({
 
     // Persistir o estado inicial determinado pelas configurações globais
     console.log('💾 Persistindo estado inicial da IA:', initialState);
-    updateLeadAiConversationStatus({
-      leadId: selectedLead.id,
-      aiEnabled: initialState
-    });
+    
+    // Usar timeout para evitar conflitos com outros useEffects
+    const timer = setTimeout(async () => {
+      try {
+        await updateLeadAiConversationStatus({
+          leadId: selectedLead.id,
+          aiEnabled: initialState
+        });
+        console.log('✅ Estado inicial da IA persistido com sucesso');
+      } catch (error) {
+        console.error('❌ Erro ao persistir estado inicial da IA:', error);
+      } finally {
+        setIsInitializing(false);
+      }
+    }, 100);
 
-    setIsInitializing(false);
+    return () => clearTimeout(timer);
   }, [selectedLead?.id, clinicaAtiva?.ai_active_for_all_new_leads, clinicaAtiva?.ai_active_for_ad_leads_only]);
 
   // Função para alternar o estado da IA
-  const toggleAI = () => {
-    if (!selectedLead || isInitializing) {
-      console.warn('⚠️ [useAIConversationControl] Não é possível alternar IA: lead não selecionado ou inicializando');
+  const toggleAI = async () => {
+    if (!selectedLead || isInitializing || isUpdating) {
+      console.warn('⚠️ [useAIConversationControl] Não é possível alternar IA:', {
+        selectedLead: !!selectedLead,
+        isInitializing,
+        isUpdating
+      });
       return;
     }
 
     const newState = !aiEnabled;
-    console.log('🔄 [useAIConversationControl] Alternando IA para:', newState);
-
-    // Atualizar estado local imediatamente para responsividade
-    setAiEnabled(newState);
-
-    // Persistir no banco de dados
-    updateLeadAiConversationStatus({
+    console.log('🔄 [useAIConversationControl] Alternando IA:', {
       leadId: selectedLead.id,
-      aiEnabled: newState
+      leadNome: selectedLead.nome,
+      estadoAtual: aiEnabled,
+      novoEstado: newState
     });
+
+    setIsUpdating(true);
+
+    try {
+      // Atualizar estado local imediatamente para responsividade
+      setAiEnabled(newState);
+
+      // Persistir no banco de dados
+      await updateLeadAiConversationStatus({
+        leadId: selectedLead.id,
+        aiEnabled: newState
+      });
+
+      console.log('✅ Estado da IA alternado com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao alternar estado da IA:', error);
+      // Reverter estado local em caso de erro
+      setAiEnabled(aiEnabled);
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   return {
     aiEnabled,
     toggleAI,
-    isInitializing
+    isInitializing,
+    isUpdating
   };
 };

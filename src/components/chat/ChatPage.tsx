@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
@@ -8,6 +7,7 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useWebhook } from '@/hooks/useWebhook';
 import { useClinicaData } from '@/hooks/useClinicaData';
 import { useAIConversationControl } from '@/hooks/useAIConversationControl';
+import { useUpdateLeadAiConversationStatus } from '@/hooks/useUpdateLeadAiConversationStatus';
 
 interface Message {
   id: string;
@@ -34,11 +34,13 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     respostasProntas,
     mensagensNaoLidas,
     marcarMensagensComoLidas,
-    updateLeadAiConversationStatus,
     loading
   } = useSupabaseData();
 
   const { enviarWebhook } = useWebhook();
+
+  // Hook para atualização do status da IA
+  const updateLeadAiStatusMutation = useUpdateLeadAiConversationStatus();
 
   const [selectedConversation, setSelectedConversation] = useState<string | null>(selectedLeadId || null);
   const [messageInput, setMessageInput] = useState('');
@@ -49,9 +51,9 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const selectedLead = leads.find(l => l.id === selectedConversation) || null;
 
   // Hook para controlar a IA da conversa
-  const { aiEnabled, toggleAI, isInitializing } = useAIConversationControl({
+  const { aiEnabled, toggleAI, isInitializing, isUpdating } = useAIConversationControl({
     selectedLead,
-    updateLeadAiConversationStatus
+    updateLeadAiConversationStatus: updateLeadAiStatusMutation.mutateAsync
   });
 
   // Atualizar conversa selecionada quando selectedLeadId mudar
@@ -361,7 +363,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                 respostasProntas={respostasProntas}
                 aiEnabled={aiEnabled}
                 onToggleAI={toggleAI}
-                isAIInitializing={isInitializing}
+                isAIInitializing={isInitializing || isUpdating}
               />
             </div>
           </>
