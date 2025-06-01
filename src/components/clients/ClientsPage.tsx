@@ -1,7 +1,9 @@
+
 import React, { useState } from 'react';
 import { Lead } from '@/hooks/useLeadsData';
 import { useLeads } from '@/hooks/useLeadsData';
 import { useUpdateLead, useDeleteLead } from '@/hooks/useLeadsData';
+import { useEtapas } from '@/hooks/useEtapasData';
 import { LeadModal } from '@/components/kanban/LeadModal';
 import { Button } from "@/components/ui/button"
 import {
@@ -27,6 +29,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
+/**
+ * Componente da página de Clientes/Leads
+ * 
+ * Exibe uma tabela com todos os leads da clínica atual,
+ * permitindo pesquisa, edição e exclusão dos leads.
+ * Reutiliza o LeadModal para criação e edição.
+ */
+
 interface ClientsPageProps {
   // Define any props here
 }
@@ -37,6 +47,7 @@ const ClientsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const { data: leads, isLoading, isError } = useLeads();
+  const { data: etapas = [] } = useEtapas(); // Buscar etapas para o modal
   const updateLead = useUpdateLead();
   const deleteLead = useDeleteLead();
 
@@ -57,8 +68,8 @@ const ClientsPage = () => {
 
   const handleLeadUpdate = async (updatedLead: Lead) => {
     try {
-      // Corrigir a chamada para o hook useUpdateLead - precisa do formato { id, data }
-      await updateLead({
+      // Corrigir a chamada para o hook useUpdateLead - precisa usar mutateAsync
+      await updateLead.mutateAsync({
         id: updatedLead.id,
         data: {
           nome: updatedLead.nome,
@@ -172,6 +183,7 @@ const ClientsPage = () => {
         isOpen={isLeadModalOpen}
         onClose={handleCloseLeadModal}
         lead={selectedLead}
+        etapas={etapas} // Adicionar a prop etapas obrigatória
         onSave={handleLeadUpdate}
       />
     </div>

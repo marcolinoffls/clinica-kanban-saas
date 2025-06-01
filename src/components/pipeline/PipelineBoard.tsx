@@ -73,7 +73,13 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
 
   // Função para excluir etapa
   const handleDeleteEtapa = async (etapaParaDeletar: IPipelineColumn) => {
-    const result = await etapaActions.handleDeleteEtapa(etapaParaDeletar, leads);
+    // Converter IPipelineColumn para o formato esperado pelo hook
+    const etapaToDelete = {
+      ...etapaParaDeletar,
+      leadsCount: etapaParaDeletar.leadsCount || 0
+    };
+    
+    const result = await etapaActions.handleDeleteEtapa(etapaToDelete, leads);
     
     if (result?.needsMoveLeads && result.etapaToDelete) {
       modalControls.openMoveLeadsModal(result.etapaToDelete, result.etapaToDelete.leadsCount || 0);
