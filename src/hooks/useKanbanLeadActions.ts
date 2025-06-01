@@ -1,6 +1,5 @@
 import { Lead } from '@/components/kanban/KanbanBoard';
 import { useUpdateLead, useCreateLead, useMoveLeadToStage } from './useLeadsData';
-import { useConsultasData } from './useConsultasData';
 import { toast } from 'sonner';
 
 /**
@@ -12,7 +11,6 @@ export const useKanbanLeadActions = (
   const updateLeadMutation = useUpdateLead();
   const createLeadMutation = useCreateLead();
   const moveLeadMutation = useMoveLeadToStage();
-  const { consultasData } = useConsultasData();
 
   const handleSaveLead = async (leadData: any, selectedLead: Lead | null) => {
     try {
@@ -61,9 +59,8 @@ export const useKanbanLeadActions = (
   const handleOpenHistory = async (lead: Lead) => {
     try {
       console.log('📖 [useKanbanLeadActions] Abrindo histórico do lead:', lead.id);
-      // Lógica para buscar consultas do lead
-      const consultas = consultasData?.filter(consulta => consulta.lead_id === lead.id) || [];
-      return consultas;
+      // Por enquanto, retorna array vazio até implementar a busca de consultas
+      return [];
     } catch (error) {
       console.error('❌ [useKanbanLeadActions] Erro ao buscar histórico:', error);
       toast.error('Erro ao carregar histórico');
