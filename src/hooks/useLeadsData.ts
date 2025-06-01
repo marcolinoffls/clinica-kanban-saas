@@ -226,27 +226,23 @@ export const useMoveLeadToStage = () => {
         .from('leads')
         .update({ 
           etapa_kanban_id: etapaId,
-          data_ultimo_contato: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          data_ultimo_contato: new Date().toISOString(), // Atualiza data_ultimo_contato
+          updated_at: new Date().toISOString(), // Atualiza updated_at
         })
         .eq('id', leadId)
         .select()
         .single();
 
       if (error) {
-        console.error('❌ Erro ao mover lead:', error);
+        // ...
         throw new Error(`Erro ao mover lead: ${error.message}`);
       }
-
-      console.log('✅ Lead movido com sucesso');
+      // ...
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] }); // Invalida a query 'leads'
     },
-    onError: (error: Error) => {
-      console.error('❌ Erro ao mover lead:', error);
-      toast.error(`Erro ao mover lead: ${error.message}`);
-    },
+    // ...
   });
 };
