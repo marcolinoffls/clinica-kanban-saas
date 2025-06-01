@@ -34,7 +34,7 @@ export const PipelineLeadCard = ({
     
     // Armazenar dados do drag com identificador de tipo
     const dragData = {
-      type: 'LEAD_CARD',
+      type: 'LEAD_CARD' as const,
       id: lead.id,
       fromColumnId: columnId
     };

@@ -67,7 +67,7 @@ export const usePipelineColumnDrag = () => {
     
     // Armazenar dados da coluna com identificador de tipo
     const dragData = {
-      type: 'COLUMN',
+      type: 'COLUMN' as const,
       id: columnId
     };
     
