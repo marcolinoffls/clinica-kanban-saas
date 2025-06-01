@@ -9,12 +9,14 @@ import { useAuthUser } from './useAuthUser';
  * Hook para gerenciar ações das etapas no Pipeline
  * 
  * Centraliza as operações de:
- * - Criar etapa (com clinica_id automático)
- * - Editar etapa (protegido por RLS)
- * - Deletar etapa (protegido por RLS)
+ * - Criar etapa (com clinica_id automático e protegido por RLS)
+ * - Editar etapa (totalmente protegido por RLS)
+ * - Deletar etapa (totalmente protegido por RLS)
  * - Mover leads ao deletar etapa
  * 
- * As políticas RLS garantem isolamento por clínica
+ * As políticas RLS garantem isolamento TOTAL por clínica:
+ * - Usuários só podem criar/editar/deletar etapas da própria clínica
+ * - Tentativas de acesso a etapas de outras clínicas são automaticamente bloqueadas
  */
 
 export const usePipelineEtapaActions = () => {
@@ -35,12 +37,18 @@ export const usePipelineEtapaActions = () => {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          // Tratamento específico para erros de RLS
+          if (error.code === '42501' || error.message.includes('policy')) {
+            throw new Error('Você não tem permissão para editar esta etapa.');
+          }
+          throw error;
+        }
         return data;
       } else {
         // Criar nova etapa
         if (!userProfile?.clinica_id) {
-          throw new Error('Usuário não está associado a uma clínica');
+          throw new Error('Usuário não está associado a uma clínica válida');
         }
 
         // Calcular próxima ordem
@@ -48,7 +56,7 @@ export const usePipelineEtapaActions = () => {
           ? Math.max(...etapas.map(e => e.ordem || 0)) + 1 
           : 0;
 
-        // Incluir clinica_id automaticamente
+        // Incluir clinica_id explicitamente para garantir que a RLS funcione
         const { data, error } = await supabase
           .from('etapas_kanban')
           .insert([{
@@ -59,7 +67,13 @@ export const usePipelineEtapaActions = () => {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          // Tratamento específico para erros de RLS
+          if (error.code === '42501' || error.message.includes('policy')) {
+            throw new Error('Você não tem permissão para criar etapas.');
+          }
+          throw error;
+        }
         return data;
       }
     },
@@ -70,7 +84,7 @@ export const usePipelineEtapaActions = () => {
     },
     onError: (error: Error) => {
       console.error('❌ Erro ao salvar etapa:', error);
-      toast.error('Erro ao salvar etapa: ' + error.message);
+      toast.error(error.message || 'Erro ao salvar etapa');
     },
   });
 
@@ -85,7 +99,13 @@ export const usePipelineEtapaActions = () => {
         .delete()
         .eq('id', etapaId);
 
-      if (error) throw error;
+      if (error) {
+        // Tratamento específico para erros de RLS
+        if (error.code === '42501' || error.message.includes('policy')) {
+          throw new Error('Você não tem permissão para deletar esta etapa.');
+        }
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['etapas'] });
@@ -94,7 +114,7 @@ export const usePipelineEtapaActions = () => {
     },
     onError: (error: Error) => {
       console.error('❌ Erro ao deletar etapa:', error);
-      toast.error('Erro ao deletar etapa: ' + error.message);
+      toast.error(error.message || 'Erro ao deletar etapa');
     },
   });
 
@@ -114,7 +134,13 @@ export const usePipelineEtapaActions = () => {
         })
         .in('id', leadIds);
 
-      if (error) throw error;
+      if (error) {
+        // Tratamento específico para erros de RLS em leads
+        if (error.code === '42501' || error.message.includes('policy')) {
+          throw new Error('Você não tem permissão para mover estes leads.');
+        }
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
@@ -122,7 +148,7 @@ export const usePipelineEtapaActions = () => {
     },
     onError: (error: Error) => {
       console.error('❌ Erro ao mover leads:', error);
-      toast.error('Erro ao mover leads: ' + error.message);
+      toast.error(error.message || 'Erro ao mover leads');
     },
   });
 

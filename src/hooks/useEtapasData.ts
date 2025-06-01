@@ -8,12 +8,15 @@ import { useAuthUser } from './useAuthUser';
  * Hook para gerenciar dados de etapas do kanban
  * 
  * Este hook centraliza todas as operações relacionadas às etapas:
- * - Buscar etapas da clínica do usuário (protegido por RLS)
- * - Criar novas etapas (com clinica_id automático)
- * - Atualizar etapas existentes
- * - Deletar etapas
+ * - Buscar etapas da clínica do usuário (TOTALMENTE protegido por RLS)
+ * - Criar novas etapas (com clinica_id automático via RLS)
+ * - Atualizar etapas existentes (protegido por RLS)
+ * - Deletar etapas (protegido por RLS)
  * 
- * Utiliza as políticas RLS para garantir isolamento por clínica
+ * As políticas RLS garantem isolamento TOTAL por clínica:
+ * - SELECT: só vê etapas da própria clínica
+ * - INSERT: só pode criar etapas para sua clínica
+ * - UPDATE/DELETE: só pode modificar etapas da própria clínica
  */
 
 export interface Etapa {
@@ -24,7 +27,7 @@ export interface Etapa {
   created_at: string | null;
 }
 
-// Interface para criação de etapa (clinica_id será preenchido automaticamente)
+// Interface para criação de etapa (clinica_id será preenchido automaticamente via RLS)
 export interface CreateEtapaData {
   nome: string;
   ordem: number;
@@ -32,12 +35,15 @@ export interface CreateEtapaData {
 
 // Hook para buscar todas as etapas da clínica do usuário
 export const useEtapas = () => {
+  const { isAuthenticated } = useAuthUser();
+
   return useQuery({
     queryKey: ['etapas'],
     queryFn: async (): Promise<Etapa[]> => {
-      console.log('🔍 Buscando etapas da clínica do usuário (protegido por RLS)...');
+      console.log('🔍 Buscando etapas da clínica do usuário (isolado por RLS)...');
 
-      // As políticas RLS garantem que apenas etapas da clínica do usuário sejam retornadas
+      // As políticas RLS garantem que APENAS etapas da clínica do usuário sejam retornadas
+      // Não precisamos de filtro .eq('clinica_id', xxx) pois a RLS já faz isso automaticamente
       const { data, error } = await supabase
         .from('etapas_kanban')
         .select('*')
@@ -45,13 +51,27 @@ export const useEtapas = () => {
 
       if (error) {
         console.error('❌ Erro ao buscar etapas:', error);
+        
+        // Se o erro for relacionado à política RLS, dar uma mensagem mais clara
+        if (error.code === '42501' || error.message.includes('policy')) {
+          throw new Error('Você não tem permissão para acessar estas etapas. Verifique se está logado corretamente.');
+        }
+        
         throw new Error(`Erro ao buscar etapas: ${error.message}`);
       }
 
       console.log(`✅ ${data?.length || 0} etapas encontradas para a clínica do usuário`);
       return data || [];
     },
+    enabled: isAuthenticated, // Só busca se o usuário estiver autenticado
     staleTime: 30000, // Cache por 30 segundos
+    retry: (failureCount, error: any) => {
+      // Não retenta se for erro de permissão/RLS
+      if (error?.message?.includes('policy') || error?.code === '42501') {
+        return false;
+      }
+      return failureCount < 2;
+    },
   });
 };
 
@@ -65,10 +85,10 @@ export const useCreateEtapa = () => {
       console.log('➕ Criando nova etapa:', etapaData.nome);
 
       if (!userProfile?.clinica_id) {
-        throw new Error('Usuário não está associado a uma clínica');
+        throw new Error('Usuário não está associado a uma clínica válida');
       }
 
-      // Incluir clinica_id do usuário automaticamente
+      // Incluir clinica_id explicitamente para garantir que a RLS funcione corretamente
       const dataComClinica = {
         ...etapaData,
         clinica_id: userProfile.clinica_id,
@@ -82,6 +102,12 @@ export const useCreateEtapa = () => {
 
       if (error) {
         console.error('❌ Erro ao criar etapa:', error);
+        
+        // Mensagem específica para erros de RLS
+        if (error.code === '42501' || error.message.includes('policy')) {
+          throw new Error('Você não tem permissão para criar etapas. Verifique se está logado corretamente.');
+        }
+        
         throw new Error(`Erro ao criar etapa: ${error.message}`);
       }
 
@@ -94,7 +120,7 @@ export const useCreateEtapa = () => {
     },
     onError: (error: Error) => {
       console.error('❌ Erro na criação da etapa:', error);
-      toast.error(`Erro ao criar etapa: ${error.message}`);
+      toast.error(error.message || 'Erro ao criar etapa');
     },
   });
 };
@@ -108,15 +134,24 @@ export const useUpdateEtapa = () => {
       console.log('📝 Atualizando etapa:', id);
 
       // As políticas RLS garantem que apenas etapas da própria clínica podem ser atualizadas
+      // Removemos clinica_id do updateData para evitar tentativas de alterar a clínica
+      const { clinica_id, ...safeUpdateData } = updateData;
+
       const { data, error } = await supabase
         .from('etapas_kanban')
-        .update(updateData)
+        .update(safeUpdateData)
         .eq('id', id)
         .select()
         .single();
 
       if (error) {
         console.error('❌ Erro ao atualizar etapa:', error);
+        
+        // Mensagem específica para erros de RLS
+        if (error.code === '42501' || error.message.includes('policy')) {
+          throw new Error('Você não tem permissão para atualizar esta etapa.');
+        }
+        
         throw new Error(`Erro ao atualizar etapa: ${error.message}`);
       }
 
@@ -129,7 +164,7 @@ export const useUpdateEtapa = () => {
     },
     onError: (error: Error) => {
       console.error('❌ Erro na atualização da etapa:', error);
-      toast.error(`Erro ao atualizar etapa: ${error.message}`);
+      toast.error(error.message || 'Erro ao atualizar etapa');
     },
   });
 };
@@ -150,6 +185,12 @@ export const useDeleteEtapa = () => {
 
       if (error) {
         console.error('❌ Erro ao deletar etapa:', error);
+        
+        // Mensagem específica para erros de RLS
+        if (error.code === '42501' || error.message.includes('policy')) {
+          throw new Error('Você não tem permissão para deletar esta etapa.');
+        }
+        
         throw new Error(`Erro ao deletar etapa: ${error.message}`);
       }
 
@@ -161,7 +202,7 @@ export const useDeleteEtapa = () => {
     },
     onError: (error: Error) => {
       console.error('❌ Erro na exclusão da etapa:', error);
-      toast.error(`Erro ao deletar etapa: ${error.message}`);
+      toast.error(error.message || 'Erro ao deletar etapa');
     },
   });
 };
