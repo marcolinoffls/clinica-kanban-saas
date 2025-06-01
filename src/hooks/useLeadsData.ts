@@ -12,7 +12,7 @@ import { toast } from 'sonner';
  * - Atualizar leads existentes
  * - Deletar leads
  * - Mover leads entre etapas
- * - Atualizar estado de ativação da IA por lead (NOVO)
+ * - Atualizar estado de ativação da IA por lead
  * 
  * Utiliza as políticas RLS para garantir isolamento por clínica
  */
@@ -53,8 +53,6 @@ export const useLeads = () => {
   return useQuery({
     queryKey: ['leads'],
     queryFn: async (): Promise<Lead[]> => {
-      console.log('🔍 Buscando leads da clínica do usuário...');
-
       const { data, error } = await supabase
         .from('leads')
         .select('*')
@@ -66,7 +64,6 @@ export const useLeads = () => {
         throw new Error(`Erro ao buscar leads: ${error.message}`);
       }
 
-      console.log(`✅ ${data?.length || 0} leads encontrados`);
       return data || [];
     },
     staleTime: 30000,
@@ -78,8 +75,6 @@ export const useCreateLead = () => {
 
   return useMutation({
     mutationFn: async (leadData: CreateLeadData): Promise<Lead> => {
-      console.log('➕ Criando novo lead:', leadData.nome);
-
       const { data, error } = await supabase
         .from('leads')
         .insert([leadData])
@@ -87,11 +82,9 @@ export const useCreateLead = () => {
         .single();
 
       if (error) {
-        console.error('❌ Erro ao criar lead:', error);
         throw new Error(`Erro ao criar lead: ${error.message}`);
       }
 
-      console.log('✅ Lead criado com sucesso:', data.nome);
       return data;
     },
     onSuccess: () => {
@@ -99,7 +92,6 @@ export const useCreateLead = () => {
       toast.success('Lead criado com sucesso!');
     },
     onError: (error: Error) => {
-      console.error('❌ Erro na criação do lead:', error);
       toast.error(`Erro ao criar lead: ${error.message}`);
     },
   });
@@ -110,8 +102,6 @@ export const useUpdateLead = () => {
 
   return useMutation({
     mutationFn: async ({ id, ...updateData }: Partial<Lead> & { id: string }): Promise<Lead> => {
-      console.log('📝 Atualizando lead:', id);
-
       const { data, error } = await supabase
         .from('leads')
         .update({
@@ -123,11 +113,9 @@ export const useUpdateLead = () => {
         .single();
 
       if (error) {
-        console.error('❌ Erro ao atualizar lead:', error);
         throw new Error(`Erro ao atualizar lead: ${error.message}`);
       }
 
-      console.log('✅ Lead atualizado com sucesso:', data.nome);
       return data;
     },
     onSuccess: () => {
@@ -135,7 +123,6 @@ export const useUpdateLead = () => {
       toast.success('Lead atualizado com sucesso!');
     },
     onError: (error: Error) => {
-      console.error('❌ Erro na atualização do lead:', error);
       toast.error(`Erro ao atualizar lead: ${error.message}`);
     },
   });
@@ -146,8 +133,6 @@ export const useUpdateLeadAiConversationStatus = () => {
 
   return useMutation({
     mutationFn: async ({ leadId, aiEnabled }: { leadId: string; aiEnabled: boolean }): Promise<Lead> => {
-      console.log('🤖 Atualizando estado da IA para lead:', leadId, 'aiEnabled:', aiEnabled);
-
       const { data, error } = await supabase
         .from('leads')
         .update({ 
@@ -159,19 +144,15 @@ export const useUpdateLeadAiConversationStatus = () => {
         .single();
 
       if (error) {
-        console.error('❌ Erro ao atualizar estado da IA do lead:', error);
         throw new Error(`Erro ao atualizar estado da IA: ${error.message}`);
       }
 
-      console.log('✅ Estado da IA atualizado com sucesso para lead:', data.nome);
       return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      console.log(`ℹ️ IA ${data.ai_conversation_enabled ? 'ativada' : 'desativada'} para ${data.nome}`);
     },
     onError: (error: Error) => {
-      console.error('❌ Erro ao atualizar estado da IA:', error);
       toast.error(`Erro ao atualizar IA: ${error.message}`);
     },
   });
@@ -182,129 +163,71 @@ export const useDeleteLead = () => {
 
   return useMutation({
     mutationFn: async (leadId: string): Promise<void> => {
-      console.log('🗑️ Deletando lead:', leadId);
-
       const { error } = await supabase
         .from('leads')
         .delete()
         .eq('id', leadId);
 
       if (error) {
-        console.error('❌ Erro ao deletar lead:', error);
         throw new Error(`Erro ao deletar lead: ${error.message}`);
       }
-
-      console.log('✅ Lead deletado com sucesso');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('Lead deletado com sucesso!');
     },
     onError: (error: Error) => {
-      console.error('❌ Erro na exclusão do lead:', error);
       toast.error(`Erro ao deletar lead: ${error.message}`);
     },
   });
 };
 
-// ...existing code...
-
 /**
- * Hook APRIMORADO para mover lead entre etapas com atualização otimista (optimistic update)
- * 
- * - Atualiza o estado do lead localmente assim que o usuário solta o card (UX instantânea)
- * - Se o backend falhar, desfaz a alteração local e mostra erro
- * - Após sucesso, faz refetch para garantir consistência
+ * Hook para mover lead entre etapas com atualização otimista
  */
 export const useMoveLeadToStage = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    /**
-     * Função principal de mutação: move o lead para nova etapa no Supabase
-     */
     mutationFn: async ({ leadId, etapaId }: { leadId: string; etapaId: string }): Promise<Lead> => {
-      console.log('[useMoveLeadToStage] 🚀 INICIANDO mutationFn:', {
-        leadId,
-        etapaId,
-        timestamp: new Date().toISOString()
-      });
+      console.log('[useMoveLeadToStage] 📡 Atualizando lead no Supabase:', { leadId, etapaId });
 
-      // Validações detalhadas
-      if (!leadId || typeof leadId !== 'string' || leadId.trim() === '') {
-        const error = new Error('leadId é obrigatório e deve ser uma string válida');
-        console.error('[useMoveLeadToStage] ❌ Erro de validação - leadId:', { leadId, error });
-        throw error;
+      if (!leadId || !etapaId) {
+        throw new Error('leadId e etapaId são obrigatórios');
       }
 
-      if (!etapaId || typeof etapaId !== 'string' || etapaId.trim() === '') {
-        const error = new Error('etapaId é obrigatório e deve ser uma string válida');
-        console.error('[useMoveLeadToStage] ❌ Erro de validação - etapaId:', { etapaId, error });
-        throw error;
-      }
-
-      try {
-        console.log('[useMoveLeadToStage] 📡 Executando UPDATE no Supabase...');
-        
-        const updateData = {
+      const { data, error } = await supabase
+        .from('leads')
+        .update({
           etapa_kanban_id: etapaId,
           data_ultimo_contato: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        };
+        })
+        .eq('id', leadId)
+        .select()
+        .single();
 
-        console.log('[useMoveLeadToStage] 📊 Dados da atualização:', updateData);
-
-        const { data, error } = await supabase
-          .from('leads')
-          .update(updateData)
-          .eq('id', leadId)
-          .select()
-          .single();
-
-        if (error) {
-          console.error('[useMoveLeadToStage] ❌ Erro no Supabase:', error);
-          throw new Error(error.message);
-        }
-
-        if (!data) {
-          const error = new Error('Lead não encontrado após atualização');
-          console.error('[useMoveLeadToStage] ❌ Nenhum dado retornado:', error);
-          throw error;
-        }
-
-        console.log('[useMoveLeadToStage] ✅ UPDATE no Supabase CONCLUÍDO com sucesso!');
-        console.log('[useMoveLeadToStage] 📋 Dados retornados do Supabase:', {
-          leadNome: data.nome,
-          leadId: data.id,
-          novaEtapaId: data.etapa_kanban_id,
-          dataUltimoContato: data.data_ultimo_contato,
-          updatedAt: data.updated_at
-        });
-
-        return data;
-
-      } catch (supabaseError: any) {
-        console.error('[useMoveLeadToStage] ❌ Erro durante operação no Supabase:', {
-          error: supabaseError,
-          message: supabaseError?.message || 'Erro desconhecido',
-          leadId,
-          etapaId
-        });
-        throw supabaseError;
+      if (error) {
+        console.error('[useMoveLeadToStage] ❌ Erro no Supabase:', error);
+        throw new Error(error.message);
       }
+
+      if (!data) {
+        throw new Error('Lead não encontrado após atualização');
+      }
+
+      console.log('[useMoveLeadToStage] ✅ Lead atualizado com sucesso no Supabase');
+      return data;
     },
 
-    /**
-     * Atualização otimista: move o lead localmente antes do backend responder
-     */
     onMutate: async ({ leadId, etapaId }) => {
-      // Cancela qualquer refetch pendente para evitar sobrescrever o estado otimista
+      // Cancela queries pendentes para evitar conflitos
       await queryClient.cancelQueries({ queryKey: ['leads'] });
 
-      // Salva o estado anterior dos leads para possível rollback
+      // Salva o estado anterior para rollback se necessário
       const previousLeads = queryClient.getQueryData<Lead[]>(['leads']);
 
-      // Atualiza o cache local dos leads, movendo o lead para a nova etapa
+      // Atualização otimista: move o lead para nova etapa imediatamente na UI
       queryClient.setQueryData<Lead[]>(['leads'], old =>
         old
           ? old.map(lead =>
@@ -315,44 +238,25 @@ export const useMoveLeadToStage = () => {
           : []
       );
 
-      // Retorna o estado anterior para ser usado em caso de erro
+      console.log('[useMoveLeadToStage] 🔄 Atualização otimista aplicada');
+
       return { previousLeads };
     },
 
-    /**
-     * Em caso de erro, desfaz a alteração otimista e mostra toast de erro
-     */
     onError: (error, _variables, context) => {
+      // Reverte a atualização otimista em caso de erro
       if (context?.previousLeads) {
         queryClient.setQueryData(['leads'], context.previousLeads);
       }
-      console.error('[useMoveLeadToStage] ❌ CALLBACK onError executado:', {
-        error,
-        message: error.message,
-        stack: error.stack
-      });
+      console.error('[useMoveLeadToStage] ❌ Erro na mutação:', error);
       toast.error(`Erro ao mover lead: ${error.message}`);
     },
 
-    /**
-     * Após sucesso, faz refetch dos leads para garantir consistência
-     */
     onSuccess: (data) => {
-      console.log('[useMoveLeadToStage] 🎉 CALLBACK onSuccess executado!');
-      console.log('[useMoveLeadToStage] 📋 Lead movido com sucesso:', {
-        leadNome: data.nome,
-        leadId: data.id,
-        novaEtapaId: data.etapa_kanban_id
-      });
-      
-      console.log('[useMoveLeadToStage] ♻️ Invalidando cache com queryKey: ["leads"]');
+      // Invalida e recarrega os dados para garantir consistência
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      
-      console.log('[useMoveLeadToStage] 🔔 Exibindo toast de sucesso');
       toast.success(`Lead "${data.nome}" movido para nova etapa!`);
-      
-      console.log('[useMoveLeadToStage] ✅ Callback onSuccess CONCLUÍDO');
+      console.log('[useMoveLeadToStage] 🎉 Lead movido com sucesso!');
     },
   });
 };
-// ...existing code...

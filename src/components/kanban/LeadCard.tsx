@@ -34,31 +34,40 @@ export const LeadCard = ({
    * Define todos os dados necessários no dataTransfer para máxima compatibilidade.
    */
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    // Guarda uma referência do lead sendo arrastado
+    console.log('[LeadCard] 🚀 Iniciando drag do lead:', lead.nome, 'da coluna:', columnId);
+    
+    // Define a referência global (método primário)
     window.__DRAGGED_LEAD__ = {
       id: lead.id,
       fromColumnId: columnId
     };
   
-    // Define os dados no dataTransfer
-    e.dataTransfer.setData('application/json', JSON.stringify({
+    // Define dados no dataTransfer (método de fallback)
+    const dragData = {
+      type: 'leadCard',
       leadId: lead.id,
       fromColumnId: columnId
-    }));
+    };
+    
+    e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+    e.dataTransfer.setData('text/plain', `leadCard:${lead.id}:${columnId}`);
   
-    // Feedback visual
+    // Configurações de feedback visual
     e.currentTarget.style.opacity = '0.5';
     e.dataTransfer.effectAllowed = 'move';
   };
   
   /**
    * Handler para fim do drag.
-   * Limpa a referência global e restaura feedback visual.
+   * Limpa referências globais e restaura feedback visual.
    */
   const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
-    console.log('🟡 Finalizando drag do lead:', lead.nome);
-    // Limpa a referência e restaura a opacidade
+    console.log('[LeadCard] 🏁 Finalizando drag do lead:', lead.nome);
+    
+    // Limpa a referência global
     window.__DRAGGED_LEAD__ = null;
+    
+    // Restaura a opacidade
     e.currentTarget.style.opacity = '1';
   };
 
