@@ -1,3 +1,4 @@
+
 // src/components/kanban/LeadCard.tsx
 
 import React from 'react';
@@ -50,17 +51,14 @@ export const LeadCard = ({
     e.dataTransfer.effectAllowed = 'move';
   };
   
-  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
-    // Limpa a referência e restaura a opacidade
-    window.__DRAGGED_LEAD__ = null;
-    e.currentTarget.style.opacity = '1';
-  };
   /**
    * Handler para fim do drag.
-   * Remove feedback visual.
+   * Limpa a referência global e restaura feedback visual.
    */
   const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
     console.log('🟡 Finalizando drag do lead:', lead.nome);
+    // Limpa a referência e restaura a opacidade
+    window.__DRAGGED_LEAD__ = null;
     e.currentTarget.style.opacity = '1';
   };
 
