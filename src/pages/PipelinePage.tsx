@@ -4,10 +4,17 @@ import { useNavigate } from 'react-router-dom';
 import { PipelineBoard } from '@/components/pipeline/PipelineBoard';
 
 /**
- * Página do Funil de Vendas (Kanban)
+ * Página do Pipeline de Vendas (Funil de Vendas)
  *
- * Gerencia leads em formato kanban.
- * Esta página encapsula o componente PipelineBoard.
+ * Esta página oferece uma visão em formato Kanban para gerenciar
+ * leads através do funil de vendas. É uma implementação completamente
+ * nova e independente, focada especificamente no pipeline de vendas.
+ * 
+ * Funcionalidades:
+ * - Visualização em colunas (etapas) do funil
+ * - Drag and drop de leads entre etapas
+ * - CRUD completo de leads e etapas
+ * - Integração com chat para cada lead
  */
 const PipelinePage = () => {
   const navigate = useNavigate();
@@ -18,7 +25,7 @@ const PipelinePage = () => {
   };
 
   return (
-    <div className="h-full">
+    <div className="h-full bg-gray-50">
       <PipelineBoard onNavigateToChat={handleNavigateToChat} />
     </div>
   );

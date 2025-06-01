@@ -1,23 +1,12 @@
 
-import { Etapa } from '@/hooks/useEtapasData';
-
 /**
- * Interfaces específicas para o componente Pipeline
+ * Tipos específicos para o Pipeline de Vendas
  * 
- * Estas interfaces estendem as tipagens existentes para
- * garantir compatibilidade com os hooks do Kanban.
+ * Define as interfaces para leads e etapas no contexto do pipeline,
+ * mantendo independência do Kanban existente.
  */
 
-// Interface para colunas do Pipeline que é compatível com IKanbanColumn
-export interface IPipelineColumn extends Etapa {
-  title: string;
-  leadIds: string[];
-  leadsCount?: number;
-  // created_at é obrigatório (herdado de Etapa)
-}
-
-// Interface para leads do Pipeline (reutiliza a interface existente)
-export interface IPipelineLead {
+export interface LeadPipeline {
   id: string;
   nome: string;
   telefone: string | null;
@@ -31,4 +20,20 @@ export interface IPipelineLead {
   clinica_id: string | null;
   origem_lead: string | null;
   servico_interesse: string | null;
+  ordem_na_etapa?: number;
+}
+
+export interface EtapaPipeline {
+  id: string;
+  nome: string;
+  ordem: number;
+  clinica_id: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface PipelineColumnData extends EtapaPipeline {
+  title: string;
+  leadIds: string[];
+  leadsCount: number;
 }
