@@ -125,9 +125,7 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
    */
   const handleDropLeadInColumn = async (leadId: string, fromColumnId: string, toColumnId: string) => {
     if (fromColumnId === toColumnId) {
-        console.log(`Lead ${leadId} solto na mesma coluna ${toColumnId}. Nenhuma mudança de etapa necessária.`);
-        // Aqui você poderia adicionar lógica para reordenar leads DENTRO da mesma coluna se desejado.
-        // Por enquanto, apenas prevenimos a chamada de mutação desnecessária.
+        // ...
         return;
     }
     console.log(`KanbanBoard: Movendo lead ${leadId} de ${fromColumnId} para ${toColumnId}`);
@@ -138,7 +136,6 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
       alert('Erro ao mover lead. Tente novamente.');
     }
   };
-
   // Função para abrir histórico de consultas
   const handleOpenHistory = async (lead: Lead) => {
     try {
