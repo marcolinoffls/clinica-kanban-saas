@@ -15,25 +15,21 @@ import { toast } from 'sonner';
 export const useKanbanLeadActions = (
   onNavigateToChat?: (leadId: string) => void
 ) => {
-  // Hooks de mutação do React Query
   const updateLeadMutation = useUpdateLead();
   const createLeadMutation = useCreateLead();
   const moveLeadMutation = useMoveLeadToStage();
 
-  // Função para salvar lead (criar ou atualizar)
   const handleSaveLead = async (leadData: any, selectedLead: Lead | null) => {
     try {
       console.log('💾 Salvando lead:', leadData);
       
       if (selectedLead && selectedLead.id) {
-        // Atualizar lead existente
         await updateLeadMutation.mutateAsync({
           id: selectedLead.id,
           ...leadData
         });
         console.log('✅ Lead atualizado com sucesso');
       } else {
-        // Criar novo lead
         const createData: CreateLeadData = {
           nome: leadData.nome,
           telefone: leadData.telefone,
@@ -51,58 +47,82 @@ export const useKanbanLeadActions = (
       }
     } catch (error) {
       console.error('❌ Erro ao salvar lead:', error);
-      throw error; // Re-lança para que o modal possa tratar se necessário
+      throw error;
     }
   };
 
   /**
-   * Manipulador chamado quando um LeadCard é SOLTO em uma coluna.
-   * Esta função é crucial para a persistência da mudança de etapa do lead.
+   * Manipulador melhorado para quando um LeadCard é SOLTO em uma coluna.
+   * Inclui logs detalhados para debugging e melhor tratamento de erros.
    */
   const handleDropLeadInColumn = async (leadId: string, fromColumnId: string, toColumnId: string) => {
-    console.log(`[KanbanLeadActions] 📦 handleDropLeadInColumn: Tentando mover lead...`, {
+    console.log(`[KanbanLeadActions] 🚀 ENTRADA na handleDropLeadInColumn:`, {
       leadId,
       fromColumnId,
-      toColumnId
+      toColumnId,
+      timestamp: new Date().toISOString()
     });
 
-    // Validações essenciais dos parâmetros
-    if (!leadId || !fromColumnId || !toColumnId) {
-      console.error('[KanbanLeadActions] ❌ Erro: IDs inválidos ou ausentes.', { leadId, fromColumnId, toColumnId });
+    // Validações mais detalhadas
+    if (!leadId) {
+      console.error('[KanbanLeadActions] ❌ ERRO: leadId está vazio ou undefined', { leadId });
+      toast.error('Erro: ID do lead não identificado');
       return;
     }
 
-    // Se o lead foi solto na mesma coluna de onde veio, não faz nada
+    if (!fromColumnId) {
+      console.error('[KanbanLeadActions] ❌ ERRO: fromColumnId está vazio ou undefined', { fromColumnId });
+      toast.error('Erro: Coluna de origem não identificada');
+      return;
+    }
+
+    if (!toColumnId) {
+      console.error('[KanbanLeadActions] ❌ ERRO: toColumnId está vazio ou undefined', { toColumnId });
+      toast.error('Erro: Coluna de destino não identificada');
+      return;
+    }
+
     if (fromColumnId === toColumnId) {
-      console.log(`[KanbanLeadActions] ⚪️ Lead "${leadId}" solto na mesma coluna de origem ("${fromColumnId}"). Nenhuma atualização de etapa necessária.`);
+      console.log(`[KanbanLeadActions] ⚪️ Lead "${leadId}" movido para a mesma etapa. Nenhuma atualização necessária.`);
       return;
     }
     
     try {
-      console.log(`[KanbanLeadActions] 🚀 Executando mutação para mover lead "${leadId}" para etapa "${toColumnId}".`);
+      console.log(`[KanbanLeadActions] 📡 INICIANDO mutação useMoveLeadToStage...`);
+      console.log(`[KanbanLeadActions] 📊 Parâmetros da mutação:`, { 
+        leadId, 
+        etapaId: toColumnId,
+        isPending: moveLeadMutation.isPending
+      });
       
-      // Chama a mutação para atualizar a etapa do lead no backend
       const result = await moveLeadMutation.mutateAsync({ 
         leadId, 
         etapaId: toColumnId 
       });
       
-      console.log('[KanbanLeadActions] ✅ Mutação executada com sucesso. Resultado:', result);
+      console.log('[KanbanLeadActions] ✅ Mutação useMoveLeadToStage CONCLUÍDA com sucesso!');
+      console.log('[KanbanLeadActions] 📋 Resultado da mutação:', result);
+      console.log('[KanbanLeadActions] 🎯 Lead movido com sucesso de', fromColumnId, 'para', toColumnId);
 
     } catch (error: any) {
-      console.error('[KanbanLeadActions] ❌ Erro ao executar mutação:', {
-        errorMessage: error.message,
+      console.error('[KanbanLeadActions] ❌ ERRO na mutação useMoveLeadToStage:', {
+        errorMessage: error?.message || 'Erro desconhecido',
+        errorDetails: error,
         leadId,
+        fromColumnId,
         toColumnId,
-        errorStack: error.stack
+        stackTrace: error?.stack
       });
+      
+      // Toast com erro mais específico
+      const errorMessage = error?.message || 'Erro desconhecido ao mover lead';
+      toast.error(`Erro ao mover lead: ${errorMessage}`);
     }
   };
 
-  // Função para abrir histórico de consultas
   const handleOpenHistory = async (lead: Lead) => {
     try {
-      const consultas: any[] = []; // Simulação - implementar busca real se necessário
+      const consultas: any[] = [];
       return consultas;
     } catch (error) {
       console.error('Erro ao buscar consultas:', error);
@@ -111,7 +131,6 @@ export const useKanbanLeadActions = (
     }
   };
 
-  // Função para abrir chat com lead
   const handleOpenChat = (lead: Lead) => {
     if (onNavigateToChat) {
       onNavigateToChat(lead.id);
@@ -124,7 +143,6 @@ export const useKanbanLeadActions = (
     handleOpenHistory,
     handleOpenChat,
     
-    // Estados de loading das mutações
     isCreatingLead: createLeadMutation.isPending,
     isUpdatingLead: updateLeadMutation.isPending,
     isMovingLead: moveLeadMutation.isPending,

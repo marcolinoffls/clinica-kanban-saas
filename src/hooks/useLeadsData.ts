@@ -33,10 +33,9 @@ export interface Lead {
   data_ultimo_contato: string | null;
   created_at: string | null;
   updated_at: string | null;
-  ai_conversation_enabled: boolean | null; // NOVO: Controle de IA por lead
+  ai_conversation_enabled: boolean | null;
 }
 
-// Interface para criação de lead (campos obrigatórios)
 export interface CreateLeadData {
   nome: string;
   telefone?: string;
@@ -47,10 +46,9 @@ export interface CreateLeadData {
   anotacoes?: string;
   origem_lead?: string;
   servico_interesse?: string;
-  ai_conversation_enabled?: boolean; // NOVO: Estado inicial da IA
+  ai_conversation_enabled?: boolean;
 }
 
-// Hook para buscar todos os leads da clínica do usuário
 export const useLeads = () => {
   return useQuery({
     queryKey: ['leads'],
@@ -59,7 +57,7 @@ export const useLeads = () => {
 
       const { data, error } = await supabase
         .from('leads')
-        .select('*') // Agora inclui ai_conversation_enabled
+        .select('*')
         .order('data_ultimo_contato', { ascending: false, nullsFirst: false })
         .order('updated_at', { ascending: false });
 
@@ -71,11 +69,10 @@ export const useLeads = () => {
       console.log(`✅ ${data?.length || 0} leads encontrados`);
       return data || [];
     },
-    staleTime: 30000, // Cache por 30 segundos
+    staleTime: 30000,
   });
 };
 
-// Hook para criar novo lead
 export const useCreateLead = () => {
   const queryClient = useQueryClient();
 
@@ -108,7 +105,6 @@ export const useCreateLead = () => {
   });
 };
 
-// Hook para atualizar lead existente
 export const useUpdateLead = () => {
   const queryClient = useQueryClient();
 
@@ -145,7 +141,6 @@ export const useUpdateLead = () => {
   });
 };
 
-// NOVO: Hook para atualizar apenas o estado da IA para um lead específico
 export const useUpdateLeadAiConversationStatus = () => {
   const queryClient = useQueryClient();
 
@@ -173,7 +168,6 @@ export const useUpdateLeadAiConversationStatus = () => {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      // Toast sutil para não poluir a interface
       console.log(`ℹ️ IA ${data.ai_conversation_enabled ? 'ativada' : 'desativada'} para ${data.nome}`);
     },
     onError: (error: Error) => {
@@ -183,7 +177,6 @@ export const useUpdateLeadAiConversationStatus = () => {
   });
 };
 
-// Hook para deletar lead
 export const useDeleteLead = () => {
   const queryClient = useQueryClient();
 
@@ -214,62 +207,111 @@ export const useDeleteLead = () => {
   });
 };
 
-// Hook para mover lead entre etapas - VERSÃO CORRIGIDA
+/**
+ * Hook APRIMORADO para mover lead entre etapas com logs detalhados
+ */
 export const useMoveLeadToStage = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ leadId, etapaId }: { leadId: string; etapaId: string }): Promise<Lead> => {
-      console.log('🔄 Iniciando movimentação do lead:', leadId, 'para etapa:', etapaId);
+      console.log('[useMoveLeadToStage] 🚀 INICIANDO mutationFn:', {
+        leadId,
+        etapaId,
+        timestamp: new Date().toISOString()
+      });
 
-      // Validações antes de tentar atualizar
-      if (!leadId || !etapaId) {
-        throw new Error('leadId e etapaId são obrigatórios');
+      // Validações detalhadas
+      if (!leadId || typeof leadId !== 'string' || leadId.trim() === '') {
+        const error = new Error('leadId é obrigatório e deve ser uma string válida');
+        console.error('[useMoveLeadToStage] ❌ Erro de validação - leadId:', { leadId, error });
+        throw error;
+      }
+
+      if (!etapaId || typeof etapaId !== 'string' || etapaId.trim() === '') {
+        const error = new Error('etapaId é obrigatório e deve ser uma string válida');
+        console.error('[useMoveLeadToStage] ❌ Erro de validação - etapaId:', { etapaId, error });
+        throw error;
       }
 
       try {
+        console.log('[useMoveLeadToStage] 📡 Executando UPDATE no Supabase...');
+        
+        const updateData = {
+          etapa_kanban_id: etapaId,
+          data_ultimo_contato: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        console.log('[useMoveLeadToStage] 📊 Dados da atualização:', updateData);
+
         const { data, error } = await supabase
           .from('leads')
-          .update({ 
-            etapa_kanban_id: etapaId,
-            data_ultimo_contato: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
+          .update(updateData)
           .eq('id', leadId)
           .select()
           .single();
 
         if (error) {
-          console.error('❌ Erro do Supabase ao mover lead:', error);
-          throw new Error(`Erro ao atualizar lead no banco: ${error.message}`);
+          console.error('[useMoveLeadToStage] ❌ Erro retornado pelo Supabase:', {
+            error,
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          });
+          throw new Error(`Erro do Supabase ao atualizar lead: ${error.message}`);
         }
 
         if (!data) {
-          throw new Error('Lead não encontrado ou não foi possível atualizar');
+          const error = new Error('Nenhum dado foi retornado pelo Supabase - lead pode não existir');
+          console.error('[useMoveLeadToStage] ❌ Dados não encontrados:', { leadId, error });
+          throw error;
         }
 
-        console.log('✅ Lead movido com sucesso no banco:', data.nome, 'para etapa:', etapaId);
+        console.log('[useMoveLeadToStage] ✅ UPDATE no Supabase CONCLUÍDO com sucesso!');
+        console.log('[useMoveLeadToStage] 📋 Dados retornados do Supabase:', {
+          leadNome: data.nome,
+          leadId: data.id,
+          novaEtapaId: data.etapa_kanban_id,
+          dataUltimoContato: data.data_ultimo_contato,
+          updatedAt: data.updated_at
+        });
+
         return data;
 
       } catch (supabaseError: any) {
-        console.error('❌ Erro na operação do Supabase:', supabaseError);
+        console.error('[useMoveLeadToStage] ❌ Erro durante operação no Supabase:', {
+          error: supabaseError,
+          message: supabaseError?.message || 'Erro desconhecido',
+          leadId,
+          etapaId
+        });
         throw supabaseError;
       }
     },
     onSuccess: (data) => {
-      console.log('🎉 Callback onSuccess executado para lead:', data.nome);
+      console.log('[useMoveLeadToStage] 🎉 CALLBACK onSuccess executado!');
+      console.log('[useMoveLeadToStage] 📋 Lead movido com sucesso:', {
+        leadNome: data.nome,
+        leadId: data.id,
+        novaEtapaId: data.etapa_kanban_id
+      });
       
-      // Invalidar cache com a chave exata usada no useLeads
+      console.log('[useMoveLeadToStage] ♻️ Invalidando cache com queryKey: ["leads"]');
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       
-      // Também invalidar cache mais específico se existir
-      queryClient.invalidateQueries({ queryKey: ['leads', 'etapa'] });
-      
-      console.log('♻️ Cache invalidado - UI deve atualizar');
+      console.log('[useMoveLeadToStage] 🔔 Exibindo toast de sucesso');
       toast.success(`Lead "${data.nome}" movido para nova etapa!`);
+      
+      console.log('[useMoveLeadToStage] ✅ Callback onSuccess CONCLUÍDO');
     },
     onError: (error: Error) => {
-      console.error('❌ Callback onError executado:', error);
+      console.error('[useMoveLeadToStage] ❌ CALLBACK onError executado:', {
+        error,
+        message: error.message,
+        stack: error.stack
+      });
       toast.error(`Erro ao mover lead: ${error.message}`);
     },
   });

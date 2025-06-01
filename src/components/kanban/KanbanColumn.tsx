@@ -1,7 +1,7 @@
 // src/components/kanban/KanbanColumn.tsx
 import React, { useState } from 'react';
 import { Edit2, Trash2 } from 'lucide-react';
-import { Lead, IKanbanColumn } from './KanbanBoard'; // Assegure que KanbanBoard.tsx exporte estas interfaces
+import { Lead, IKanbanColumn } from './KanbanBoard';
 import { LeadCard } from './LeadCard';
 
 interface KanbanColumnProps {
@@ -14,7 +14,7 @@ interface KanbanColumnProps {
   onOpenChat: (lead: Lead) => void;
   onEditEtapa: () => void;
   onDeleteEtapa: () => void;
-  isColumnDragOverTarget?: boolean; // Para feedback visual de arraste de *outra coluna* sobre esta
+  isColumnDragOverTarget?: boolean;
 }
 
 export const KanbanColumn = ({
@@ -27,105 +27,119 @@ export const KanbanColumn = ({
   onOpenChat,
   onEditEtapa,
   onDeleteEtapa,
-  isColumnDragOverTarget, // Usado para feedback visual quando ESTA coluna é um alvo de drop para OUTRA COLUNA
+  isColumnDragOverTarget,
 }: KanbanColumnProps) => {
-  // Estado local para feedback visual quando um CARD de lead está sendo arrastado SOBRE esta coluna
   const [isDragOverForLeadCard, setIsDragOverForLeadCard] = useState(false);
 
-  /**
-   * Manipulador para onDragOver na coluna.
-   * Chamado continuamente enquanto um item arrastável está sobre esta coluna.
-   * É crucial chamar e.preventDefault() para permitir que o evento onDrop seja disparado.
-   */
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault(); // NECESSÁRIO para permitir o drop.
+    e.preventDefault();
 
-    // Lê o tipo de item diretamente da chave 'itemType' definida em LeadCard.tsx
     const itemType = e.dataTransfer.getData('itemType');
     
-    // Log para depuração: o que está sendo detectado durante o dragOver?
     console.log(
       `[KanbanColumn] 🟡 DragOver na coluna: "${column.nome}". Tipos no dataTransfer: [${Array.from(e.dataTransfer.types).join(', ')}]. Lido itemType: "${itemType}"`
     );
 
     if (itemType === 'leadCard') {
-      e.dataTransfer.dropEffect = 'move'; // Indica ao navegador que uma operação de "mover" é permitida.
+      e.dataTransfer.dropEffect = 'move';
       if (!isDragOverForLeadCard) {
-        // console.log(`[KanbanColumn] DragOver ENTER para LeadCard na coluna "${column.nome}"`);
-        setIsDragOverForLeadCard(true); // Ativa o feedback visual de drop válido para card.
+        setIsDragOverForLeadCard(true);
       }
     } else {
-      e.dataTransfer.dropEffect = 'none'; // Nenhum drop permitido se não for um 'leadCard'.
+      e.dataTransfer.dropEffect = 'none';
       if (isDragOverForLeadCard) {
-        // console.log(`[KanbanColumn] DragOver LEAVE para LeadCard (itemType inválido) na coluna "${column.nome}"`);
         setIsDragOverForLeadCard(false);
       }
     }
   };
 
-  /**
-   * Manipulador para onDragLeave na coluna.
-   * Chamado quando um item arrastável sai da área desta coluna.
-   * Limpa o feedback visual de drop.
-   */
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    // Verifica se o mouse realmente saiu da área da coluna (e não apenas para um elemento filho)
-    // Esta verificação ajuda a manter o estado de 'drag over' se o mouse passar por cima de um card dentro da coluna.
     if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      // console.log(`[KanbanColumn] DragLeave da coluna "${column.nome}"`);
       setIsDragOverForLeadCard(false);
     }
   };
 
-  /**
-   * Manipulador para onDrop na coluna.
-   * Chamado quando um item arrastável é SOLTO sobre esta coluna.
-   */
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault(); // Previne o comportamento padrão do navegador (ex: abrir link se o dado for uma URL).
-    setIsDragOverForLeadCard(false); // Limpa o feedback visual de drop.
+    console.log(`[KanbanColumn] 🔥 INICIANDO handleDrop na coluna "${column.nome}"`);
+    
+    e.preventDefault();
+    setIsDragOverForLeadCard(false);
 
-    // Lê os dados diretamente usando as chaves EXATAS definidas em LeadCard.tsx -> handleDragStart.
-    // A consistência nas chaves (incluindo maiúsculas/minúsculas) é crucial.
-    const leadId = e.dataTransfer.getData('leadId');
+    // Tentar múltiplas formas de obter os dados
+    const leadId = e.dataTransfer.getData('leadId') || e.dataTransfer.getData('text/plain');
     const fromColumnId = e.dataTransfer.getData('fromColumnId');
     const itemType = e.dataTransfer.getData('itemType');
+    
+    // Tentar também pelo JSON como fallback
+    let jsonData = null;
+    try {
+      const jsonString = e.dataTransfer.getData('application/json');
+      if (jsonString) {
+        jsonData = JSON.parse(jsonString);
+      }
+    } catch (error) {
+      console.warn('[KanbanColumn] Não foi possível parsear JSON do dataTransfer:', error);
+    }
 
-    // Log detalhado dos dados recebidos no drop. Crucial para depuração.
-    console.log(`[KanbanColumn] 🟢 Drop na coluna "${column.nome}". Dados recebidos:`, {
-      leadIdLido: leadId,
-      fromColumnIdLido: fromColumnId,
-      toColumnIdDestino: column.id, // ID da coluna atual onde o item foi solto
-      itemTypeLido: itemType,
-      todosOsTiposNoDataTransfer: Array.from(e.dataTransfer.types) // Lista todos os formatos/chaves presentes no dataTransfer
+    console.log(`[KanbanColumn] 🔍 Dados extraídos do drop:`, {
+      leadIdPrimario: leadId,
+      leadIdDoJson: jsonData?.leadId,
+      fromColumnIdPrimario: fromColumnId,
+      fromColumnIdDoJson: jsonData?.fromColumnId,
+      itemTypePrimario: itemType,
+      itemTypeDoJson: jsonData?.itemType,
+      toColumnIdDestino: column.id,
+      todosOsTiposDisponiveis: Array.from(e.dataTransfer.types)
     });
 
-    // Validações para garantir que os dados necessários para mover um lead foram recebidos.
-    if (!leadId) {
-      console.warn('[KanbanColumn] ⚠️ Drop cancelado: leadId não foi encontrado no dataTransfer. Verifique se "leadId" foi setado corretamente no dragStart.');
-      return;
-    }
-    if (!fromColumnId) {
-      console.warn('[KanbanColumn] ⚠️ Drop cancelado: fromColumnId não foi encontrado no dataTransfer. Verifique se "fromColumnId" foi setado corretamente no dragStart.');
-      return;
-    }
-     if (itemType !== 'leadCard') {
-      console.warn(`[KanbanColumn] ⚠️ Drop cancelado: itemType lido foi "${itemType}", mas era esperado "leadCard". Verifique se "itemType" foi setado corretamente no dragStart.`);
+    // Usar dados do JSON como fallback se os primários estiverem vazios
+    const finalLeadId = leadId || jsonData?.leadId;
+    const finalFromColumnId = fromColumnId || jsonData?.fromColumnId;
+    const finalItemType = itemType || jsonData?.itemType;
+
+    // Validações detalhadas
+    if (!finalLeadId) {
+      console.error('[KanbanColumn] ❌ Drop CANCELADO: leadId não encontrado. Dados disponíveis:', {
+        leadIdTentativas: [leadId, jsonData?.leadId],
+        todosOsTypes: Array.from(e.dataTransfer.types)
+      });
       return;
     }
 
-    // Evita chamar a função de mover se o lead foi solto na mesma coluna de onde saiu.
-    // Se fosse implementada a reordenação de cards DENTRO da mesma coluna, a lógica aqui seria diferente.
-    if (fromColumnId === column.id) {
-      console.log(`[KanbanColumn] ⚪️ Lead "${leadId}" solto na mesma coluna de origem ("${column.nome}"). Nenhuma mudança de etapa necessária.`);
+    if (!finalFromColumnId) {
+      console.error('[KanbanColumn] ❌ Drop CANCELADO: fromColumnId não encontrado. Dados disponíveis:', {
+        fromColumnIdTentativas: [fromColumnId, jsonData?.fromColumnId]
+      });
       return;
     }
 
-    // Se todas as validações passaram e é um 'leadCard' sendo movido para uma NOVA coluna,
-    // chama a função onDropLeadInColumn (passada por props) para lidar com a lógica de negócio
-    // (geralmente, atualizar o backend e depois o estado da UI).
-    console.log(`[KanbanColumn] ✅ Processando drop do lead "${leadId}" da coluna "${fromColumnId}" para a coluna "${column.id}" ("${column.nome}").`);
-    onDropLeadInColumn(leadId, fromColumnId, column.id);
+    if (finalItemType !== 'leadCard') {
+      console.error('[KanbanColumn] ❌ Drop CANCELADO: itemType inválido.', {
+        itemTypeRecebido: finalItemType,
+        itemTypeEsperado: 'leadCard'
+      });
+      return;
+    }
+
+    if (finalFromColumnId === column.id) {
+      console.log(`[KanbanColumn] ⚪️ Lead "${finalLeadId}" solto na mesma coluna ("${column.nome}"). Nenhuma mudança necessária.`);
+      return;
+    }
+
+    console.log(`[KanbanColumn] ✅ TODAS as validações passaram. Chamando onDropLeadInColumn...`);
+    console.log(`[KanbanColumn] 📞 Parâmetros da chamada:`, {
+      leadId: finalLeadId,
+      fromColumnId: finalFromColumnId,
+      toColumnId: column.id,
+      nomeColuna: column.nome
+    });
+
+    try {
+      onDropLeadInColumn(finalLeadId, finalFromColumnId, column.id);
+      console.log(`[KanbanColumn] ✅ onDropLeadInColumn chamado com sucesso`);
+    } catch (error) {
+      console.error(`[KanbanColumn] ❌ Erro ao chamar onDropLeadInColumn:`, error);
+    }
   };
 
   return (
@@ -133,24 +147,24 @@ export const KanbanColumn = ({
       className={`bg-gray-50 rounded-xl p-4 min-w-80 w-80 h-full border shadow-sm flex flex-col transition-all duration-150 
                   ${isColumnDragOverTarget ? 'ring-2 ring-blue-500 ring-offset-2' : 'border-gray-200'} 
                   ${isDragOverForLeadCard ? 'bg-blue-100 border-blue-400 border-dashed' : ''} 
-                  `} // Feedback visual: isColumnDragOverTarget (para drop de OUTRA coluna), isDragOverForLeadCard (para drop de CARD de lead)
+                  `}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      data-column-id={column.id} // Atributo de dados para identificar a coluna, útil para testes ou debugging no DOM.
+      data-column-id={column.id}
     >
       {/* Header da coluna: Nome, contador de leads e botões de ação (editar/excluir etapa) */}
-      <div className="flex justify-between items-center mb-4 group"> {/* Adicionado 'group' para o hover dos botões de ação */}
+      <div className="flex justify-between items-center mb-4 group">
         <div className="flex items-center gap-3">
           <div 
-            className={`w-3 h-3 rounded-full ${corEtapa}`} // Cor da etapa definida dinamicamente
+            className={`w-3 h-3 rounded-full ${corEtapa}`}
             title={`Cor da etapa: ${column.nome}`}
           />
           <h3 className="font-semibold text-gray-900 text-sm">
-            {column.title || column.nome} {/* Usa 'title' se disponível, senão 'nome' */}
+            {column.title || column.nome}
           </h3>
           <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full font-medium">
-            {leads.length} {/* Contador de leads na coluna */}
+            {leads.length}
           </span>
         </div>
         
@@ -176,15 +190,15 @@ export const KanbanColumn = ({
       </div>
 
       {/* Container da Lista de leads (cards) */}
-      <div className="flex-1 space-y-3 overflow-y-auto"> {/* Permite rolagem vertical se a lista de cards for maior que a altura disponível */}
+      <div className="flex-1 space-y-3 overflow-y-auto">
         {leads.map((lead) => (
           <LeadCard
-            key={lead.id} // Chave React obrigatória e única para elementos em uma lista
+            key={lead.id}
             lead={lead}
             onEdit={() => onEditLead(lead)}
             onOpenHistory={() => onOpenHistory(lead)}
             onOpenChat={() => onOpenChat(lead)}
-            columnId={column.id} // Passa o ID da coluna atual para o LeadCard, usado no dragStart
+            columnId={column.id}
           />
         ))}
         
