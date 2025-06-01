@@ -1,3 +1,4 @@
+
 // src/components/kanban/KanbanColumn.tsx
 
 import React, { useState } from 'react';
@@ -43,37 +44,30 @@ export const KanbanColumn = ({
    * Handler para dragover na coluna.
    * Só permite drop se o item for um leadCard.
    */
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    setIsDragOverForLeadCard(false);
-  
+    
     // Usa a referência global do lead arrastado
-    const draggedLead = (window as any).__DRAGGED_LEAD__;
-    if (!draggedLead) {
-      console.error('[KanbanColumn] ❌ Nenhum lead sendo arrastado');
-      return;
-    }
-  
-    const { id: leadId, fromColumnId } = draggedLead;
-  
-    // Validações
-    if (!leadId || !fromColumnId) {
-      console.error('[KanbanColumn] ❌ Dados inválidos do lead arrastado:', draggedLead);
-      return;
-    }
-  
-    if (fromColumnId === column.id) {
-      console.log('[KanbanColumn] ⚪️ Lead solto na mesma coluna, ignorando...');
-      return;
-    }
-  
-    // Executa a movimentação
-    try {
-      onDropLeadInColumn(leadId, fromColumnId, column.id);
-    } catch (error) {
-      console.error('[KanbanColumn] ❌ Erro ao mover lead:', error);
+    const draggedLead = window.__DRAGGED_LEAD__;
+    if (draggedLead) {
+      console.log(`🟡 DragOver na coluna: "${column.nome}". Lead sendo arrastado: ${draggedLead.id}`);
+      e.dataTransfer.dropEffect = 'move';
+      setIsDragOverForLeadCard(true);
+    } else {
+      e.dataTransfer.dropEffect = 'none';
     }
   };
+
+  /**
+   * Handler para dragleave na coluna.
+   * Remove feedback visual quando o drag sai da área.
+   */
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragOverForLeadCard(false);
+    }
+  };
+
   /**
    * Handler para drop de card de lead na coluna.
    * Faz validações e chama o callback de movimentação.
@@ -83,76 +77,36 @@ export const KanbanColumn = ({
     e.preventDefault();
     setIsDragOverForLeadCard(false);
 
-    // Tenta extrair os dados do dataTransfer
-    const leadId = e.dataTransfer.getData('leadId') || e.dataTransfer.getData('text/plain');
-    const fromColumnId = e.dataTransfer.getData('fromColumnId');
-    const itemType = e.dataTransfer.getData('itemType');
+    // Usa a referência global do lead arrastado
+    const draggedLead = window.__DRAGGED_LEAD__;
+    if (!draggedLead) {
+      console.error('[KanbanColumn] ❌ Nenhum lead sendo arrastado');
+      return;
+    }
 
-    // Fallback: tenta extrair do JSON
-    let jsonData = null;
+    const { id: leadId, fromColumnId } = draggedLead;
+
+    // Validações
+    if (!leadId || !fromColumnId) {
+      console.error('[KanbanColumn] ❌ Dados inválidos do lead arrastado:', draggedLead);
+      return;
+    }
+
+    if (fromColumnId === column.id) {
+      console.log('[KanbanColumn] ⚪️ Lead solto na mesma coluna, ignorando...');
+      return;
+    }
+
+    // Executa a movimentação
     try {
-      const jsonString = e.dataTransfer.getData('application/json');
-      if (jsonString) jsonData = JSON.parse(jsonString);
+      console.log(`[KanbanColumn] ✅ Chamando onDropLeadInColumn com:`, {
+        leadId,
+        fromColumnId,
+        toColumnId: column.id
+      });
+      onDropLeadInColumn(leadId, fromColumnId, column.id);
     } catch (error) {
-      console.warn('[KanbanColumn] Não foi possível parsear JSON do dataTransfer:', error);
-    }
-
-    console.log(`[KanbanColumn] 🔍 Dados extraídos do drop:`, {
-      leadIdPrimario: leadId,
-      leadIdDoJson: jsonData?.leadId,
-      fromColumnIdPrimario: fromColumnId,
-      fromColumnIdDoJson: jsonData?.fromColumnId,
-      itemTypePrimario: itemType,
-      itemTypeDoJson: jsonData?.itemType,
-      toColumnIdDestino: column.id,
-      todosOsTiposDisponiveis: Array.from(e.dataTransfer.types)
-    });
-
-    // Usa o fallback do JSON se necessário
-    const finalLeadId = leadId || jsonData?.leadId;
-    const finalFromColumnId = fromColumnId || jsonData?.fromColumnId;
-    const finalItemType = itemType || jsonData?.itemType;
-
-    // Validações detalhadas
-    if (!finalLeadId) {
-      console.error('[KanbanColumn] ❌ Drop CANCELADO: leadId não encontrado. Dados disponíveis:', {
-        leadIdTentativas: [leadId, jsonData?.leadId],
-        todosOsTypes: Array.from(e.dataTransfer.types)
-      });
-      return;
-    }
-    if (!finalFromColumnId) {
-      console.error('[KanbanColumn] ❌ Drop CANCELADO: fromColumnId não encontrado. Dados disponíveis:', {
-        fromColumnIdTentativas: [fromColumnId, jsonData?.fromColumnId]
-      });
-      return;
-    }
-    if (finalItemType !== 'leadCard') {
-      console.error('[KanbanColumn] ❌ Drop CANCELADO: itemType inválido.', {
-        itemTypeRecebido: finalItemType,
-        itemTypeEsperado: 'leadCard'
-      });
-      return;
-    }
-    if (finalFromColumnId === column.id) {
-      console.log(`[KanbanColumn] ⚪️ Lead "${finalLeadId}" solto na mesma coluna ("${column.nome}"). Nenhuma mudança necessária.`);
-      return;
-    }
-
-    // Chama o callback de movimentação
-    console.log(`[KanbanColumn] ✅ TODAS as validações passaram. Chamando onDropLeadInColumn...`);
-    console.log(`[KanbanColumn] 📞 Parâmetros da chamada:`, {
-      leadId: finalLeadId,
-      fromColumnId: finalFromColumnId,
-      toColumnId: column.id,
-      nomeColuna: column.nome
-    });
-
-    try {
-      onDropLeadInColumn(finalLeadId, finalFromColumnId, column.id);
-      console.log(`[KanbanColumn] ✅ onDropLeadInColumn chamado com sucesso`);
-    } catch (error) {
-      console.error(`[KanbanColumn] ❌ Erro ao chamar onDropLeadInColumn:`, error);
+      console.error('[KanbanColumn] ❌ Erro ao mover lead:', error);
     }
   };
 
