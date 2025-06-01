@@ -281,38 +281,107 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
     }
   };
 
+// src/components/kanban/KanbanBoard.tsx
+
   const handleColumnDrop = (e: React.DragEvent<HTMLDivElement>, targetColumnId: string) => {
     e.preventDefault();
+    
     const sourceColumnId = e.dataTransfer.getData('draggedColumnId');
     const itemType = e.dataTransfer.getData('itemType');
 
-    console.log('[KanbanBoard] 🟢 Drop de COLUNA:', { sourceColumnId, targetColumnId, itemType });
+    // Log inicial para verificar os dados recebidos do dataTransfer
+    console.log('[KanbanBoard] 🟢 Drop de COLUNA detectado. Dados do evento:', { 
+      sourceColumnId, 
+      targetColumnId, // Este é o ID da coluna ONDE o drop ocorreu
+      itemType,
+      allTypesInDataTransfer: Array.from(e.dataTransfer.types)
+    });
 
+    // Limpa os estados visuais de drag
     setDraggedColumnId(null);
     setColumnDragOverTargetId(null);
 
-    if (itemType === 'kanbanColumn' && sourceColumnId && sourceColumnId !== targetColumnId) {
-      const currentEtapas = Array.isArray(etapas) ? [...etapas].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)) : [];
-      if (currentEtapas.length === 0) return;
+    // Condições para processar o drop de uma coluna
+    if (itemType === 'kanbanColumn' && sourceColumnId && targetColumnId && sourceColumnId !== targetColumnId) {
+      console.log(`[KanbanBoard] Processando drop da coluna ID: ${sourceColumnId} para a posição da coluna ID: ${targetColumnId}`);
 
-      const sourceIndex = currentEtapas.findIndex(etapa => etapa.id === sourceColumnId);
-      const targetIndex = currentEtapas.findIndex(etapa => etapa.id === targetColumnId);
+      // Cria uma cópia MUTÁVEL do array de etapas, já ordenado pela ordem atual.
+      // Isso é importante para que os índices de splice e map sejam consistentes.
+      const currentEtapasOrdenadas = Array.isArray(etapas) 
+        ? [...etapas].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)) 
+        : [];
 
-      if (sourceIndex === -1 || targetIndex === -1) {
-        console.warn("[KanbanBoard] ⚠️ Índice de origem ou destino não encontrado para reordenação de colunas.");
+      if (currentEtapasOrdenadas.length === 0) {
+        console.warn("[KanbanBoard] ⚠️ Não há etapas para reordenar.");
+        return;
+      }
+      console.log("[KanbanBoard] Etapas atuais ordenadas:", JSON.parse(JSON.stringify(currentEtapasOrdenadas)));
+
+
+      const sourceIndex = currentEtapasOrdenadas.findIndex(etapa => etapa.id === sourceColumnId);
+      const targetIndex = currentEtapasOrdenadas.findIndex(etapa => etapa.id === targetColumnId);
+
+      console.log('[KanbanBoard] Índices para reordenação:', { sourceIndex, targetIndex });
+
+      if (sourceIndex === -1) {
+        console.error(`[KanbanBoard] ❌ ERRO: Coluna de origem (ID: ${sourceColumnId}) não encontrada no array de etapas ordenadas. Abortando reordenação.`);
+        return;
+      }
+      if (targetIndex === -1) {
+        console.error(`[KanbanBoard] ❌ ERRO: Coluna de destino (ID: ${targetColumnId}) não encontrada no array de etapas ordenadas. Abortando reordenação.`);
         return;
       }
 
-      const [draggedItem] = currentEtapas.splice(sourceIndex, 1);
-      currentEtapas.splice(targetIndex, 0, draggedItem);
+      // Remove o item arrastado da sua posição original
+      const [draggedItemArray] = currentEtapasOrdenadas.splice(sourceIndex, 1);
+      const draggedItem = draggedItemArray; // Atribui o primeiro elemento do array retornado por splice
 
-      const etapasToUpdate = currentEtapas.map((etapa, index) => ({
-        id: etapa.id,
-        ordem: index,
-      }));
+      if (!draggedItem || typeof draggedItem.id === 'undefined') { // Verificação mais robusta
+        console.error('[KanbanBoard] ❌ ERRO CRÍTICO: draggedItem é inválido ou não tem ID após o splice.', {draggedItem});
+        // Potencialmente restaurar currentEtapasOrdenadas para o estado anterior se a operação falhar aqui
+        return; 
+      }
+      console.log('[KanbanBoard] Item arrastado (draggedItem):', JSON.parse(JSON.stringify(draggedItem)));
+
+
+      // Insere o item arrastado na nova posição (posição da coluna alvo)
+      currentEtapasOrdenadas.splice(targetIndex, 0, draggedItem);
+      console.log("[KanbanBoard] Etapas após reordenação local:", JSON.parse(JSON.stringify(currentEtapasOrdenadas)));
+
+
+      // Mapeia o array reordenado para criar o payload de atualização,
+      // atribuindo um novo índice de 'ordem' sequencial.
+      const etapasToUpdate = currentEtapasOrdenadas.map((etapa, index) => {
+        // Adiciona uma verificação para o caso de 'etapa' ser undefined (embora não devesse ser após as verificações anteriores)
+        if (!etapa || typeof etapa.id === 'undefined') {
+          console.error(`[KanbanBoard] ❌ ERRO no map: Etapa inválida no índice ${index}. Etapa:`, etapa);
+          // Pode ser necessário decidir como lidar com este caso raro: pular, lançar erro, etc.
+          // Por segurança, vamos retornar um objeto que não quebre, mas isso indica um problema anterior.
+          return { id: `ERRO_ID_UNDEFINED_INDEX_${index}`, ordem: index, nome: "ERRO_NOME_ETAPA" }; // Ou filtrar este item antes de enviar para a mutação
+        }
+        return {
+          id: etapa.id,
+          nome: etapa.nome, // Incluir nome para log/debug, a mutação só deve precisar de id e ordem
+          ordem: index, 
+        };
+      });
       
-      console.log('[KanbanBoard] 🔄 Reordenando etapas (colunas):', etapasToUpdate);
-      reorderEtapasMutation.mutate({ etapas: etapasToUpdate });
+      // Filtrar quaisquer itens problemáticos antes de enviar para a mutação
+      const validEtapasToUpdate = etapasToUpdate.filter(etapa => !etapa.id.startsWith("ERRO_ID_UNDEFINED"));
+      if (validEtapasToUpdate.length !== etapasToUpdate.length) {
+          console.warn("[KanbanBoard] ⚠️ Algumas etapas foram filtradas devido a IDs inválidos antes de enviar para a mutação reorderEtapas.");
+      }
+
+
+      if (validEtapasToUpdate.length > 0) {
+        console.log('[KanbanBoard] 🔄 Enviando para reorderEtapasMutation:', JSON.parse(JSON.stringify(validEtapasToUpdate.map(e => ({id: e.id, ordem: e.ordem})))));
+        reorderEtapasMutation.mutate({ etapas: validEtapasToUpdate.map(e => ({id: e.id, ordem: e.ordem})) });
+      } else if (etapasToUpdate.length > 0) { // Se havia etapas mas todas foram inválidas
+        console.error("[KanbanBoard] ❌ Nenhuma etapa válida para atualizar após o processamento do map.");
+      }
+
+    } else {
+      console.log('[KanbanBoard] Drop de coluna ignorado: condições não atendidas (itemType, IDs, ou mesma coluna).', { itemType, sourceColumnId, targetColumnId });
     }
   };
   
