@@ -25,7 +25,8 @@ import { Lead } from '@/hooks/useLeadsData';
  * - useKanbanColumnDrag: drag and drop de colunas
  */
 
-export { Lead }; // Exporta a interface Lead do useLeadsData
+// Exporta o tipo Lead para compatibilidade
+export type { Lead };
 
 export interface IKanbanColumn extends Etapa {
   title: string;

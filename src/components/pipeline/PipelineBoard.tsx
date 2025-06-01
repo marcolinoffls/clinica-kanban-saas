@@ -2,10 +2,15 @@
 import React from 'react';
 import { Plus } from 'lucide-react';
 import { PipelineColumn } from './PipelineColumn';
+import { LeadModal } from '@/components/kanban/LeadModal';
+import { ConsultasHistoryModal } from '@/components/kanban/ConsultasHistoryModal';
+import { EtapaModal } from '@/components/kanban/EtapaModal';
+import { MoveLeadsModal } from '@/components/kanban/MoveLeadsModal';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useKanbanModals } from '@/hooks/useKanbanModals';
 import { useKanbanLeadActions } from '@/hooks/useKanbanLeadActions';
 import { useKanbanEtapaActions } from '@/hooks/useKanbanEtapaActions';
+import { useKanbanColumnDrag } from '@/hooks/useKanbanColumnDrag';
 import { Etapa } from '@/hooks/useEtapasData';
 import { Lead } from '@/hooks/useLeadsData';
 import { IPipelineColumn } from './types';
@@ -31,6 +36,7 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
   const modalControls = useKanbanModals();
   const leadActions = useKanbanLeadActions(onNavigateToChat);
   const etapaActions = useKanbanEtapaActions();
+  const columnDrag = useKanbanColumnDrag();
 
   // Dados principais
   const { etapas = [], leads = [], loading } = useSupabaseData();
@@ -63,6 +69,27 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
   const handleSaveEtapa = async (nome: string) => {
     await etapaActions.handleSaveEtapa(nome, modalControls.editingEtapa, etapas);
     modalControls.closeEtapaModal();
+  };
+
+  // Função para excluir etapa
+  const handleDeleteEtapa = async (etapaParaDeletar: IPipelineColumn) => {
+    const result = await etapaActions.handleDeleteEtapa(etapaParaDeletar, leads);
+    
+    if (result?.needsMoveLeads && result.etapaToDelete) {
+      modalControls.openMoveLeadsModal(result.etapaToDelete, result.etapaToDelete.leadsCount || 0);
+    }
+  };
+
+  // Função para mover leads e deletar etapa
+  const handleMoveLeadsAndDeleteEtapa = async (targetEtapaId: string) => {
+    if (!modalControls.etapaToDelete?.id) return;
+    
+    await etapaActions.handleMoveLeadsAndDeleteEtapa(
+      targetEtapaId, 
+      modalControls.etapaToDelete, 
+      leads
+    );
+    modalControls.closeMoveLeadsModal();
   };
 
   if (loading) {
@@ -100,7 +127,7 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
         </div>
       </div>
 
-      {/* Container das colunas do Pipeline */}
+      {/* Container das colunas do Pipeline com Drag and Drop */}
       <div className="flex gap-6 overflow-x-auto pb-6 min-h-[calc(100vh-200px)] items-start">
         {Array.isArray(etapas) && etapas
           .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
@@ -112,18 +139,32 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
             const corDaEtapa = ETAPA_COLORS[index % ETAPA_COLORS.length];
 
             return (
-              <PipelineColumn
+              <div
                 key={etapa.id}
-                column={pipelineColumn}
-                leads={leadsDaEtapa}
-                corEtapa={corDaEtapa}
-                onEditLead={modalControls.openEditLeadModal}
-                onDropLeadInColumn={leadActions.handleDropLeadInColumn}
-                onOpenHistory={handleOpenHistory}
-                onOpenChat={leadActions.handleOpenChat}
-                onEditEtapa={() => modalControls.openEditEtapaModal(pipelineColumn)}
-                onDeleteEtapa={() => console.log('Delete etapa:', etapa.id)}
-              />
+                draggable
+                onDragStart={(e) => columnDrag.handleColumnDragStart(e, etapa.id)}
+                onDragEnd={columnDrag.handleColumnDragEnd}
+                onDragOver={(e) => columnDrag.handleColumnDragOver(e, etapa.id)}
+                onDragLeave={columnDrag.handleColumnDragLeave}
+                onDrop={(e) => columnDrag.handleColumnDrop(e, etapa.id, etapas)}
+                className={`h-full flex flex-col transition-all duration-200 cursor-grab 
+                            ${columnDrag.draggedColumnId === etapa.id ? 'opacity-40 scale-95' : ''}
+                            ${columnDrag.columnDragOverTargetId === etapa.id && columnDrag.draggedColumnId !== etapa.id ? 'outline-2 outline-purple-500 outline-dashed rounded-xl' : ''} 
+                          `}
+                data-etapa-draggable-id={etapa.id}
+              >
+                <PipelineColumn
+                  column={pipelineColumn}
+                  leads={leadsDaEtapa}
+                  corEtapa={corDaEtapa}
+                  onEditLead={modalControls.openEditLeadModal}
+                  onDropLeadInColumn={leadActions.handleDropLeadInColumn}
+                  onOpenHistory={handleOpenHistory}
+                  onOpenChat={leadActions.handleOpenChat}
+                  onEditEtapa={() => modalControls.openEditEtapaModal(pipelineColumn)}
+                  onDeleteEtapa={() => handleDeleteEtapa(pipelineColumn)}
+                />
+              </div>
             );
         })}
         
@@ -146,6 +187,40 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
           </div>
         )}
       </div>
+
+      {/* Modais reutilizados do Kanban */}
+      <LeadModal
+        isOpen={modalControls.isLeadModalOpen}
+        onClose={modalControls.closeLeadModal}
+        lead={modalControls.selectedLead}
+        etapas={Array.isArray(etapas) ? etapas : []}
+        onSave={handleSaveLead}
+        onOpenHistory={modalControls.selectedLead ? () => handleOpenHistory(modalControls.selectedLead!) : undefined}
+      />
+      
+      <ConsultasHistoryModal
+        isOpen={modalControls.isHistoryModalOpen}
+        onClose={modalControls.closeHistoryModal}
+        lead={modalControls.selectedLead}
+        consultas={modalControls.consultasLead}
+      />
+      
+      <EtapaModal
+        isOpen={modalControls.isEtapaModalOpen}
+        onClose={modalControls.closeEtapaModal}
+        onSave={handleSaveEtapa}
+        etapa={modalControls.editingEtapa}
+        etapasExistentes={Array.isArray(etapas) ? etapas : []}
+      />
+      
+      <MoveLeadsModal
+        isOpen={modalControls.isMoveLeadsModalOpen}
+        onClose={modalControls.closeMoveLeadsModal}
+        onConfirm={handleMoveLeadsAndDeleteEtapa}
+        etapaToDelete={modalControls.etapaToDelete}
+        leadsCount={modalControls.etapaToDelete?.leadsCount || 0}
+        etapasDisponiveis={Array.isArray(etapas) ? etapas.filter(e => e.id !== modalControls.etapaToDelete?.id) : []}
+      />
     </div>
   );
 };
