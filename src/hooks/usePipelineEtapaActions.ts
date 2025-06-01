@@ -9,10 +9,12 @@ import { useAuthUser } from './useAuthUser';
  * Hook para gerenciar ações das etapas no Pipeline
  * 
  * Centraliza as operações de:
- * - Criar etapa
- * - Editar etapa
- * - Deletar etapa
+ * - Criar etapa (com clinica_id automático)
+ * - Editar etapa (protegido por RLS)
+ * - Deletar etapa (protegido por RLS)
  * - Mover leads ao deletar etapa
+ * 
+ * As políticas RLS garantem isolamento por clínica
  */
 
 export const usePipelineEtapaActions = () => {
@@ -25,7 +27,7 @@ export const usePipelineEtapaActions = () => {
       console.log('💾 Salvando etapa no Pipeline:', { nome, editingEtapa });
 
       if (editingEtapa) {
-        // Editar etapa existente
+        // Editar etapa existente (RLS garante que só pode editar etapas da própria clínica)
         const { data, error } = await supabase
           .from('etapas_kanban')
           .update({ nome })
@@ -46,6 +48,7 @@ export const usePipelineEtapaActions = () => {
           ? Math.max(...etapas.map(e => e.ordem || 0)) + 1 
           : 0;
 
+        // Incluir clinica_id automaticamente
         const { data, error } = await supabase
           .from('etapas_kanban')
           .insert([{
@@ -76,6 +79,7 @@ export const usePipelineEtapaActions = () => {
     mutationFn: async (etapaId: string) => {
       console.log('🗑️ Deletando etapa:', etapaId);
 
+      // RLS garante que só pode deletar etapas da própria clínica
       const { error } = await supabase
         .from('etapas_kanban')
         .delete()

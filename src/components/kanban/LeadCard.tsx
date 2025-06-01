@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { MessageCircle, History, Edit } from 'lucide-react';
-import { Lead } from '@/integrations/supabase/types';
+import { Lead } from '@/hooks/useLeadsData';
 
 interface LeadCardProps {
   lead: Lead;
