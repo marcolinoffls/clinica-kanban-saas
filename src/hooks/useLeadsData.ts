@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -213,39 +214,62 @@ export const useDeleteLead = () => {
   });
 };
 
-// Hook para mover lead entre etapas
+// Hook para mover lead entre etapas - VERSÃO CORRIGIDA
 export const useMoveLeadToStage = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ leadId, etapaId }: { leadId: string; etapaId: string }): Promise<Lead> => {
-      console.log('🔄 Movendo lead para etapa:', leadId, '->', etapaId);
+      console.log('🔄 Iniciando movimentação do lead:', leadId, 'para etapa:', etapaId);
 
-      const { data, error } = await supabase
-        .from('leads')
-        .update({ 
-          etapa_kanban_id: etapaId,
-          data_ultimo_contato: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', leadId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ Erro ao mover lead:', error);
-        throw new Error(`Erro ao mover lead: ${error.message}`);
+      // Validações antes de tentar atualizar
+      if (!leadId || !etapaId) {
+        throw new Error('leadId e etapaId são obrigatórios');
       }
 
-      console.log('✅ Lead movido com sucesso:', data.nome);
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('leads')
+          .update({ 
+            etapa_kanban_id: etapaId,
+            data_ultimo_contato: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', leadId)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('❌ Erro do Supabase ao mover lead:', error);
+          throw new Error(`Erro ao atualizar lead no banco: ${error.message}`);
+        }
+
+        if (!data) {
+          throw new Error('Lead não encontrado ou não foi possível atualizar');
+        }
+
+        console.log('✅ Lead movido com sucesso no banco:', data.nome, 'para etapa:', etapaId);
+        return data;
+
+      } catch (supabaseError: any) {
+        console.error('❌ Erro na operação do Supabase:', supabaseError);
+        throw supabaseError;
+      }
     },
     onSuccess: (data) => {
+      console.log('🎉 Callback onSuccess executado para lead:', data.nome);
+      
+      // Invalidar cache com a chave exata usada no useLeads
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      
+      // Também invalidar cache mais específico se existir
+      queryClient.invalidateQueries({ queryKey: ['leads', 'etapa'] });
+      
+      console.log('♻️ Cache invalidado - UI deve atualizar');
       toast.success(`Lead "${data.nome}" movido para nova etapa!`);
     },
     onError: (error: Error) => {
-      console.error('❌ Erro ao mover lead:', error);
+      console.error('❌ Callback onError executado:', error);
       toast.error(`Erro ao mover lead: ${error.message}`);
     },
   });

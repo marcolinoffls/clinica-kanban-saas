@@ -39,12 +39,12 @@ export const KanbanColumn = ({
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     
-    const itemType = e.dataTransfer.getData('itemType');
-    const leadId = e.dataTransfer.getData('leadId');
+    const itemType = e.dataTransfer.types.includes('leadid') ? 'leadCard' : e.dataTransfer.getData('itemType');
+    const leadId = e.dataTransfer.getData('leadId') || e.dataTransfer.getData('text/plain');
     
     console.log('🟡 Drag over na coluna:', column.nome, 'itemType:', itemType, 'leadId:', leadId);
     
-    // Só permite drop se for um leadCard
+    // Só permite drop se for um leadCard e tiver leadId
     if (itemType === 'leadCard' && leadId) {
       e.dataTransfer.dropEffect = 'move';
       setIsDragOver(true);
@@ -72,20 +72,40 @@ export const KanbanColumn = ({
     e.preventDefault();
     setIsDragOver(false);
 
-    const leadId = e.dataTransfer.getData('leadId');
+    const leadId = e.dataTransfer.getData('leadId') || e.dataTransfer.getData('text/plain');
     const fromColumnId = e.dataTransfer.getData('fromColumnId');
-    const itemType = e.dataTransfer.getData('itemType');
+    const itemType = e.dataTransfer.types.includes('leadid') ? 'leadCard' : e.dataTransfer.getData('itemType');
 
     console.log('🟢 Drop na coluna:', column.nome, {
       leadId,
       fromColumnId,
       toColumnId: column.id,
-      itemType
+      itemType,
+      dataTransferTypes: Array.from(e.dataTransfer.types)
     });
 
-    // Processa o drop apenas se for um leadCard e for de uma coluna diferente
-    if (itemType === 'leadCard' && leadId && fromColumnId && fromColumnId !== column.id) {
+    // Validação rigorosa antes de processar o drop
+    if (!leadId) {
+      console.warn('⚠️ Drop cancelado: leadId não encontrado');
+      return;
+    }
+
+    if (!fromColumnId) {
+      console.warn('⚠️ Drop cancelado: fromColumnId não encontrado');
+      return;
+    }
+
+    if (fromColumnId === column.id) {
+      console.log('⚪ Lead já está na coluna de destino, ignorando drop');
+      return;
+    }
+
+    // Processa o drop apenas se for um leadCard válido
+    if (itemType === 'leadCard') {
+      console.log('✅ Processando drop do lead:', leadId, 'para coluna:', column.id);
       onDropLeadInColumn(leadId, fromColumnId, column.id);
+    } else {
+      console.warn('⚠️ Drop cancelado: itemType inválido:', itemType);
     }
   };
 

@@ -25,15 +25,24 @@ export const LeadCard = ({
 
   /**
    * Inicia o arraste de um card de lead.
-   * Define os dados a serem transferidos: 'leadId', 'fromColumnId' e 'itemType'.
+   * Define os dados a serem transferidos de múltiplas formas para máxima compatibilidade.
    */
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     console.log('🟡 Iniciando drag do lead:', lead.nome, 'da coluna:', columnId);
     
-    e.dataTransfer.setData('text/plain', lead.id); // Fallback para compatibilidade
+    // Múltiplas formas de definir os dados para garantir compatibilidade
+    e.dataTransfer.setData('text/plain', lead.id); // Fallback básico
     e.dataTransfer.setData('leadId', lead.id);
     e.dataTransfer.setData('fromColumnId', columnId);
     e.dataTransfer.setData('itemType', 'leadCard');
+    
+    // Método adicional para garantir que os dados sejam preservados
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      leadId: lead.id,
+      fromColumnId: columnId,
+      itemType: 'leadCard'
+    }));
+
     e.dataTransfer.effectAllowed = 'move';
     
     // Adiciona classe para feedback visual

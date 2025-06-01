@@ -122,18 +122,47 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
    * Atualiza a etapa_kanban_id do lead.
    */
   const handleDropLeadInColumn = async (leadId: string, fromColumnId: string, toColumnId: string) => {
+    console.log(`📦 KanbanBoard.handleDropLeadInColumn chamado:`, {
+      leadId,
+      fromColumnId, 
+      toColumnId
+    });
+
+    // Validações iniciais
+    if (!leadId || !fromColumnId || !toColumnId) {
+      console.error('❌ Parâmetros inválidos para drop:', { leadId, fromColumnId, toColumnId });
+      return;
+    }
+
     if (fromColumnId === toColumnId) {
       console.log('⚪ Lead já está na coluna de destino, ignorando');
       return;
     }
 
-    console.log(`📦 KanbanBoard: Movendo lead ${leadId} de ${fromColumnId} para ${toColumnId}`);
+    // Buscar informações do lead para logging
+    const lead = Array.isArray(leads) ? leads.find(l => l.id === leadId) : null;
+    if (lead) {
+      console.log(`📋 Movendo lead "${lead.nome}" da coluna ${fromColumnId} para ${toColumnId}`);
+    }
     
     try {
-      await moveLeadMutation.mutateAsync({ leadId, etapaId: toColumnId });
-      console.log('✅ Lead movido com sucesso');
-    } catch (error) {
-      console.error('❌ Erro ao mover lead:', error);
+      console.log('🚀 Executando mutação useMoveLeadToStage...');
+      
+      const result = await moveLeadMutation.mutateAsync({ 
+        leadId, 
+        etapaId: toColumnId 
+      });
+      
+      console.log('✅ Mutação executada com sucesso:', result);
+
+    } catch (error: any) {
+      console.error('❌ Erro detalhado ao mover lead:', {
+        error: error.message,
+        leadId,
+        toColumnId,
+        stack: error.stack
+      });
+      
       // O toast de erro já é mostrado pelo hook useMoveLeadToStage
     }
   };
