@@ -34,20 +34,21 @@ export const LeadCard = ({
    */
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     console.log('🟡 Iniciando drag do lead:', lead.nome, 'da coluna:', columnId);
-
-    // Múltiplos formatos para máxima compatibilidade cross-browser
-    e.dataTransfer.setData('text/plain', lead.id); // fallback básico
+  
+    // IMPORTANTE: A ordem importa! Definir itemType primeiro
+    e.dataTransfer.setData('itemType', 'leadCard');
     e.dataTransfer.setData('leadId', lead.id);
     e.dataTransfer.setData('fromColumnId', columnId);
-    e.dataTransfer.setData('itemType', 'leadCard');
+    
+    // Backup em JSON para máxima compatibilidade
     e.dataTransfer.setData('application/json', JSON.stringify({
       leadId: lead.id,
       fromColumnId: columnId,
       itemType: 'leadCard'
     }));
-
+  
     e.dataTransfer.effectAllowed = 'move';
-
+  
     // Feedback visual
     e.currentTarget.style.opacity = '0.5';
   };

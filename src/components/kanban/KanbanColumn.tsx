@@ -45,13 +45,14 @@ export const KanbanColumn = ({
    */
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-
-    const itemType = e.dataTransfer.getData('itemType');
-    console.log(
-      `[KanbanColumn] 🟡 DragOver na coluna: "${column.nome}". Tipos no dataTransfer: [${Array.from(e.dataTransfer.types).join(', ')}]. Lido itemType: "${itemType}"`
-    );
-
-    if (itemType === 'leadCard') {
+    
+    // CORREÇÃO: Não podemos ler dados do dataTransfer durante dragover
+    // Vamos confiar apenas nos types disponíveis
+    const hasLeadCardType = e.dataTransfer.types.includes('leadId') && 
+                           e.dataTransfer.types.includes('fromColumnId') &&
+                           e.dataTransfer.types.includes('itemType');
+  
+    if (hasLeadCardType) {
       e.dataTransfer.dropEffect = 'move';
       if (!isDragOverForLeadCard) setIsDragOverForLeadCard(true);
     } else {
@@ -59,7 +60,6 @@ export const KanbanColumn = ({
       if (isDragOverForLeadCard) setIsDragOverForLeadCard(false);
     }
   };
-
   /**
    * Handler para dragleave da coluna.
    * Remove o estado visual de dragover.
