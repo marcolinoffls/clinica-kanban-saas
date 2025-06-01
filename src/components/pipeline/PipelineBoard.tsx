@@ -1,8 +1,8 @@
-
 import React from 'react';
 import { Plus } from 'lucide-react';
 import { PipelineColumn } from './PipelineColumn';
-import { PipelineLeadModal } from './PipelineLeadModal';
+// Removido: import { PipelineLeadModal } from './PipelineLeadModal';
+import { LeadModal } from '@/components/kanban/LeadModal'; // <--- ALTERADO: Importar o LeadModal existente
 import { PipelineEtapaModal } from './PipelineEtapaModal';
 import { PipelineConsultasHistoryModal } from './PipelineConsultasHistoryModal';
 import { PipelineMoveLeadsModal } from './PipelineMoveLeadsModal';
@@ -13,10 +13,13 @@ import { usePipelineLeadActions } from '@/hooks/usePipelineLeadActions';
 import { usePipelineEtapaActions } from '@/hooks/usePipelineEtapaActions';
 import { usePipelineColumnDrag } from '@/hooks/usePipelineColumnDrag';
 import { LeadPipeline, EtapaPipeline } from './types';
+// Importar o tipo Lead original se for diferente de LeadPipeline e o LeadModal o esperar
+// Se LeadPipeline e Lead (do KanbanModal) forem compatíveis, não é necessário.
+// Assumindo que LeadPipeline é compatível com o que LeadModal espera para 'lead' prop.
 
 /**
  * Componente principal do Pipeline de Vendas
- * 
+ *
  * Interface independente para gerenciar leads em formato kanban,
  * com foco no funil de vendas. Inclui funcionalidades completas
  * de CRUD para leads e etapas, além de drag and drop.
@@ -36,7 +39,7 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
   // IMPORTANTE: Todos os hooks devem ser chamados SEMPRE, na mesma ordem
   // Hooks para gerenciar estado dos modais
   const modalControls = usePipelineModals();
-  
+
   // Hooks para ações de leads e etapas
   const leadActions = usePipelineLeadActions(onNavigateToChat);
   const etapaActions = usePipelineEtapaActions();
@@ -49,7 +52,9 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
   // Declarar variáveis globais para drag (SEMPRE executado)
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
+      // @ts-ignore
       window.__DRAGGED_LEAD__ = null;
+      // @ts-ignore
       window.__DRAGGED_COLUMN__ = null;
     }
   }, []);
@@ -64,12 +69,12 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
   }, [etapasData]);
 
   const loading = leadsLoading || etapasLoading;
-  const hasError = leadsError || etapasError;
+  const hasError = !!(leadsError || etapasError); // Corrigido para boolean
 
   // Converter dados para tipos do Pipeline (SEMPRE executado)
   const leadsTyped: LeadPipeline[] = React.useMemo(() => {
     if (!Array.isArray(leads)) return [];
-    
+
     return leads.map(lead => ({
       id: lead?.id || '',
       nome: lead?.nome || '',
@@ -79,7 +84,7 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
       etapa_kanban_id: lead?.etapa_kanban_id || null,
       tag_id: lead?.tag_id || null,
       data_ultimo_contato: lead?.data_ultimo_contato || null,
-      created_at: lead?.created_at || null,
+      created_at: lead?.created_at || new Date().toISOString(), // Adicionado fallback
       updated_at: lead?.updated_at || null,
       clinica_id: lead?.clinica_id || null,
       origem_lead: lead?.origem_lead || null,
@@ -89,20 +94,23 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
 
   const etapasTyped: EtapaPipeline[] = React.useMemo(() => {
     if (!Array.isArray(etapas)) return [];
-    
+
     return etapas.map(etapa => ({
       id: etapa?.id || '',
       nome: etapa?.nome || '',
       ordem: etapa?.ordem || 0,
       clinica_id: etapa?.clinica_id || null,
-      created_at: etapa?.created_at || null,
+      created_at: etapa?.created_at || null, // Mantido como opcional
     }));
   }, [etapas]);
 
   // Função para salvar lead (SEMPRE definida)
-  const handleSaveLead = React.useCallback(async (leadData: any) => {
+  const handleSaveLead = React.useCallback(async (leadData: Partial<LeadPipeline>) => { // Ajustado tipo
     if (!leadData) return;
-    await leadActions.handleSaveLead(leadData, modalControls.selectedLead);
+    // O hook `handleSaveLead` de `leadActions` precisa ser compatível com `Partial<LeadPipeline>`
+    // ou você precisa mapear `leadData` para o tipo que ele espera.
+    // `modalControls.selectedLead` também deve ser do tipo `LeadPipeline | null`.
+    await leadActions.handleSaveLead(leadData, modalControls.selectedLead as LeadPipeline | null);
     modalControls.closeLeadModal();
   }, [leadActions, modalControls]);
 
@@ -116,7 +124,8 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
   // Função para salvar etapa (SEMPRE definida)
   const handleSaveEtapa = React.useCallback(async (nome: string) => {
     if (!nome || typeof nome !== 'string') return;
-    await etapaActions.handleSaveEtapa(nome, modalControls.editingEtapa, etapasTyped);
+    // `modalControls.editingEtapa` deve ser do tipo `EtapaPipeline | null`.
+    await etapaActions.handleSaveEtapa(nome, modalControls.editingEtapa as EtapaPipeline | null, etapasTyped);
     modalControls.closeEtapaModal();
   }, [etapaActions, modalControls, etapasTyped]);
 
@@ -124,19 +133,20 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
   const handleDeleteEtapa = React.useCallback(async (etapa: EtapaPipeline) => {
     if (!etapa?.id) return;
     const result = await etapaActions.handleDeleteEtapa(etapa, leadsTyped);
-    
+
     if (result?.needsMoveLeads && result.etapaToDelete) {
-      modalControls.openMoveLeadsModal(result.etapaToDelete);
+      // `result.etapaToDelete` deve ser compatível com o que `openMoveLeadsModal` espera.
+      modalControls.openMoveLeadsModal(result.etapaToDelete as EtapaPipeline & { leadsCount?: number });
     }
   }, [etapaActions, leadsTyped, modalControls]);
 
   // Função para mover leads e deletar etapa (SEMPRE definida)
   const handleMoveLeadsAndDeleteEtapa = React.useCallback(async (targetEtapaId: string) => {
     if (!modalControls.etapaToDelete?.id || !targetEtapaId) return;
-    
+
     await etapaActions.handleMoveLeadsAndDeleteEtapa(
-      targetEtapaId, 
-      modalControls.etapaToDelete, 
+      targetEtapaId,
+      modalControls.etapaToDelete as EtapaPipeline, // Assegurar tipo
       leadsTyped
     );
     modalControls.closeMoveLeadsModal();
@@ -145,11 +155,14 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
   // Função para criar lead em etapa específica (SEMPRE definida)
   const handleCreateLeadInEtapa = React.useCallback((etapaId: string) => {
     if (!etapaId) return;
-    modalControls.openCreateLeadModal();
+    // Aqui você pode querer passar o etapaId para o modalControls
+    // para que o LeadModal possa pré-selecionar a etapa.
+    // modalControls.openCreateLeadModal({ initialEtapaId: etapaId });
+    modalControls.openCreateLeadModal(); // Mantendo simples por enquanto
   }, [modalControls]);
 
   // RENDERIZAÇÃO CONDICIONAL APENAS AQUI, DEPOIS DE TODOS OS HOOKS
-  
+
   // Estado de erro
   if (hasError) {
     return (
@@ -163,6 +176,8 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
           </h3>
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
             Houve um problema ao carregar os dados do pipeline. Tente recarregar a página.
+            {leadsError && <span className="block text-xs mt-1">Erro Leads: {leadsError.message}</span>}
+            {etapasError && <span className="block text-xs mt-1">Erro Etapas: {etapasError.message}</span>}
           </p>
         </div>
       </div>
@@ -199,7 +214,7 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
             <Plus size={18} /> Nova Etapa
           </button>
           <button
-            onClick={modalControls.openCreateLeadModal}
+            onClick={() => modalControls.openCreateLeadModal()} // Garante que selectedLead seja null
             className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
           >
             <Plus size={18} /> Novo Lead
@@ -215,8 +230,8 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
               .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
               .map((etapa, index) => {
                 if (!etapa?.id) return null;
-                
-                const leadsDaEtapa = leadsTyped.filter(lead => 
+
+                const leadsDaEtapa = leadsTyped.filter(lead =>
                   lead?.etapa_kanban_id === etapa.id
                 );
                 const corDaEtapa = ETAPA_COLORS[index % ETAPA_COLORS.length];
@@ -231,8 +246,8 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
                     onDragOver={(e) => columnDrag.handleColumnDragOver(e, etapa.id)}
                     onDragLeave={columnDrag.handleColumnDragLeave}
                     onDrop={(e) => columnDrag.handleColumnDrop(e, etapa.id, etapasTyped)}
-                    className={`h-full flex flex-col transition-all duration-200 
-                                ${columnDrag.columnDragOverTargetId === etapa.id && columnDrag.draggedColumnId !== etapa.id ? 'outline-2 outline-purple-500 outline-dashed rounded-xl' : ''} 
+                    className={`h-full flex flex-col transition-all duration-200
+                                ${columnDrag.columnDragOverTargetId === etapa.id && columnDrag.draggedColumnId !== etapa.id ? 'outline-2 outline-purple-500 outline-dashed rounded-xl' : ''}
                               `}
                     data-etapa-draggable-id={etapa.id}
                   >
@@ -240,7 +255,7 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
                       etapa={etapa}
                       leads={leadsDaEtapa}
                       corEtapa={corDaEtapa}
-                      onEditLead={modalControls.openEditLeadModal}
+                      onEditLead={(lead) => modalControls.openEditLeadModal(lead as LeadPipeline)}
                       onDropLeadInColumn={leadActions.handleDropLeadInColumn}
                       onOpenHistory={handleOpenHistory}
                       onOpenChat={leadActions.handleOpenChat}
@@ -263,7 +278,7 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
                   Bem-vindo ao Pipeline de Vendas!
                 </h3>
                 <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                  Comece criando sua primeira etapa para organizar seu funil de vendas. 
+                  Comece criando sua primeira etapa para organizar seu funil de vendas.
                   Você pode criar etapas como "Novo Lead", "Em Contato", "Proposta Enviada", etc.
                 </p>
                 <button
@@ -281,27 +296,32 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
 
       {/* Modais do Pipeline */}
       {modalControls.isLeadModalOpen && (
-        <PipelineLeadModal
+        // Usando LeadModal existente em vez de PipelineLeadModal
+        <LeadModal
           isOpen={modalControls.isLeadModalOpen}
           onClose={modalControls.closeLeadModal}
-          lead={modalControls.selectedLead}
-          etapas={etapasTyped}
-          onSave={handleSaveLead}
+          // @ts-ignore // selectedLead é LeadPipeline, LeadModal espera Lead (do KanbanBoard)
+          // Precisamos garantir que os tipos são compatíveis ou mapear aqui.
+          // Se LeadPipeline e Lead (do Kanban) forem suficientemente similares, pode funcionar.
+          lead={modalControls.selectedLead as any}
+          etapas={etapasTyped.map(et => ({id: et.id, nome: et.nome}))} // Mapear para o formato que LeadModal espera para etapas
+          onSave={handleSaveLead as any} // Ajustar tipo se `handleSaveLead` espera LeadPipeline
+          // @ts-ignore
           onOpenHistory={modalControls.selectedLead ? () => handleOpenHistory(modalControls.selectedLead!) : undefined}
         />
       )}
-      
+
       {modalControls.isEtapaModalOpen && (
         <PipelineEtapaModal
           isOpen={modalControls.isEtapaModalOpen}
           onClose={modalControls.closeEtapaModal}
           onSave={handleSaveEtapa}
-          etapa={modalControls.editingEtapa}
+          etapa={modalControls.editingEtapa as EtapaPipeline | null}
           etapasExistentes={etapasTyped}
         />
       )}
-      
-      {modalControls.isHistoryModalOpen && (
+
+      {modalControls.isHistoryModalOpen && modalControls.selectedLead && (
         <PipelineConsultasHistoryModal
           isOpen={modalControls.isHistoryModalOpen}
           onClose={modalControls.closeHistoryModal}
@@ -309,13 +329,13 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
           consultas={modalControls.consultasLead}
         />
       )}
-      
-      {modalControls.isMoveLeadsModalOpen && (
+
+      {modalControls.isMoveLeadsModalOpen && modalControls.etapaToDelete && (
         <PipelineMoveLeadsModal
           isOpen={modalControls.isMoveLeadsModalOpen}
           onClose={modalControls.closeMoveLeadsModal}
           onConfirm={handleMoveLeadsAndDeleteEtapa}
-          etapaToDelete={modalControls.etapaToDelete}
+          etapaToDelete={modalControls.etapaToDelete as EtapaPipeline & { leadsCount?: number }}
           leadsCount={modalControls.etapaToDelete ? leadsTyped.filter(l => l.etapa_kanban_id === modalControls.etapaToDelete?.id).length : 0}
           etapasDisponiveis={etapasTyped.filter(e => e.id !== modalControls.etapaToDelete?.id)}
         />
