@@ -1,8 +1,6 @@
-
 // src/components/kanban/KanbanBoard.tsx
-import React, { useState } from 'react'; // React importado
+import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
-// Renomeado KanbanColumn importado para KanbanColumnComponent para evitar conflito com a interface
 import { KanbanColumn as KanbanColumnComponent } from './KanbanColumn';
 import { LeadModal } from './LeadModal';
 import { ConsultasHistoryModal } from './ConsultasHistoryModal';
@@ -125,17 +123,21 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
    */
   const handleDropLeadInColumn = async (leadId: string, fromColumnId: string, toColumnId: string) => {
     if (fromColumnId === toColumnId) {
-        // ...
-        return;
+      console.log('⚪ Lead já está na coluna de destino, ignorando');
+      return;
     }
-    console.log(`KanbanBoard: Movendo lead ${leadId} de ${fromColumnId} para ${toColumnId}`);
+
+    console.log(`📦 KanbanBoard: Movendo lead ${leadId} de ${fromColumnId} para ${toColumnId}`);
+    
     try {
       await moveLeadMutation.mutateAsync({ leadId, etapaId: toColumnId });
+      console.log('✅ Lead movido com sucesso');
     } catch (error) {
-      console.error('Erro ao mover lead para coluna no Board:', error);
-      alert('Erro ao mover lead. Tente novamente.');
+      console.error('❌ Erro ao mover lead:', error);
+      // O toast de erro já é mostrado pelo hook useMoveLeadToStage
     }
   };
+
   // Função para abrir histórico de consultas
   const handleOpenHistory = async (lead: Lead) => {
     try {
@@ -259,16 +261,16 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
    */
   const handleColumnDragOver = (e: React.DragEvent<HTMLDivElement>, targetColumnId: string) => {
     e.preventDefault();
-    const itemType = e.dataTransfer.types.includes('itemtype') ? e.dataTransfer.getData('itemType') : null;
+    
+    const itemType = e.dataTransfer.getData('itemType');
+    const draggedId = e.dataTransfer.getData('draggedColumnId');
 
-    // Permite o drop somente se for uma coluna e não for ela mesma
-    if (itemType === 'kanbanColumn' && draggedColumnId && draggedColumnId !== targetColumnId) {
+    if (itemType === 'kanbanColumn' && draggedId && draggedId !== targetColumnId) {
       e.dataTransfer.dropEffect = 'move';
       setColumnDragOverTargetId(targetColumnId);
     } else {
-      e.dataTransfer.dropEffect = 'none'; // Não permite drop se não for uma coluna ou se for a mesma
-      // Se estiver sobre a mesma coluna que está sendo arrastada, não marque como alvo.
-      if (draggedColumnId === targetColumnId) {
+      e.dataTransfer.dropEffect = 'none';
+      if (draggedId === targetColumnId) {
         setColumnDragOverTargetId(null);
       }
     }
@@ -278,8 +280,11 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
    * Chamado quando uma coluna arrastada sai da área de drop de outra coluna.
    * Limpa o feedback visual do alvo.
    */
-  const handleColumnDragLeave = () => {
-    setColumnDragOverTargetId(null);
+  const handleColumnDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    // Só remove o estado se realmente saiu da área da coluna
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setColumnDragOverTargetId(null);
+    }
   };
 
   /**
@@ -288,36 +293,38 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
    */
   const handleColumnDrop = (e: React.DragEvent<HTMLDivElement>, targetColumnId: string) => {
     e.preventDefault();
-    const sourceColumnId = e.dataTransfer.getData('draggedColumnId'); // Corrigido para 'draggedColumnId'
+    
+    const sourceColumnId = e.dataTransfer.getData('draggedColumnId');
     const itemType = e.dataTransfer.getData('itemType');
 
-    // Limpa os estados de feedback visual ao final do drop
+    console.log('🟢 Drop de coluna:', { sourceColumnId, targetColumnId, itemType });
+
     setDraggedColumnId(null);
     setColumnDragOverTargetId(null);
 
     if (itemType === 'kanbanColumn' && sourceColumnId && sourceColumnId !== targetColumnId) {
-      const currentEtapas = Array.isArray(etapas) ? [...etapas] : []; // Cria cópia para mutação segura
+      const currentEtapas = Array.isArray(etapas) ? [...etapas] : [];
       if (currentEtapas.length === 0) return;
 
       const sourceIndex = currentEtapas.findIndex(etapa => etapa.id === sourceColumnId);
       const targetIndex = currentEtapas.findIndex(etapa => etapa.id === targetColumnId);
 
       if (sourceIndex === -1 || targetIndex === -1) {
-        console.warn("Índice de origem ou destino não encontrado para reordenação de colunas.");
+        console.warn("⚠️ Índice de origem ou destino não encontrado para reordenação de colunas.");
         return;
       }
 
       // Lógica de reordenação
-      const [draggedItem] = currentEtapas.splice(sourceIndex, 1); // Remove o item arrastado
-      currentEtapas.splice(targetIndex, 0, draggedItem);      // Insere o item na nova posição
+      const [draggedItem] = currentEtapas.splice(sourceIndex, 1);
+      currentEtapas.splice(targetIndex, 0, draggedItem);
 
-      // Prepara os dados para atualização no backend, atualizando o campo 'ordem'
+      // Prepara os dados para atualização no backend
       const etapasToUpdate = currentEtapas.map((etapa, index) => ({
         id: etapa.id,
-        ordem: index, // A nova ordem é o índice no array reordenado
+        ordem: index,
       }));
       
-      console.log("Reordenando etapas para:", etapasToUpdate);
+      console.log('🔄 Reordenando etapas:', etapasToUpdate);
       reorderEtapasMutation.mutate({ etapas: etapasToUpdate });
     }
   };
@@ -401,8 +408,8 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
                 onDragOver={(e) => handleColumnDragOver(e, etapa.id)} // Permite que outras colunas sejam soltas aqui
                 onDragLeave={handleColumnDragLeave} // Limpa feedback visual de alvo
                 onDrop={(e) => handleColumnDrop(e, etapa.id)}   // Lida com o drop de outra coluna aqui
-                className={`h-full flex flex-col transition-opacity duration-200 cursor-grab 
-                            ${draggedColumnId === etapa.id ? 'opacity-40' : ''}
+                className={`h-full flex flex-col transition-all duration-200 cursor-grab 
+                            ${draggedColumnId === etapa.id ? 'opacity-40 scale-95' : ''}
                           `}
                 // Adiciona um data-attribute para debugging ou estilos
                 data-etapa-draggable-id={etapa.id}

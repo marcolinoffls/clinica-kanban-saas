@@ -1,16 +1,16 @@
+
 // src/components/kanban/LeadCard.tsx
 import React from 'react';
 import { History, MessageCircle, Tag } from 'lucide-react';
-import { Lead } from './KanbanBoard'; // Certifique-se que KanbanBoard.tsx EXPORTE esta interface
+import { Lead } from './KanbanBoard';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 
 interface LeadCardProps {
   lead: Lead;
-  // index: number; // O índice pode ser útil para reordenação interna da coluna, mas não é estritamente necessário para mover entre colunas.
   onEdit: () => void;
   onOpenHistory: () => void;
   onOpenChat: () => void;
-  columnId: string; // ID da coluna atual do lead
+  columnId: string;
 }
 
 export const LeadCard = ({
@@ -28,12 +28,16 @@ export const LeadCard = ({
    * Define os dados a serem transferidos: 'leadId', 'fromColumnId' e 'itemType'.
    */
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    console.log('🟡 Iniciando drag do lead:', lead.nome, 'da coluna:', columnId);
+    
+    e.dataTransfer.setData('text/plain', lead.id); // Fallback para compatibilidade
     e.dataTransfer.setData('leadId', lead.id);
     e.dataTransfer.setData('fromColumnId', columnId);
-    e.dataTransfer.setData('itemType', 'leadCard'); // Identifica o tipo de item sendo arrastado
+    e.dataTransfer.setData('itemType', 'leadCard');
     e.dataTransfer.effectAllowed = 'move';
-    // Adiciona uma classe para feedback visual enquanto o card está sendo arrastado
-    e.currentTarget.classList.add('dragging-card');
+    
+    // Adiciona classe para feedback visual
+    e.currentTarget.style.opacity = '0.5';
   };
 
   /**
@@ -41,7 +45,8 @@ export const LeadCard = ({
    * Remove a classe de feedback visual.
    */
   const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
-    e.currentTarget.classList.remove('dragging-card');
+    console.log('🟡 Finalizando drag do lead:', lead.nome);
+    e.currentTarget.style.opacity = '1';
   };
 
   const handleHistoryClick = (e: React.MouseEvent) => {
@@ -57,15 +62,12 @@ export const LeadCard = ({
   return (
     <div
       className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 cursor-grab hover:shadow-md hover:border-gray-200 transition-all duration-200 relative group"
-      draggable // Torna o card arrastável
+      draggable
       onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd} // Limpa o estilo ao final do arraste
+      onDragEnd={handleDragEnd}
       onClick={onEdit}
       data-lead-id={lead.id}
     >
-      {/* Estilo para o card sendo arrastado (opcional, mas melhora UX) */}
-      <style>{`.dragging-card { opacity: 0.7; border: 2px dashed #3B82F6; }`}</style>
-      
       <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">
         <button
           onClick={handleChatClick}

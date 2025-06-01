@@ -1,8 +1,8 @@
 
 // src/components/kanban/KanbanColumn.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { Edit2, Trash2 } from 'lucide-react';
-import { Lead, IKanbanColumn } from './KanbanBoard'; // Certifique-se que KanbanBoard.tsx EXPORTE estas interfaces
+import { Lead, IKanbanColumn } from './KanbanBoard';
 import { LeadCard } from './LeadCard';
 
 interface KanbanColumnProps {
@@ -15,7 +15,6 @@ interface KanbanColumnProps {
   onOpenChat: (lead: Lead) => void;
   onEditEtapa: () => void;
   onDeleteEtapa: () => void;
-  // Opcional: para feedback visual quando uma coluna é um alvo de drop para *outra coluna*
   isColumnDragOverTarget?: boolean; 
 }
 
@@ -29,23 +28,28 @@ export const KanbanColumn = ({
   onOpenChat,
   onEditEtapa,
   onDeleteEtapa,
-  isColumnDragOverTarget, // Usado para feedback visual
+  isColumnDragOverTarget,
 }: KanbanColumnProps) => {
+  const [isDragOver, setIsDragOver] = useState(false);
 
   /**
    * Manipulador para onDragOver na coluna.
    * Permite que itens (especificamente LeadCards) sejam soltos aqui.
    */
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault(); // Necessário para permitir o drop
-    // Verifica se o item sendo arrastado é um 'leadCard'
-    const isLeadCard = e.dataTransfer.types.includes('itemtype') && e.dataTransfer.getData('itemType') === 'leadCard';
-    if (isLeadCard) {
+    e.preventDefault();
+    
+    const itemType = e.dataTransfer.getData('itemType');
+    const leadId = e.dataTransfer.getData('leadId');
+    
+    console.log('🟡 Drag over na coluna:', column.nome, 'itemType:', itemType, 'leadId:', leadId);
+    
+    // Só permite drop se for um leadCard
+    if (itemType === 'leadCard' && leadId) {
       e.dataTransfer.dropEffect = 'move';
-      // Opcional: Adicionar uma classe para indicar que a coluna é um alvo válido para o card
-      e.currentTarget.classList.add('drag-over-column-for-card');
+      setIsDragOver(true);
     } else {
-      e.dataTransfer.dropEffect = 'none'; // Não permite drop se não for um leadCard
+      e.dataTransfer.dropEffect = 'none';
     }
   };
 
@@ -54,7 +58,10 @@ export const KanbanColumn = ({
    * Limpa o feedback visual.
    */
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.currentTarget.classList.remove('drag-over-column-for-card');
+    // Só remove o estado se realmente saiu da área da coluna
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragOver(false);
+    }
   };
 
   /**
@@ -63,36 +70,38 @@ export const KanbanColumn = ({
    */
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    e.currentTarget.classList.remove('drag-over-column-for-card');
+    setIsDragOver(false);
 
     const leadId = e.dataTransfer.getData('leadId');
     const fromColumnId = e.dataTransfer.getData('fromColumnId');
     const itemType = e.dataTransfer.getData('itemType');
 
-    // Processa o drop apenas se for um leadCard
+    console.log('🟢 Drop na coluna:', column.nome, {
+      leadId,
+      fromColumnId,
+      toColumnId: column.id,
+      itemType
+    });
+
+    // Processa o drop apenas se for um leadCard e for de uma coluna diferente
     if (itemType === 'leadCard' && leadId && fromColumnId && fromColumnId !== column.id) {
       onDropLeadInColumn(leadId, fromColumnId, column.id);
     }
   };
 
   return (
-    // O div principal da coluna. Ele é um alvo de drop para LeadCards.
-    // Não é `draggable` aqui; o wrapper em KanbanBoard.tsx cuidará disso.
     <div
       className={`bg-gray-50 rounded-xl p-4 min-w-80 w-80 h-full border border-gray-200 shadow-sm flex flex-col transition-all duration-150 
                   ${isColumnDragOverTarget ? 'ring-2 ring-blue-500 ring-offset-2' : ''} 
+                  ${isDragOver ? 'bg-blue-50 border-blue-300 border-dashed' : ''}
                   `}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       data-column-id={column.id}
     >
-      {/* Estilo para feedback visual quando a coluna é um alvo de drop para um card */}
-      <style>{`.drag-over-column-for-card { background-color: #EFF6FF; /* Azul bem claro */ border-style: dashed; }`}</style>
-      
       {/* Header da coluna */}
-      {/* O header NÃO é draggable por si só aqui. O drag da coluna é no wrapper do KanbanBoard.tsx */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 group">
         <div className="flex items-center gap-3">
           <div 
             className={`w-3 h-3 rounded-full ${corEtapa}`}

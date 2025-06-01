@@ -1,4 +1,3 @@
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -226,31 +225,28 @@ export const useMoveLeadToStage = () => {
         .from('leads')
         .update({ 
           etapa_kanban_id: etapaId,
-          data_ultimo_contato: new Date().toISOString(), // Atualiza data_ultimo_contato
-          updated_at: new Date().toISOString(), // Atualiza updated_at
+          data_ultimo_contato: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         })
         .eq('id', leadId)
         .select()
         .single();
 
       if (error) {
-        // ...
+        console.error('❌ Erro ao mover lead:', error);
         throw new Error(`Erro ao mover lead: ${error.message}`);
       }
-      // ...
+
+      console.log('✅ Lead movido com sucesso:', data.nome);
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] }); // Invalida a query 'leads'
-    },
-    onSuccess: (data) => { // Adicionar 'data' se quiser usar no toast
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast.success(`Lead "${data.nome}" movido para nova etapa!`); // Toast de sucesso mais informativo
+      toast.success(`Lead "${data.nome}" movido para nova etapa!`);
     },
-    onError: (error: Error) => { // Especificar o tipo do erro
+    onError: (error: Error) => {
       console.error('❌ Erro ao mover lead:', error);
       toast.error(`Erro ao mover lead: ${error.message}`);
     },
-    // ...
   });
 };
