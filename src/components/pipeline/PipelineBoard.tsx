@@ -33,6 +33,7 @@ const ETAPA_COLORS = [
 ];
 
 export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
+  // IMPORTANTE: Todos os hooks devem ser chamados SEMPRE, na mesma ordem
   // Hooks para gerenciar estado dos modais
   const modalControls = usePipelineModals();
   
@@ -41,11 +42,19 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
   const etapaActions = usePipelineEtapaActions();
   const columnDrag = usePipelineColumnDrag();
 
-  // Buscar dados principais - com verificação de segurança
+  // Buscar dados principais - SEMPRE chamados
   const { data: leadsData = [], isLoading: leadsLoading, error: leadsError } = useLeads();
   const { data: etapasData = [], isLoading: etapasLoading, error: etapasError } = useEtapas();
 
-  // Garantir que sempre temos arrays válidos
+  // Declarar variáveis globais para drag (SEMPRE executado)
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.__DRAGGED_LEAD__ = null;
+      window.__DRAGGED_COLUMN__ = null;
+    }
+  }, []);
+
+  // Memoização de dados processados (SEMPRE executada)
   const leads = React.useMemo(() => {
     return Array.isArray(leadsData) ? leadsData : [];
   }, [leadsData]);
@@ -57,7 +66,7 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
   const loading = leadsLoading || etapasLoading;
   const hasError = leadsError || etapasError;
 
-  // Converter dados para tipos do Pipeline com verificação de segurança
+  // Converter dados para tipos do Pipeline (SEMPRE executado)
   const leadsTyped: LeadPipeline[] = React.useMemo(() => {
     if (!Array.isArray(leads)) return [];
     
@@ -90,28 +99,28 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
     }));
   }, [etapas]);
 
-  // Função para salvar lead
+  // Função para salvar lead (SEMPRE definida)
   const handleSaveLead = React.useCallback(async (leadData: any) => {
     if (!leadData) return;
     await leadActions.handleSaveLead(leadData, modalControls.selectedLead);
     modalControls.closeLeadModal();
   }, [leadActions, modalControls]);
 
-  // Função para abrir histórico
+  // Função para abrir histórico (SEMPRE definida)
   const handleOpenHistory = React.useCallback(async (lead: LeadPipeline) => {
     if (!lead?.id) return;
     const consultas = await leadActions.handleOpenHistory(lead);
     modalControls.openHistoryModal(lead, consultas);
   }, [leadActions, modalControls]);
 
-  // Função para salvar etapa
+  // Função para salvar etapa (SEMPRE definida)
   const handleSaveEtapa = React.useCallback(async (nome: string) => {
     if (!nome || typeof nome !== 'string') return;
     await etapaActions.handleSaveEtapa(nome, modalControls.editingEtapa, etapasTyped);
     modalControls.closeEtapaModal();
   }, [etapaActions, modalControls, etapasTyped]);
 
-  // Função para excluir etapa
+  // Função para excluir etapa (SEMPRE definida)
   const handleDeleteEtapa = React.useCallback(async (etapa: EtapaPipeline) => {
     if (!etapa?.id) return;
     const result = await etapaActions.handleDeleteEtapa(etapa, leadsTyped);
@@ -121,7 +130,7 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
     }
   }, [etapaActions, leadsTyped, modalControls]);
 
-  // Função para mover leads e deletar etapa
+  // Função para mover leads e deletar etapa (SEMPRE definida)
   const handleMoveLeadsAndDeleteEtapa = React.useCallback(async (targetEtapaId: string) => {
     if (!modalControls.etapaToDelete?.id || !targetEtapaId) return;
     
@@ -133,12 +142,14 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
     modalControls.closeMoveLeadsModal();
   }, [etapaActions, modalControls, leadsTyped]);
 
-  // Função para criar lead em etapa específica
+  // Função para criar lead em etapa específica (SEMPRE definida)
   const handleCreateLeadInEtapa = React.useCallback((etapaId: string) => {
     if (!etapaId) return;
     modalControls.openCreateLeadModal();
   }, [modalControls]);
 
+  // RENDERIZAÇÃO CONDICIONAL APENAS AQUI, DEPOIS DE TODOS OS HOOKS
+  
   // Estado de erro
   if (hasError) {
     return (
@@ -169,14 +180,6 @@ export const PipelineBoard = ({ onNavigateToChat }: PipelineBoardProps) => {
       </div>
     );
   }
-
-  // Declarar variáveis globais para drag (apenas para TypeScript)
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.__DRAGGED_LEAD__ = null;
-      window.__DRAGGED_COLUMN__ = null;
-    }
-  }, []);
 
   return (
     <div className="h-full flex flex-col">
