@@ -243,6 +243,14 @@ export const useMoveLeadToStage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] }); // Invalida a query 'leads'
     },
+    onSuccess: (data) => { // Adicionar 'data' se quiser usar no toast
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success(`Lead "${data.nome}" movido para nova etapa!`); // Toast de sucesso mais informativo
+    },
+    onError: (error: Error) => { // Especificar o tipo do erro
+      console.error('❌ Erro ao mover lead:', error);
+      toast.error(`Erro ao mover lead: ${error.message}`);
+    },
     // ...
   });
 };
