@@ -1,6 +1,4 @@
 
-// src/components/kanban/KanbanColumn.tsx
-
 import React, { useState } from 'react';
 import { Edit2, Trash2 } from 'lucide-react';
 import { Lead, IKanbanColumn } from './KanbanBoard';
@@ -41,31 +39,21 @@ export const KanbanColumn = ({
   const [isDragOverForLeadCard, setIsDragOverForLeadCard] = useState(false);
 
   /**
-   * Verifica se há dados válidos de um lead sendo arrastado
-   */
-  const getDraggedLeadData = () => {
-    // Método primário: usar window.__DRAGGED_LEAD__
-    if (window.__DRAGGED_LEAD__) {
-      return window.__DRAGGED_LEAD__;
-    }
-    return null;
-  };
-
-  /**
    * Handler para o evento onDragOver.
    * Chamado continuamente enquanto um item arrastável está sobre a coluna.
    */
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
+    e.preventDefault(); // Necessário para permitir o drop
     
-    console.log('🟡 [KanbanColumn] DRAG OVER - Coluna:', column.nome);
+    console.log('🟡 [KanbanColumn] DRAG OVER - Coluna:', column.nome || column.title);
     console.log('🟡 [KanbanColumn] window.__DRAGGED_LEAD__:', window.__DRAGGED_LEAD__);
     
+    // Verifica se há um lead sendo arrastado
     if (window.__DRAGGED_LEAD__) {
       e.dataTransfer.dropEffect = 'move';
       if (!isDragOverForLeadCard) {
         setIsDragOverForLeadCard(true);
-        console.log('🟡 [KanbanColumn] Ativando feedback visual');
+        console.log('🟡 [KanbanColumn] Ativando feedback visual para coluna:', column.nome || column.title);
       }
     } else {
       e.dataTransfer.dropEffect = 'none';
@@ -74,35 +62,7 @@ export const KanbanColumn = ({
       }
     }
   };
-  
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    console.log('🔥 [KanbanColumn] DROP na coluna:', column.nome);
-    e.preventDefault();
-    setIsDragOverForLeadCard(false);
-    
-    const draggedLeadData = window.__DRAGGED_LEAD__;
-    console.log('🔥 [KanbanColumn] Dados arrastados:', draggedLeadData);
-    
-    if (!draggedLeadData) {
-      console.error('❌ [KanbanColumn] Nenhum dado encontrado');
-      return;
-    }
-    
-    const { id: leadId, fromColumnId } = draggedLeadData;
-    
-    if (fromColumnId === column.id) {
-      console.log('⚪️ [KanbanColumn] Mesma coluna, ignorando');
-      return;
-    }
-    
-    console.log('✅ [KanbanColumn] Chamando onDropLeadInColumn:', {
-      leadId,
-      fromColumnId,
-      toColumnId: column.id
-    });
-    
-    onDropLeadInColumn(leadId, fromColumnId, column.id);
-  };
+
   /**
    * Handler para o evento onDragLeave.
    * Chamado quando um item arrastável sai da área da coluna.
@@ -111,6 +71,7 @@ export const KanbanColumn = ({
     // Verifica se o mouse realmente saiu do elemento e não apenas para um filho
     if (!e.currentTarget.contains(e.relatedTarget as Node)) {
       setIsDragOverForLeadCard(false);
+      console.log('🟡 [KanbanColumn] DRAG LEAVE - Removendo feedback visual');
     }
   };
 
@@ -119,45 +80,46 @@ export const KanbanColumn = ({
    * Chamado quando um item arrastável é solto sobre a coluna.
    */
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    console.log('🔥 [KanbanColumn] DROP na coluna:', column.nome || column.title);
     e.preventDefault();
     setIsDragOverForLeadCard(false);
-
-    console.log('[KanbanColumn] 🎯 Drop detectado na coluna:', column.title || column.nome);
-
-    // Tenta obter dados do lead arrastado
-    const draggedData = getDraggedLeadData();
-
-    if (!draggedData) {
-      console.warn('[KanbanColumn] ❌ Nenhum dado de lead encontrado no drop');
+    
+    // Obtém os dados do lead arrastado
+    const draggedLeadData = window.__DRAGGED_LEAD__;
+    console.log('🔥 [KanbanColumn] Dados arrastados:', draggedLeadData);
+    
+    if (!draggedLeadData) {
+      console.error('❌ [KanbanColumn] Nenhum dado de lead encontrado');
       return;
     }
-
-    const { id: leadId, fromColumnId } = draggedData;
-
+    
+    const { id: leadId, fromColumnId } = draggedLeadData;
+    
     // Validações
     if (!leadId || !fromColumnId) {
-      console.error('[KanbanColumn] ❌ Dados inválidos:', { leadId, fromColumnId });
+      console.error('❌ [KanbanColumn] Dados inválidos:', { leadId, fromColumnId });
       return;
     }
-
+    
     // Não faz nada se for a mesma coluna
     if (fromColumnId === column.id) {
-      console.log('[KanbanColumn] ⚪️ Drop na mesma coluna, ignorando');
+      console.log('⚪️ [KanbanColumn] Mesma coluna, ignorando drop');
       return;
     }
-
-    console.log('[KanbanColumn] ✅ Executando drop:', {
+    
+    // Chama a função de movimentação
+    console.log('✅ [KanbanColumn] Chamando onDropLeadInColumn:', {
       leadId,
       fromColumnId,
       toColumnId: column.id,
-      columnName: column.title || column.nome
+      columnName: column.nome || column.title
     });
-
-    // Chama a função de callback para processar o drop
+    
     try {
       onDropLeadInColumn(leadId, fromColumnId, column.id);
+      console.log('✅ [KanbanColumn] onDropLeadInColumn executado com sucesso');
     } catch (error) {
-      console.error('[KanbanColumn] ❌ Erro ao processar drop:', error);
+      console.error('❌ [KanbanColumn] Erro ao executar onDropLeadInColumn:', error);
     }
   };
 
@@ -179,7 +141,7 @@ export const KanbanColumn = ({
         <div className="flex items-center gap-3">
           <div 
             className={`w-3 h-3 rounded-full ${corEtapa}`}
-            title={`Cor da etapa: ${column.title || column.nome}`}
+            title={`Cor da etapa: ${column.nome || column.title}`}
           />
           <h3 className="font-semibold text-gray-900 text-sm">
             {column.title || column.nome}
@@ -189,7 +151,7 @@ export const KanbanColumn = ({
           </span>
         </div>
         
-        {/* Botões de editar/excluir etapa */}
+        {/* Botões de ação da etapa */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
           <button
             onClick={onEditEtapa}
@@ -210,8 +172,8 @@ export const KanbanColumn = ({
         </div>
       </div>
 
-      {/* Container da Lista de leads */}
-      <div className="flex-1 space-y-3 overflow-y-auto pr-1 -mr-1 custom-scrollbar">
+      {/* Lista de leads */}
+      <div className="flex-1 space-y-3 overflow-y-auto">
         {leads.map((lead) => (
           <LeadCard
             key={lead.id}
@@ -223,8 +185,9 @@ export const KanbanColumn = ({
           />
         ))}
         
+        {/* Placeholder quando não há leads */}
         {leads.length === 0 && (
-          <div className="text-center py-8 text-gray-400 flex flex-col items-center justify-center h-full">
+          <div className="text-center py-8 text-gray-400">
             <p className="text-sm">Nenhum lead nesta etapa</p>
           </div>
         )}

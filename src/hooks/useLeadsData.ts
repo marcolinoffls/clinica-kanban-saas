@@ -1,3 +1,4 @@
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -14,6 +15,7 @@ export interface Lead {
   tag_id?: string;
   data_ultimo_contato?: string;
   status_ia_conversa?: 'ativo' | 'pausado' | 'finalizado';
+  ai_conversation_enabled?: boolean;
   created_at: string;
   updated_at: string;
   clinica_id: string;
@@ -42,6 +44,7 @@ export interface UpdateLeadData {
   tag_id?: string;
   data_ultimo_contato?: string;
   status_ia_conversa?: 'ativo' | 'pausado' | 'finalizado';
+  ai_conversation_enabled?: boolean;
 }
 
 /**
