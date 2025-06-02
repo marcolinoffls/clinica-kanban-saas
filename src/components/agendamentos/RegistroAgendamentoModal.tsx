@@ -146,6 +146,22 @@ export const RegistroAgendamentoModal = ({
 
   // Verificar se existe problema de autenticação crítico
   const hasAuthProblem = isAuthenticated && !userProfile && !profileError;
+// Após linha 149
+  useEffect(() => {
+    console.log('🔍 [ModalAgendamento] Estado atual da autenticação:', {
+      isAuthenticated,
+      user: user ? {
+        id: user.id,
+        email: user.email
+      } : 'null',
+      userProfile: userProfile ? {
+        user_id: userProfile.user_id,
+        nome: userProfile.nome
+      } : 'null',
+      profileError: profileError?.message || 'null',
+      hasAuthProblem
+    });
+  }, [isAuthenticated, user, userProfile, profileError, hasAuthProblem]);
 
   // Configuração do formulário
   const form = useForm<AgendamentoFormData>({
@@ -182,94 +198,169 @@ export const RegistroAgendamentoModal = ({
   };
 
   // Função onSubmit principal com validações críticas melhoradas
+// Substitua a função onSubmit completa por esta versão com diagnóstico:
+
   const onSubmit = async (data: AgendamentoFormData) => {
-    console.log('[ModalAgendamento] Iniciando submissão. Dados do formulário:', data);
+    console.log('🚀 [ModalAgendamento] =========================');
+    console.log('🚀 [ModalAgendamento] INICIANDO DIAGNÓSTICO COMPLETO');
+    console.log('🚀 [ModalAgendamento] =========================');
     
-    // Validação crítica 1: Verificar autenticação
-    if (!isAuthenticated) {
-      toast.error("Você precisa estar logado para criar agendamentos.");
-      console.error("[ModalAgendamento] ERRO CRÍTICO: Usuário não autenticado");
-      return;
-    }
-
-    // Validação crítica 2: Verificar se temos user_id válido com melhor diagnóstico
-    const usuario_id_final = userProfile?.user_id || user?.id;
-    if (!usuario_id_final) {
-      const errorMsg = userProfile === null && user?.id 
-        ? "Perfil de usuário não encontrado. Clique em 'Tentar Novamente' ou faça logout e login."
-        : "ID do usuário não encontrado. Faça logout e login novamente.";
+    // DIAGNÓSTICO DETALHADO DO ESTADO DE AUTENTICAÇÃO
+    console.log('🔍 [ModalAgendamento] Estado completo da autenticação:', {
+      // Dados do useAuthUser
+      isAuthenticated,
+      user: user ? {
+        id: user.id,
+        email: user.email,
+        aud: user.aud,
+        role: user.role,
+        created_at: user.created_at
+      } : null,
       
-      toast.error(errorMsg);
-      console.error("[ModalAgendamento] ERRO CRÍTICO: usuario_id não encontrado", { 
-        userProfile_user_id: userProfile?.user_id, 
-        user_id: user?.id,
-        userProfile_exists: !!userProfile,
-        profileError: profileError?.message
+      // Dados do userProfile
+      userProfile: userProfile ? {
+        user_id: userProfile.user_id,
+        nome: userProfile.nome,
+        email: userProfile.email,
+        clinica_id: userProfile.clinica_id
+      } : null,
+      
+      // Estados de erro e loading
+      profileError: profileError ? {
+        message: profileError.message,
+        details: profileError
+      } : null,
+      
+      // Dados da clínica
+      clinicaAtiva: clinicaAtiva ? {
+        id: clinicaAtiva.id,
+        nome: clinicaAtiva.nome
+      } : null,
+      
+      // Outros estados
+      hasAuthProblem,
+      timestamp: new Date().toISOString()
+    });
+  
+    console.log('📋 [ModalAgendamento] Dados do formulário recebidos:', data);
+    
+    // VALIDAÇÃO 1: Verificar autenticação básica
+    console.log('✅ [ModalAgendamento] VALIDAÇÃO 1: Verificando isAuthenticated...');
+    if (!isAuthenticated) {
+      console.error('❌ [ModalAgendamento] FALHOU: Usuário não está autenticado');
+      toast.error("Você precisa estar logado para criar agendamentos.");
+      return;
+    }
+    console.log('✅ [ModalAgendamento] PASSOU: Usuário está autenticado');
+  
+    // VALIDAÇÃO 2: Verificar se temos um objeto user válido
+    console.log('✅ [ModalAgendamento] VALIDAÇÃO 2: Verificando objeto user...');
+    if (!user || !user.id) {
+      console.error('❌ [ModalAgendamento] FALHOU: Objeto user inválido', { user });
+      toast.error("Erro de autenticação: dados do usuário não encontrados. Faça logout e login novamente.");
+      return;
+    }
+    console.log('✅ [ModalAgendamento] PASSOU: Objeto user válido com ID:', user.id);
+  
+    // VALIDAÇÃO 3: Verificar userProfile
+    console.log('✅ [ModalAgendamento] VALIDAÇÃO 3: Verificando userProfile...');
+    if (!userProfile) {
+      console.error('❌ [ModalAgendamento] FALHOU: userProfile não encontrado');
+      console.error('❌ [ModalAgendamento] Isso indica que o perfil do usuário não existe na tabela user_profiles');
+      console.error('❌ [ModalAgendamento] Possíveis causas:');
+      console.error('   - Trigger handle_new_user não funcionou na criação do usuário');
+      console.error('   - Perfil foi deletado da tabela user_profiles');
+      console.error('   - Problema de sincronização entre auth.users e user_profiles');
+      
+      toast.error("Usuário não encontrado no sistema. Faça logout e login novamente.");
+      return;
+    }
+    console.log('✅ [ModalAgendamento] PASSOU: userProfile encontrado:', userProfile.user_id);
+  
+    // VALIDAÇÃO 4: Verificar se user_id bate entre user e userProfile
+    console.log('✅ [ModalAgendamento] VALIDAÇÃO 4: Verificando consistência de IDs...');
+    if (user.id !== userProfile.user_id) {
+      console.error('❌ [ModalAgendamento] FALHOU: IDs não batem!', {
+        user_id: user.id,
+        userProfile_user_id: userProfile.user_id
       });
+      toast.error("Inconsistência de dados do usuário. Faça logout e login novamente.");
       return;
     }
-
-    // Validação crítica 3: Verificar clínica
+    console.log('✅ [ModalAgendamento] PASSOU: IDs são consistentes');
+  
+    // VALIDAÇÃO 5: Verificar clínica
+    console.log('✅ [ModalAgendamento] VALIDAÇÃO 5: Verificando clínica...');
     if (!clinicaAtiva?.id) {
+      console.error('❌ [ModalAgendamento] FALHOU: Clínica não selecionada', { clinicaAtiva });
       toast.error("Erro de configuração: ID da clínica não encontrado.");
-      console.error("[ModalAgendamento] ERRO CRÍTICO: clinica_id não encontrado", { clinicaAtiva });
       return;
     }
-
-    console.log('[ModalAgendamento] ✅ Validações críticas passaram:', {
+    console.log('✅ [ModalAgendamento] PASSOU: Clínica válida:', clinicaAtiva.id);
+  
+    // Se chegou até aqui, todos os dados estão válidos
+    const usuario_id_final = userProfile.user_id;
+    
+    console.log('🎉 [ModalAgendamento] TODAS AS VALIDAÇÕES PASSARAM!');
+    console.log('🎉 [ModalAgendamento] Dados finais para criação:', {
       usuario_id_final,
       clinica_id: clinicaAtiva.id,
-      isAuthenticated
+      cliente_id: data.cliente_id,
+      registrandoNovoCliente
     });
-
+  
+    // Continuar com o resto da lógica...
     let cliente_id_final = data.cliente_id;
-
+  
     if (registrandoNovoCliente) {
       if (!data.novo_cliente_nome?.trim() || !data.novo_cliente_telefone?.trim()) {
         form.setError("novo_cliente_nome", { type: "manual", message: "Nome é obrigatório para novo cliente."});
         form.setError("novo_cliente_telefone", { type: "manual", message: "Telefone é obrigatório para novo cliente."});
         toast.error("Nome e telefone são obrigatórios para cadastrar um novo cliente.");
-        console.warn("[ModalAgendamento] Validação falhou: Nome ou telefone do novo cliente ausente.");
         return;
       }
+      
       try {
-        console.log('[ModalAgendamento] Criando novo lead:', { nome: data.novo_cliente_nome, telefone: data.novo_cliente_telefone });
+        console.log('📝 [ModalAgendamento] Criando novo lead:', { 
+          nome: data.novo_cliente_nome, 
+          telefone: data.novo_cliente_telefone 
+        });
+        
         const novoLead = await createLead({
           nome: data.novo_cliente_nome,
           telefone: data.novo_cliente_telefone,
         });
+        
         cliente_id_final = novoLead.id;
-        console.log('[ModalAgendamento] Novo lead criado com ID:', cliente_id_final);
+        console.log('✅ [ModalAgendamento] Novo lead criado com ID:', cliente_id_final);
       } catch (error) {
+        console.error('❌ [ModalAgendamento] Erro ao criar novo lead:', error);
         toast.error("Falha ao criar novo cliente.");
-        console.error('[ModalAgendamento] Erro ao criar novo lead:', error);
         return;
       }
     }
-
+  
     if (!cliente_id_final && !registrandoNovoCliente) {
-        form.setError("cliente_id", { type: "manual", message: "Cliente é obrigatório."});
-        toast.error("Por favor, selecione um cliente ou cadastre um novo.");
-        console.warn("[ModalAgendamento] Validação falhou: cliente_id_final está vazio e não está registrando novo cliente.");
-        return;
+      form.setError("cliente_id", { type: "manual", message: "Cliente é obrigatório."});
+      toast.error("Por favor, selecione um cliente ou cadastre um novo.");
+      return;
     }
-
+  
     const dataInicioFinal = combinarDataHora(data.data_inicio, data.hora_inicio);
     const dataFimFinal = combinarDataHora(data.data_fim, data.hora_fim);
-
+  
     if (dataFimFinal <= dataInicioFinal) {
       form.setError("data_fim", { type: "manual", message: "Data/hora de fim deve ser posterior à de início."});
       form.setError("hora_fim", { type: "manual", message: " "});
       toast.error("Data ou hora de fim inválida.");
-      console.warn("[ModalAgendamento] Validação falhou: Data/hora de fim não é posterior à de início.");
       return;
     }
-
+  
     const agendamentoPayload: CreateAgendamentoData | (Partial<AgendamentoFromDatabase> & { id: string }) = {
       ...(isEdicaoMode && agendamentoParaEditar && { id: agendamentoParaEditar.id }),
       cliente_id: cliente_id_final,
       clinica_id: clinicaAtiva.id,
-      usuario_id: usuario_id_final, // Usando o ID validado
+      usuario_id: usuario_id_final,
       titulo: modoServico === 'manual' ? data.titulo : (servicosSeguro.find(s => s.id === servicoSelecionadoIdHook)?.nome_servico || data.titulo),
       data_inicio: formatarDataParaISO(dataInicioFinal),
       data_fim: formatarDataParaISO(dataFimFinal),
@@ -278,24 +369,23 @@ export const RegistroAgendamentoModal = ({
       descricao: data.descricao || null,
     };
     
-    console.log('[ModalAgendamento] ✅ Payload final para Supabase:', {
-      ...agendamentoPayload,
-      data_inicio: agendamentoPayload.data_inicio,
-      data_fim: agendamentoPayload.data_fim
-    });
-
+    console.log('📤 [ModalAgendamento] Payload final para Supabase:', agendamentoPayload);
+  
     try {
       if (isEdicaoMode) {
+        console.log('🔄 [ModalAgendamento] Atualizando agendamento...');
         await updateAgendamentoMutation.mutateAsync(agendamentoPayload as Partial<AgendamentoFromDatabase> & { id: string });
       } else {
+        console.log('➕ [ModalAgendamento] Criando novo agendamento...');
         await createAgendamentoMutation.mutateAsync(agendamentoPayload as CreateAgendamentoData);
       }
+      
+      console.log('✅ [ModalAgendamento] Agendamento salvo com sucesso!');
       handleCloseModal();
     } catch (error) {
-      console.error('[ModalAgendamento] Erro na mutação de salvar/atualizar agendamento:', error);
+      console.error('❌ [ModalAgendamento] Erro na mutação:', error);
     }
   };
-
   // useEffect para preencher formulário em modo de edição
   useEffect(() => {
     console.log('[ModalAgendamento] useEffect de Edição/Pré-seleção. isOpen:', isOpen, 'agendamentoParaEditar:', agendamentoParaEditar, 'leadPreSelecionadoId:', leadPreSelecionadoId);
