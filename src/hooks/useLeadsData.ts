@@ -1,3 +1,4 @@
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -9,11 +10,12 @@ export interface Lead {
   telefone?: string; // Número de telefone para contato
   email?: string; // Email para contato
   clinica_id: string; // ID da clínica à qual o lead pertence
+  etapa_kanban_id?: string; // ID da etapa kanban atual do lead
   tag_id?: string; // ID da tag/categoria associada ao lead
   anotacoes?: string; // Observações e anotações sobre o lead
+  origem_lead?: string; // Origem do lead (ex: Facebook Ads, site, etc.)
   servico_interesse?: string; // Serviço de interesse do lead
   status?: string; // Status atual do lead no pipeline
-  origem?: string; // Origem do lead (ex: Facebook Ads, site, etc.)
   data_ultimo_contato?: string; // Data do último contato realizado
   avatar_url?: string; // URL da imagem de avatar do lead
   ltv?: number; // Lifetime Value - valor estimado do lead
