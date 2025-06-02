@@ -30,57 +30,59 @@ const App = () => (
       <Toaster />
       <Sonner />
       <AuthProvider>
-        <ClinicaProvider>
-          <BrowserRouter>
-            <Routes>
-              {/* Página pública de boas-vindas */}
-              <Route path="/welcome" element={<WelcomePage />} />
-              
-              {/* Rotas públicas de autenticação */}
-              <Route path="/login" element={<SignInPage />} />
-              <Route path="/signup" element={<SignUpPage />} />
-              
-              {/* Redirecionar raiz para dashboard */}
-              <Route 
-                path="/" 
-                element={<Navigate to="/dashboard" replace />} 
-              />
-              
-              {/* Rotas protegidas com layout principal */}
-              <Route 
-                path="/*" 
-                element={
-                  <ProtectedRoute>
+        <BrowserRouter>
+          <Routes>
+            {/* Página pública de boas-vindas */}
+            <Route path="/welcome" element={<WelcomePage />} />
+            
+            {/* Rotas públicas de autenticação */}
+            <Route path="/login" element={<SignInPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
+            
+            {/* Redirecionar raiz para dashboard */}
+            <Route 
+              path="/" 
+              element={<Navigate to="/dashboard" replace />} 
+            />
+            
+            {/* Rotas protegidas com layout principal - TODAS dentro do ClinicaProvider */}
+            <Route 
+              path="/*" 
+              element={
+                <ProtectedRoute>
+                  <ClinicaProvider>
                     <MainLayout />
-                  </ProtectedRoute>
-                }
-              >
-                {/* Rotas das páginas principais */}
-                <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="leads" element={<LeadsPage />} />
-                <Route path="pipeline" element={<PipelinePage />} />
-                <Route path="contatos" element={<ContatosPage />} />
-                <Route path="chat" element={<ChatPageWrapper />} />
-                <Route path="agenda" element={<AgendaPage />} />
-                <Route path="ia" element={<ConfiguracoesIAPage />} />
-                <Route path="configuracoes" element={<ConfiguracoesPage />} />
-              </Route>
-              
-              {/* Rota do admin (sem layout principal pois tem seu próprio layout) */}
-              <Route 
-                path="/admin" 
-                element={
-                  <ProtectedRoute>
+                  </ClinicaProvider>
+                </ProtectedRoute>
+              }
+            >
+              {/* Rotas das páginas principais */}
+              <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="leads" element={<LeadsPage />} />
+              <Route path="pipeline" element={<PipelinePage />} />
+              <Route path="contatos" element={<ContatosPage />} />
+              <Route path="chat" element={<ChatPageWrapper />} />
+              <Route path="agenda" element={<AgendaPage />} />
+              <Route path="ia" element={<ConfiguracoesIAPage />} />
+              <Route path="configuracoes" element={<ConfiguracoesPage />} />
+            </Route>
+            
+            {/* Rota do admin (sem layout principal pois tem seu próprio layout) */}
+            <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute>
+                  <ClinicaProvider>
                     <AdminPage />
-                  </ProtectedRoute>
-                } 
-              />
-              
-              {/* Página 404 para rotas não encontradas */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </ClinicaProvider>
+                  </ClinicaProvider>
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Página 404 para rotas não encontradas */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
