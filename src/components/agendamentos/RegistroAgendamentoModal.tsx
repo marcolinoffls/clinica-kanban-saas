@@ -156,7 +156,7 @@ export const RegistroAgendamentoModal = ({
       } : 'null',
       userProfile: userProfile ? {
         user_id: userProfile.user_id,
-        nome: userProfile.nome
+        nome_completo: userProfile.nome_completo
       } : 'null',
       profileError: profileError?.message || 'null',
       hasAuthProblem
