@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Calendar as CalendarIcon, Clock, X, Trash2, AlertCircle, RefreshCw } from 'lucide-react';
-import { format, setHours, setMinutes } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 import {
@@ -71,11 +71,11 @@ import { useClinicaOperations } from '@/hooks/useClinicaOperations';
 
 // Constantes e Tipos
 import { AGENDAMENTO_STATUS_OPTIONS } from '@/constants/agendamentos';
-import { 
-  AgendamentoFormData, 
-  AgendamentoStatus, 
-  agendamentoFormSchema, 
-  formatarDataParaISO 
+import {
+  AgendamentoFormData,
+  AgendamentoStatus,
+  agendamentoFormSchema,
+  formatarDataParaISO
 } from './types';
 
 // Componentes refatorados
@@ -85,11 +85,11 @@ import { ServicoSelector } from './ServicoSelector';
 
 /**
  * Modal para registro e edição de agendamentos
- * 
+ *
  * Este componente permite criar novos agendamentos ou editar existentes.
  * Integra com o sistema de leads para seleção de clientes e permite
  * cadastro de novos clientes durante o processo de agendamento.
- * 
+ *
  * Após correção do trigger handle_new_user, o userProfile deve sempre
  * estar disponível para usuários autenticados.
  */
@@ -107,21 +107,14 @@ export const RegistroAgendamentoModal = ({
   agendamentoParaEditar,
   leadPreSelecionadoId,
 }: RegistroAgendamentoModalProps) => {
-  console.log('[ModalAgendamento] Props recebidas:', { isOpen, agendamentoParaEditar, leadPreSelecionadoId });
-
   // Estados para controles de UI
   const [dataInicioPopoverOpen, setDataInicioPopoverOpen] = useState(false);
   const [dataFimPopoverOpen, setDataFimPopoverOpen] = useState(false);
-
-  // Estados para modo de serviço
   const [modoServico, setModoServico] = useState<'selecionar' | 'manual'>('selecionar');
   const [servicoSelecionadoIdHook, setServicoSelecionadoIdHook] = useState<string | null>(null);
-
-  // Estados para criação de novo cliente
   const [registrandoNovoCliente, setRegistrandoNovoCliente] = useState(false);
   const [clienteBuscaInput, setClienteBuscaInput] = useState('');
 
-  // Determinar se estamos em modo de edição
   const isEdicaoMode = !!agendamentoParaEditar;
 
   // Hooks para obter dados necessários
@@ -130,40 +123,13 @@ export const RegistroAgendamentoModal = ({
   const { clinicaAtiva } = useClinica();
   const { userProfile, user, isAuthenticated, profileError, refreshProfile } = useAuthUser();
 
-  // Log detalhado para debugging do usuário autenticado
-  console.log('[ModalAgendamento] Estado de autenticação detalhado:', {
-    isAuthenticated,
-    user_id: user?.id,
-    userProfile_exists: !!userProfile,
-    userProfile_user_id: userProfile?.user_id,
-    clinica_id: clinicaAtiva?.id,
-    profileError: profileError?.message
-  });
 
-  // Garantir que os dados sejam sempre arrays válidos
   const leadsSeguro = Array.isArray(leadsData) ? leadsData : [];
   const servicosSeguro = Array.isArray(servicosData) ? servicosData : [];
 
-  // Verificar se existe problema de autenticação crítico
-  const hasAuthProblem = isAuthenticated && !userProfile && !profileError;
-// Após linha 149
-  useEffect(() => {
-    console.log('🔍 [ModalAgendamento] Estado atual da autenticação:', {
-      isAuthenticated,
-      user: user ? {
-        id: user.id,
-        email: user.email
-      } : 'null',
-      userProfile: userProfile ? {
-        user_id: userProfile.user_id,
-        nome_completo: userProfile.nome_completo
-      } : 'null',
-      profileError: profileError?.message || 'null',
-      hasAuthProblem
-    });
-  }, [isAuthenticated, user, userProfile, profileError, hasAuthProblem]);
+  // Variável para detectar problema crítico de autenticação/perfil
+  const authProfileMissing = isAuthenticated && !userProfile && !profileError;
 
-  // Configuração do formulário
   const form = useForm<AgendamentoFormData>({
     resolver: zodResolver(agendamentoFormSchema),
     defaultValues: {
@@ -171,258 +137,49 @@ export const RegistroAgendamentoModal = ({
       titulo: '',
       data_inicio: new Date(),
       hora_inicio: format(new Date(), 'HH:mm'),
-      data_fim: new Date(),
+      data_fim: new Date(), // Ajustado no useEffect para 1h depois do início
       hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'),
       valor: 0,
       status: AgendamentoStatus.AGENDADO,
       descricao: '',
       clinica_id: clinicaAtiva?.id || '',
-      usuario_id: userProfile?.user_id || user?.id || '',
+      usuario_id: userProfile?.user_id || user?.id || '', // Prioriza userProfile, depois user, depois string vazia
       novo_cliente_nome: '',
       novo_cliente_telefone: '',
     },
   });
 
-  // Hooks de mutação do Supabase
-  const createAgendamentoMutation = useCreateAgendamento();
-  const updateAgendamentoMutation = useUpdateAgendamento();
-  const deleteAgendamentoMutation = useDeleteAgendamento();
-  const { createLead, isCreatingLead } = useClinicaOperations();
-
-  // Função para combinar data e hora em um objeto Date
-  const combinarDataHora = (data: Date, horaString: string): Date => {
-    const [horas, minutos] = horaString.split(':').map(Number);
-    const novaData = new Date(data);
-    novaData.setHours(horas, minutos, 0, 0);
-    return novaData;
-  };
-
-  // Função onSubmit principal com validações críticas melhoradas
-// Substitua a função onSubmit completa por esta versão com diagnóstico:
-
-  const onSubmit = async (data: AgendamentoFormData) => {
-    console.log('🚀 [ModalAgendamento] =========================');
-    console.log('🚀 [ModalAgendamento] INICIANDO DIAGNÓSTICO COMPLETO');
-    console.log('🚀 [ModalAgendamento] =========================');
-    
-    // DIAGNÓSTICO DETALHADO DO ESTADO DE AUTENTICAÇÃO
-    console.log('🔍 [ModalAgendamento] Estado completo da autenticação:', {
-      // Dados do useAuthUser
-      isAuthenticated,
-      user: user ? {
-        id: user.id,
-        email: user.email,
-        aud: user.aud,
-        role: user.role,
-        created_at: user.created_at
-      } : null,
-      
-      // Dados do userProfile
-      userProfile: userProfile ? {
-        user_id: userProfile.user_id,
-        nome: userProfile.nome,
-        email: userProfile.email,
-        clinica_id: userProfile.clinica_id
-      } : null,
-      
-      // Estados de erro e loading
-      profileError: profileError ? {
-        message: profileError.message,
-        details: profileError
-      } : null,
-      
-      // Dados da clínica
-      clinicaAtiva: clinicaAtiva ? {
-        id: clinicaAtiva.id,
-        nome: clinicaAtiva.nome
-      } : null,
-      
-      // Outros estados
-      hasAuthProblem,
-      timestamp: new Date().toISOString()
-    });
-  
-    console.log('📋 [ModalAgendamento] Dados do formulário recebidos:', data);
-    
-    // VALIDAÇÃO 1: Verificar autenticação básica
-    console.log('✅ [ModalAgendamento] VALIDAÇÃO 1: Verificando isAuthenticated...');
-    if (!isAuthenticated) {
-      console.error('❌ [ModalAgendamento] FALHOU: Usuário não está autenticado');
-      toast.error("Você precisa estar logado para criar agendamentos.");
-      return;
-    }
-    console.log('✅ [ModalAgendamento] PASSOU: Usuário está autenticado');
-  
-    // VALIDAÇÃO 2: Verificar se temos um objeto user válido
-    console.log('✅ [ModalAgendamento] VALIDAÇÃO 2: Verificando objeto user...');
-    if (!user || !user.id) {
-      console.error('❌ [ModalAgendamento] FALHOU: Objeto user inválido', { user });
-      toast.error("Erro de autenticação: dados do usuário não encontrados. Faça logout e login novamente.");
-      return;
-    }
-    console.log('✅ [ModalAgendamento] PASSOU: Objeto user válido com ID:', user.id);
-  
-    // VALIDAÇÃO 3: Verificar userProfile
-    console.log('✅ [ModalAgendamento] VALIDAÇÃO 3: Verificando userProfile...');
-    if (!userProfile) {
-      console.error('❌ [ModalAgendamento] FALHOU: userProfile não encontrado');
-      console.error('❌ [ModalAgendamento] Isso indica que o perfil do usuário não existe na tabela user_profiles');
-      console.error('❌ [ModalAgendamento] Possíveis causas:');
-      console.error('   - Trigger handle_new_user não funcionou na criação do usuário');
-      console.error('   - Perfil foi deletado da tabela user_profiles');
-      console.error('   - Problema de sincronização entre auth.users e user_profiles');
-      
-      toast.error("Usuário não encontrado no sistema. Faça logout e login novamente.");
-      return;
-    }
-    console.log('✅ [ModalAgendamento] PASSOU: userProfile encontrado:', userProfile.user_id);
-  
-    // VALIDAÇÃO 4: Verificar se user_id bate entre user e userProfile
-    console.log('✅ [ModalAgendamento] VALIDAÇÃO 4: Verificando consistência de IDs...');
-    if (user.id !== userProfile.user_id) {
-      console.error('❌ [ModalAgendamento] FALHOU: IDs não batem!', {
-        user_id: user.id,
-        userProfile_user_id: userProfile.user_id
-      });
-      toast.error("Inconsistência de dados do usuário. Faça logout e login novamente.");
-      return;
-    }
-    console.log('✅ [ModalAgendamento] PASSOU: IDs são consistentes');
-  
-    // VALIDAÇÃO 5: Verificar clínica
-    console.log('✅ [ModalAgendamento] VALIDAÇÃO 5: Verificando clínica...');
-    if (!clinicaAtiva?.id) {
-      console.error('❌ [ModalAgendamento] FALHOU: Clínica não selecionada', { clinicaAtiva });
-      toast.error("Erro de configuração: ID da clínica não encontrado.");
-      return;
-    }
-    console.log('✅ [ModalAgendamento] PASSOU: Clínica válida:', clinicaAtiva.id);
-  
-    // Se chegou até aqui, todos os dados estão válidos
-    // Por esta verificação mais robusta:
-    // VALIDAÇÃO 6: Verificar se existe na tabela usuarios
-    console.log('✅ [ModalAgendamento] VALIDAÇÃO 6: Verificando usuário na tabela usuarios...');
-    
-    // Primeiro, vamos usar o user.id (que é o auth.uid()) para buscar na tabela usuarios
-    const usuario_id_final = user.id; // Usar o ID do auth.users, não do user_profiles
-    
-    console.log('✅ [ModalAgendamento] Usando usuario_id:', usuario_id_final);    
-    console.log('🎉 [ModalAgendamento] TODAS AS VALIDAÇÕES PASSARAM!');
-    console.log('🎉 [ModalAgendamento] Dados finais para criação:', {
-      usuario_id_final,
-      clinica_id: clinicaAtiva.id,
-      cliente_id: data.cliente_id,
-      registrandoNovoCliente
-    });
-  
-    // Continuar com o resto da lógica...
-    let cliente_id_final = data.cliente_id;
-  
-    if (registrandoNovoCliente) {
-      if (!data.novo_cliente_nome?.trim() || !data.novo_cliente_telefone?.trim()) {
-        form.setError("novo_cliente_nome", { type: "manual", message: "Nome é obrigatório para novo cliente."});
-        form.setError("novo_cliente_telefone", { type: "manual", message: "Telefone é obrigatório para novo cliente."});
-        toast.error("Nome e telefone são obrigatórios para cadastrar um novo cliente.");
-        return;
-      }
-      
-      try {
-        console.log('📝 [ModalAgendamento] Criando novo lead:', { 
-          nome: data.novo_cliente_nome, 
-          telefone: data.novo_cliente_telefone 
-        });
-        
-        const novoLead = await createLead({
-          nome: data.novo_cliente_nome,
-          telefone: data.novo_cliente_telefone,
-        });
-        
-        cliente_id_final = novoLead.id;
-        console.log('✅ [ModalAgendamento] Novo lead criado com ID:', cliente_id_final);
-      } catch (error) {
-        console.error('❌ [ModalAgendamento] Erro ao criar novo lead:', error);
-        toast.error("Falha ao criar novo cliente.");
-        return;
-      }
-    }
-  
-    if (!cliente_id_final && !registrandoNovoCliente) {
-      form.setError("cliente_id", { type: "manual", message: "Cliente é obrigatório."});
-      toast.error("Por favor, selecione um cliente ou cadastre um novo.");
-      return;
-    }
-  
-    const dataInicioFinal = combinarDataHora(data.data_inicio, data.hora_inicio);
-    const dataFimFinal = combinarDataHora(data.data_fim, data.hora_fim);
-  
-    if (dataFimFinal <= dataInicioFinal) {
-      form.setError("data_fim", { type: "manual", message: "Data/hora de fim deve ser posterior à de início."});
-      form.setError("hora_fim", { type: "manual", message: " "});
-      toast.error("Data ou hora de fim inválida.");
-      return;
-    }
-  
-    const agendamentoPayload: CreateAgendamentoData | (Partial<AgendamentoFromDatabase> & { id: string }) = {
-      ...(isEdicaoMode && agendamentoParaEditar && { id: agendamentoParaEditar.id }),
-      cliente_id: cliente_id_final,
-      clinica_id: clinicaAtiva.id,
-      usuario_id: usuario_id_final,
-      titulo: modoServico === 'manual' ? data.titulo : (servicosSeguro.find(s => s.id === servicoSelecionadoIdHook)?.nome_servico || data.titulo),
-      data_inicio: formatarDataParaISO(dataInicioFinal),
-      data_fim: formatarDataParaISO(dataFimFinal),
-      valor: data.valor ? Number(data.valor) : 0,
-      status: data.status,
-      descricao: data.descricao || null,
-    };
-    
-    console.log('📤 [ModalAgendamento] Payload final para Supabase:', agendamentoPayload);
-  
-    try {
-      if (isEdicaoMode) {
-        console.log('🔄 [ModalAgendamento] Atualizando agendamento...');
-        await updateAgendamentoMutation.mutateAsync(agendamentoPayload as Partial<AgendamentoFromDatabase> & { id: string });
-      } else {
-        console.log('➕ [ModalAgendamento] Criando novo agendamento...');
-        await createAgendamentoMutation.mutateAsync(agendamentoPayload as CreateAgendamentoData);
-      }
-      
-      console.log('✅ [ModalAgendamento] Agendamento salvo com sucesso!');
-      handleCloseModal();
-    } catch (error) {
-      console.error('❌ [ModalAgendamento] Erro na mutação:', error);
-    }
-  };
-  // useEffect para preencher formulário em modo de edição
+  // Efeito para popular o formulário ao abrir ou quando dados relevantes mudam
   useEffect(() => {
-    console.log('[ModalAgendamento] useEffect de Edição/Pré-seleção. isOpen:', isOpen, 'agendamentoParaEditar:', agendamentoParaEditar, 'leadPreSelecionadoId:', leadPreSelecionadoId);
+    const getInitialUsuarioId = () => userProfile?.user_id || user?.id || '';
+    const getInitialClinicaId = () => clinicaAtiva?.id || '';
+
     if (!isOpen) {
-        form.reset({
-            cliente_id: '',
-            titulo: '',
-            data_inicio: new Date(),
-            hora_inicio: format(new Date(), 'HH:mm'),
-            data_fim: new Date(new Date().getTime() + 60 * 60 * 1000),
-            hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'),
-            valor: 0,
-            status: AgendamentoStatus.AGENDADO,
-            descricao: '',
-            clinica_id: clinicaAtiva?.id || '',
-            usuario_id: userProfile?.user_id || '',
-            novo_cliente_nome: '',
-            novo_cliente_telefone: '',
-        });
-        setModoServico('selecionar');
-        setServicoSelecionadoIdHook(null);
-        setRegistrandoNovoCliente(false);
-        setClienteBuscaInput('');
-        return;
+      form.reset({
+        cliente_id: '',
+        titulo: '',
+        data_inicio: new Date(),
+        hora_inicio: format(new Date(), 'HH:mm'),
+        data_fim: new Date(new Date().getTime() + 60 * 60 * 1000),
+        hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'),
+        valor: 0,
+        status: AgendamentoStatus.AGENDADO,
+        descricao: '',
+        clinica_id: getInitialClinicaId(),
+        usuario_id: getInitialUsuarioId(),
+        novo_cliente_nome: '',
+        novo_cliente_telefone: '',
+      });
+      setModoServico('selecionar');
+      setServicoSelecionadoIdHook(null);
+      setRegistrandoNovoCliente(false);
+      setClienteBuscaInput('');
+      return;
     }
 
     if (agendamentoParaEditar) {
-      console.log('[ModalAgendamento] Modo Edição - Preenchendo formulário com:', agendamentoParaEditar);
       const dataInicio = new Date(agendamentoParaEditar.data_inicio);
       const dataFim = new Date(agendamentoParaEditar.data_fim);
-
       form.reset({
         cliente_id: agendamentoParaEditar.cliente_id || '',
         titulo: agendamentoParaEditar.titulo || '',
@@ -441,47 +198,17 @@ export const RegistroAgendamentoModal = ({
       if (servicoOriginal) {
         setModoServico('selecionar');
         setServicoSelecionadoIdHook(servicoOriginal.id);
-        form.setValue('titulo', servicoOriginal.nome_servico);
       } else {
         setModoServico('manual');
-        form.setValue('titulo', agendamentoParaEditar.titulo || '');
       }
-      
+
       const clienteDoAgendamento = leadsSeguro.find(l => l.id === agendamentoParaEditar.cliente_id);
       if (clienteDoAgendamento) {
         setClienteBuscaInput(clienteDoAgendamento.nome);
       }
 
-    } else if (leadPreSelecionadoId) {
-        console.log('[ModalAgendamento] Pré-selecionando lead ID:', leadPreSelecionadoId);
-        form.setValue('cliente_id', leadPreSelecionadoId);
-        const clientePre = leadsSeguro.find(l => l.id === leadPreSelecionadoId);
-        if (clientePre) {
-            setClienteBuscaInput(clientePre.nome);
-        }
-    } else {
-        form.reset({
-            cliente_id: '',
-            titulo: '',
-            data_inicio: new Date(),
-            hora_inicio: format(new Date(), 'HH:mm'),
-            data_fim: new Date(new Date().getTime() + 60 * 60 * 1000),
-            hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'),
-            valor: 0,
-            status: AgendamentoStatus.AGENDADO,
-            descricao: '',
-            clinica_id: clinicaAtiva?.id || '',
-            usuario_id: userProfile?.user_id || '',
-            novo_cliente_nome: '',
-            novo_cliente_telefone: '',
-        });
-        setClienteBuscaInput('');
-    }
-  }, [agendamentoParaEditar, isOpen, form, leadPreSelecionadoId, clinicaAtiva, userProfile, leadsSeguro, servicosSeguro]);
-
-  // Função para fechar o modal
-  const handleCloseModal = () => {
-    form.reset({
+    } else { // Modo de criação
+      form.reset({
         cliente_id: leadPreSelecionadoId || '',
         titulo: '',
         data_inicio: new Date(),
@@ -491,46 +218,176 @@ export const RegistroAgendamentoModal = ({
         valor: 0,
         status: AgendamentoStatus.AGENDADO,
         descricao: '',
-        clinica_id: clinicaAtiva?.id || '',
-        usuario_id: userProfile?.user_id || '',
+        clinica_id: getInitialClinicaId(),
+        usuario_id: getInitialUsuarioId(),
         novo_cliente_nome: '',
         novo_cliente_telefone: '',
+      });
+      if (leadPreSelecionadoId) {
+        const clientePre = leadsSeguro.find(l => l.id === leadPreSelecionadoId);
+        if (clientePre) {
+          setClienteBuscaInput(clientePre.nome);
+        }
+      } else {
+        setClienteBuscaInput('');
+      }
+    }
+  }, [isOpen, agendamentoParaEditar, leadPreSelecionadoId, form, clinicaAtiva, userProfile, user, leadsSeguro, servicosSeguro]);
+
+
+  const createAgendamentoMutation = useCreateAgendamento();
+  const updateAgendamentoMutation = useUpdateAgendamento();
+  const deleteAgendamentoMutation = useDeleteAgendamento();
+  const { createLead, isCreatingLead } = useClinicaOperations();
+
+  // Combina data e hora em um objeto Date, garantindo que seja a data correta.
+  const combinarDataHora = (data: Date, horaString: string): Date => {
+    const [horas, minutos] = horaString.split(':').map(Number);
+    const dataBase = new Date(data.getFullYear(), data.getMonth(), data.getDate());
+    dataBase.setHours(horas, minutos, 0, 0);
+    return dataBase;
+  };
+
+  // Função de submissão do formulário
+  const onSubmit = async (formDataValues: AgendamentoFormData) => {
+    // Validação 1: Usuário autenticado e com ID de usuário válido (de auth.users)
+    if (!isAuthenticated || !user?.id) {
+      toast.error("Você precisa estar logado para criar agendamentos.");
+      console.error("[ModalAgendamento] Tentativa de submissão sem usuário autenticado ou ID de usuário ausente.");
+      return;
+    }
+    const finalUsuarioId = user.id; // Usar o ID de auth.users
+
+    // Validação 2: Perfil do usuário carregado (para obter clinica_id)
+    if (!userProfile?.user_id || !userProfile.clinica_id) {
+      toast.error("Perfil do usuário ou clínica não carregado. Tente recarregar a página ou fazer login novamente.");
+      console.error("[ModalAgendamento] Tentativa de submissão sem userProfile.user_id ou userProfile.clinica_id.", { userProfile });
+      return;
+    }
+    // Validação 3: Clínica Ativa (deve ser a mesma do userProfile para consistência)
+    if (!clinicaAtiva?.id || clinicaAtiva.id !== userProfile.clinica_id) {
+      toast.error("Erro de configuração da clínica. Contate o suporte.");
+      console.error("[ModalAgendamento] Inconsistência entre clinicaAtiva e userProfile.clinica_id.", { clinicaAtiva, userProfile });
+      return;
+    }
+    const finalClinicaId = clinicaAtiva.id;
+
+
+    let finalClienteId = formDataValues.cliente_id;
+
+    if (registrandoNovoCliente) {
+      if (!formDataValues.novo_cliente_nome?.trim() || !formDataValues.novo_cliente_telefone?.trim()) {
+        form.setError("novo_cliente_nome", { type: "manual", message: "Nome é obrigatório para novo cliente." });
+        form.setError("novo_cliente_telefone", { type: "manual", message: "Telefone é obrigatório." });
+        toast.error("Nome e telefone são obrigatórios para cadastrar um novo cliente.");
+        return;
+      }
+      try {
+        const novoLead = await createLead({
+          nome: formDataValues.novo_cliente_nome,
+          telefone: formDataValues.novo_cliente_telefone,
+          // clinica_id é adicionado automaticamente pelo hook useClinicaOperations
+        });
+        finalClienteId = novoLead.id;
+      } catch (error: any) {
+        toast.error(`Falha ao criar novo cliente: ${error.message}`);
+        console.error('[ModalAgendamento] Erro ao criar novo lead:', error.message);
+        return;
+      }
+    }
+
+    if (!finalClienteId) {
+      form.setError("cliente_id", { type: "manual", message: "Cliente é obrigatório." });
+      toast.error("Por favor, selecione um cliente ou cadastre um novo.");
+      return;
+    }
+
+    const dataInicioFinal = combinarDataHora(formDataValues.data_inicio, formDataValues.hora_inicio);
+    const dataFimFinal = combinarDataHora(formDataValues.data_fim, formDataValues.hora_fim);
+
+    if (dataFimFinal <= dataInicioFinal) {
+      form.setError("data_fim", { type: "manual", message: "Data/hora de fim deve ser posterior à de início." });
+      form.setError("hora_fim", { type: "manual", message: " " });
+      toast.error("Data ou hora de fim inválida. Verifique se é posterior ao início.");
+      return;
+    }
+
+    const agendamentoPayload = {
+      ...(isEdicaoMode && agendamentoParaEditar && { id: agendamentoParaEditar.id }),
+      cliente_id: finalClienteId,
+      clinica_id: finalClinicaId,
+      usuario_id: finalUsuarioId,
+      titulo: modoServico === 'manual' ? formDataValues.titulo : (servicosSeguro.find(s => s.id === servicoSelecionadoIdHook)?.nome_servico || formDataValues.titulo),
+      data_inicio: formatarDataParaISO(dataInicioFinal),
+      data_fim: formatarDataParaISO(dataFimFinal),
+      valor: formDataValues.valor ? Number(formDataValues.valor) : 0,
+      status: formDataValues.status,
+      descricao: formDataValues.descricao || null,
+    };
+
+    try {
+      if (isEdicaoMode) {
+        await updateAgendamentoMutation.mutateAsync(agendamentoPayload as Partial<AgendamentoFromDatabase> & { id: string });
+      } else {
+        await createAgendamentoMutation.mutateAsync(agendamentoPayload as CreateAgendamentoData);
+      }
+      handleCloseModal();
+    } catch (error: any) {
+      // Os toasts de erro são tratados dentro das mutações.
+      // Apenas logar a mensagem de erro para fins de depuração segura.
+      console.error('[ModalAgendamento] Erro na mutação de salvar/atualizar agendamento:', error.message);
+    }
+  };
+
+  // Função para fechar o modal e resetar o formulário
+  const handleCloseModal = () => {
+    form.reset({
+      cliente_id: '',
+      titulo: '',
+      data_inicio: new Date(),
+      hora_inicio: format(new Date(), 'HH:mm'),
+      data_fim: new Date(new Date().getTime() + 60 * 60 * 1000),
+      hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'),
+      valor: 0,
+      status: AgendamentoStatus.AGENDADO,
+      descricao: '',
+      clinica_id: clinicaAtiva?.id || '',
+      usuario_id: userProfile?.user_id || user?.id || '',
+      novo_cliente_nome: '',
+      novo_cliente_telefone: '',
     });
     setModoServico('selecionar');
     setServicoSelecionadoIdHook(null);
     setRegistrandoNovoCliente(false);
-    setClienteBuscaInput(leadPreSelecionadoId && leadsSeguro.find(l=>l.id === leadPreSelecionadoId)?.nome || '');
+    setClienteBuscaInput(leadPreSelecionadoId && leadsSeguro.find(l => l.id === leadPreSelecionadoId)?.nome || '');
     setDataInicioPopoverOpen(false);
     setDataFimPopoverOpen(false);
     onClose();
-    console.log('[ModalAgendamento] Modal fechado e formulário resetado.');
+    // console.log('[ModalAgendamento] Modal fechado e formulário resetado.'); // Log de baixo impacto
   };
 
   // Função para excluir agendamento
   const handleDelete = async () => {
     if (!agendamentoParaEditar?.id) return;
-    console.log(`[ModalAgendamento] Solicitando exclusão do agendamento ID: ${agendamentoParaEditar.id}`);
+    // console.log(`[ModalAgendamento] Solicitando exclusão do agendamento ID: ${agendamentoParaEditar.id}`);
     try {
       await deleteAgendamentoMutation.mutateAsync(agendamentoParaEditar.id);
       handleCloseModal();
-    } catch (error) {
-        console.error(`[ModalAgendamento] Erro ao excluir agendamento ID: ${agendamentoParaEditar.id}`, error);
+    } catch (error: any) {
+      console.error(`[ModalAgendamento] Erro ao excluir agendamento ID ${agendamentoParaEditar.id}:`, error.message);
     }
   };
-  
-  // Verificar se ainda está carregando dados essenciais
+
   const isLoadingMutation = createAgendamentoMutation.isPending || updateAgendamentoMutation.isPending || deleteAgendamentoMutation.isPending || isCreatingLead;
 
-  // Se ainda está carregando dados essenciais, mostrar loading
-  if (loadingLeads && leadsSeguro.length === 0) {
+  // Exibir loading apenas se o modal estiver aberto e os leads (para o seletor) estiverem carregando
+  if (isOpen && loadingLeads && leadsSeguro.length === 0 && !agendamentoParaEditar && !leadPreSelecionadoId) {
     return (
-      <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseModal()}>
+      <Dialog open={isOpen} onOpenChange={(openStatus) => !openStatus && handleCloseModal()}>
         <DialogContent className="max-w-2xl">
           <div className="flex items-center justify-center p-8">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p>Carregando dados...</p>
-            </div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="ml-3">Carregando dados dos clientes...</p>
           </div>
         </DialogContent>
       </Dialog>
@@ -540,7 +397,7 @@ export const RegistroAgendamentoModal = ({
   if (!isOpen) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseModal()}>
+    <Dialog open={isOpen} onOpenChange={(openStatus) => !openStatus && handleCloseModal()}>
       <DialogContent className="max-w-2xl max-h-[95vh] flex flex-col">
         <DialogHeader>
           <div className="flex justify-between items-center">
@@ -552,14 +409,9 @@ export const RegistroAgendamentoModal = ({
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-600"
-                      disabled={isLoadingMutation}
-                      aria-label="Excluir agendamento"
-                    >
-                      <Trash2 size={16} />
-                    </Button>
+                      variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-600"
+                      disabled={isLoadingMutation} aria-label="Excluir agendamento"
+                    > <Trash2 size={16} /> </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
@@ -571,228 +423,143 @@ export const RegistroAgendamentoModal = ({
                     <AlertDialogFooter>
                       <AlertDialogCancel disabled={isLoadingMutation}>Cancelar</AlertDialogCancel>
                       <AlertDialogAction
-                        onClick={handleDelete}
-                        disabled={isLoadingMutation}
+                        onClick={handleDelete} disabled={isLoadingMutation}
                         className="bg-red-600 hover:bg-red-700"
-                      >
-                        {deleteAgendamentoMutation.isPending ? 'Excluindo...' : 'Excluir'}
-                      </AlertDialogAction>
+                      > {deleteAgendamentoMutation.isPending ? 'Excluindo...' : 'Excluir'} </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
               )}
               <DialogClose asChild>
-                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCloseModal} aria-label="Fechar modal">
-                    <X size={18} />
-                 </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCloseModal} aria-label="Fechar modal">
+                  <X size={18} />
+                </Button>
               </DialogClose>
             </div>
           </div>
         </DialogHeader>
 
         <div className="flex-grow overflow-y-auto pr-2 pl-0.5 py-1">
-          {/* Alerta para problemas de autenticação */}
-          {hasAuthProblem && (
-            <Alert className="mb-4 border-amber-200 bg-amber-50">
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-800">
+          {/* Alerta para problemas de autenticação / perfil de usuário */}
+          {authProfileMissing && ( // Se autenticado mas sem perfil (e não por erro de fetch)
+            <Alert variant="destructive" className="mb-4 border-amber-300 bg-amber-50 text-amber-900">
+              <AlertCircle className="h-4 w-4 !text-amber-600" />
+              <AlertDescription>
                 <div className="flex items-center justify-between">
-                  <span>Problema de autenticação detectado. Perfil de usuário não encontrado.</span>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={refreshProfile}
-                    className="ml-2 h-7 text-amber-700 border-amber-300 hover:bg-amber-100"
-                  >
-                    <RefreshCw size={14} className="mr-1" />
-                    Tentar Novamente
-                  </Button>
+                  <span>Perfil de usuário não carregado. Algumas funcionalidades podem falhar.</span>
+                  {typeof refreshProfile === 'function' && (
+                    <Button
+                      variant="outline" size="sm" onClick={refreshProfile}
+                      className="ml-2 h-7 text-xs text-amber-700 border-amber-300 hover:bg-amber-100"
+                    > <RefreshCw size={14} className="mr-1" /> Tentar Recarregar Perfil </Button>
+                  )}
                 </div>
               </AlertDescription>
             </Alert>
           )}
-
-          {profileError && (
-            <Alert className="mb-4 border-red-200 bg-red-50">
-              <AlertCircle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-800">
-                Erro ao carregar perfil do usuário: {profileError.message}
+          {profileError && ( // Se houve erro explícito ao buscar perfil
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Erro ao carregar informações do usuário: {profileError.message}.
+                Por favor, tente fazer login novamente ou contate o suporte.
               </AlertDescription>
             </Alert>
           )}
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              {/* SELEÇÃO DE CLIENTE */}
               <ClienteSelector
-                form={form}
-                leads={leadsSeguro}
-                loadingLeads={loadingLeads}
-                registrandoNovoCliente={registrandoNovoCliente}
-                setRegistrandoNovoCliente={setRegistrandoNovoCliente}
-                clienteBuscaInput={clienteBuscaInput}
-                setClienteBuscaInput={setClienteBuscaInput}
+                form={form} leads={leadsSeguro} loadingLeads={loadingLeads}
+                registrandoNovoCliente={registrandoNovoCliente} setRegistrandoNovoCliente={setRegistrandoNovoCliente}
+                clienteBuscaInput={clienteBuscaInput} setClienteBuscaInput={setClienteBuscaInput}
               />
-
-              {/* CAMPOS PARA NOVO CLIENTE */}
               {registrandoNovoCliente && (
                 <NovoClienteFields
-                  form={form}
-                  setRegistrandoNovoCliente={setRegistrandoNovoCliente}
-                  setClienteBuscaInput={setClienteBuscaInput}
-                  leads={leadsSeguro}
+                  form={form} setRegistrandoNovoCliente={setRegistrandoNovoCliente}
+                  setClienteBuscaInput={setClienteBuscaInput} leads={leadsSeguro}
                 />
               )}
-
-              {/* SELEÇÃO DE SERVIÇO */}
               <ServicoSelector
-                form={form}
-                servicos={servicosSeguro}
-                loadingServices={loadingServices}
-                modoServico={modoServico}
-                setModoServico={setModoServico}
-                servicoSelecionadoId={servicoSelecionadoIdHook}
-                setServicoSelecionadoId={setServicoSelecionadoIdHook}
+                form={form} servicos={servicosSeguro} loadingServices={loadingServices}
+                modoServico={modoServico} setModoServico={setModoServico}
+                servicoSelecionadoId={servicoSelecionadoIdHook} setServicoSelecionadoId={setServicoSelecionadoIdHook}
               />
-
-              {/* DATA E HORA DE INÍCIO */}
+              {/* Campos de Data e Hora */}
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="data_inicio"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Data de Início *</FormLabel>
-                      <Popover open={dataInicioPopoverOpen} onOpenChange={setDataInicioPopoverOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {field.value ? format(field.value, "PPP", { locale: ptBR }) : <span>Escolha uma data</span>}
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="hora_inicio"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Hora Início *</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* DATA E HORA DE FIM */}
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="data_fim"
-                  render={({ field }) => (
-                     <FormItem className="flex flex-col">
-                      <FormLabel>Data de Fim *</FormLabel>
-                      <Popover open={dataFimPopoverOpen} onOpenChange={setDataFimPopoverOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {field.value ? format(field.value, "PPP", { locale: ptBR }) : <span>Escolha uma data</span>}
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus disabled={(date) => date < form.getValues("data_inicio")}/>
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="hora_fim"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Hora Fim *</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* VALOR E STATUS */}
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="valor"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Valor (R$)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="0.00" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                <FormField control={form.control} name="data_inicio" render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Data de Início *</FormLabel>
+                    <Popover open={dataInicioPopoverOpen} onOpenChange={setDataInicioPopoverOpen}>
+                      <PopoverTrigger asChild>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione um status" />
-                          </SelectTrigger>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {field.value ? format(new Date(field.value), "PPP", { locale: ptBR }) : <span>Escolha uma data</span>}
+                          </Button>
                         </FormControl>
-                        <SelectContent>
-                          {AGENDAMENTO_STATUS_OPTIONS.map(option => (
-                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* DESCRIÇÃO */}
-              <FormField
-                control={form.control}
-                name="descricao"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Observações</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Detalhes adicionais sobre o agendamento..." {...field} />
-                    </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
-                )}
-              />
+                )} />
+                <FormField control={form.control} name="hora_inicio" render={({ field }) => (
+                  <FormItem> <FormLabel>Hora Início *</FormLabel> <FormControl> <Input type="time" {...field} /> </FormControl> <FormMessage /> </FormItem>
+                )} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="data_fim" render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Data de Fim *</FormLabel>
+                    <Popover open={dataFimPopoverOpen} onOpenChange={setDataFimPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {field.value ? format(new Date(field.value), "PPP", { locale: ptBR }) : <span>Escolha uma data</span>}
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus disabled={(date) => { const dataInicio = form.getValues("data_inicio"); return dataInicio ? date < dataInicio : false; }} />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="hora_fim" render={({ field }) => (
+                  <FormItem> <FormLabel>Hora Fim *</FormLabel> <FormControl> <Input type="time" {...field} /> </FormControl> <FormMessage /> </FormItem>
+                )} />
+              </div>
+              {/* Outros Campos */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="valor" render={({ field }) => (
+                  <FormItem> <FormLabel>Valor (R$)</FormLabel> <FormControl> <Input type="number" placeholder="0.00" {...field} value={field.value || ''} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /> </FormControl> <FormMessage /> </FormItem>
+                )} />
+                <FormField control={form.control} name="status" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl> <SelectTrigger> <SelectValue placeholder="Selecione um status" /> </SelectTrigger> </FormControl>
+                      <SelectContent>
+                        {AGENDAMENTO_STATUS_OPTIONS.map(option => (
+                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <FormField control={form.control} name="descricao" render={({ field }) => (
+                <FormItem> <FormLabel>Observações</FormLabel> <FormControl> <Textarea placeholder="Detalhes adicionais sobre o agendamento..." {...field} value={field.value || ''} /> </FormControl> <FormMessage /> </FormItem>
+              )} />
               <DialogFooter className="pt-4">
-                <Button type="button" variant="outline" onClick={handleCloseModal} disabled={isLoadingMutation}>
-                  Cancelar
-                </Button>
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isLoadingMutation}>
+                <Button type="button" variant="outline" onClick={handleCloseModal} disabled={isLoadingMutation}> Cancelar </Button>
+                <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isLoadingMutation || authProfileMissing || !!profileError}>
                   {isLoadingMutation ? 'Salvando...' : (isEdicaoMode ? 'Salvar Alterações' : 'Criar Agendamento')}
                 </Button>
               </DialogFooter>
