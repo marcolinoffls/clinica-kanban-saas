@@ -416,6 +416,7 @@ export type Database = {
           ai_conversation_enabled: boolean | null
           anotacoes: string | null
           anuncio: string | null
+          avatar_url: string | null
           clinica_id: string | null
           convertido: boolean | null
           created_at: string | null
@@ -441,6 +442,7 @@ export type Database = {
           ai_conversation_enabled?: boolean | null
           anotacoes?: string | null
           anuncio?: string | null
+          avatar_url?: string | null
           clinica_id?: string | null
           convertido?: boolean | null
           created_at?: string | null
@@ -466,6 +468,7 @@ export type Database = {
           ai_conversation_enabled?: boolean | null
           anotacoes?: string | null
           anuncio?: string | null
+          avatar_url?: string | null
           clinica_id?: string | null
           convertido?: boolean | null
           created_at?: string | null

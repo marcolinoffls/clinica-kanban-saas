@@ -9,39 +9,43 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
  * - bar: gráfico de barras para comparações
  * 
  * Utiliza a biblioteca Recharts para renderização.
- * Os dados são mockados para demonstração.
+ * Os dados são agora recebidos via props do hook useDashboardData.
  * 
  * Props:
  * - title: título do gráfico
  * - description: descrição do que o gráfico mostra
  * - type: 'line' ou 'bar'
+ * - data: dados para exibir no gráfico
  */
 
 interface ChartCardProps {
   title: string;
   description: string;
   type: 'line' | 'bar';
+  data: any[];
 }
 
-export const ChartCard = ({ title, description, type }: ChartCardProps) => {
-  // Dados mockados para o gráfico de linha (leads por mês)
-  const lineData = [
-    { month: 'Jan', leads: 30 },
-    { month: 'Fev', leads: 45 },
-    { month: 'Mar', leads: 38 },
-    { month: 'Abr', leads: 52 },
-    { month: 'Mai', leads: 61 },
-    { month: 'Jun', leads: 55 }
-  ];
-
-  // Dados mockados para o gráfico de barras (conversões por categoria)
-  const barData = [
-    { category: 'Implante', conversions: 85 },
-    { category: 'Consulta', conversions: 45 },
-    { category: 'Limpeza', conversions: 78 },
-    { category: 'Emergência', conversions: 32 },
-    { category: 'Ortodontia', conversions: 67 }
-  ];
+export const ChartCard = ({ title, description, type, data }: ChartCardProps) => {
+  // Se não houver dados, exibir mensagem informativa
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-white rounded-lg p-6 border border-gray-200">
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+          <p className="text-sm text-gray-600 mt-1">{description}</p>
+        </div>
+        
+        <div className="h-64 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-gray-400 text-2xl">📊</span>
+            </div>
+            <p className="text-gray-500 text-sm">Nenhum dado encontrado para o período selecionado</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg p-6 border border-gray-200">
@@ -55,26 +59,60 @@ export const ChartCard = ({ title, description, type }: ChartCardProps) => {
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           {type === 'line' ? (
-            <LineChart data={lineData}>
+            <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
+              <XAxis 
+                dataKey="month" 
+                tick={{ fontSize: 12 }}
+                tickMargin={5}
+              />
+              <YAxis 
+                tick={{ fontSize: 12 }}
+                tickMargin={5}
+              />
+              <Tooltip 
+                contentStyle={{
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '6px'
+                }}
+              />
               <Line 
                 type="monotone" 
                 dataKey="leads" 
                 stroke="#3B82F6" 
                 strokeWidth={2}
                 dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
+                activeDot={{ r: 6, fill: '#3B82F6' }}
               />
             </LineChart>
           ) : (
-            <BarChart data={barData}>
+            <BarChart data={data}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="category" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="conversions" fill="#10B981" />
+              <XAxis 
+                dataKey="category" 
+                tick={{ fontSize: 12 }}
+                tickMargin={5}
+                angle={-45}
+                textAnchor="end"
+                height={80}
+              />
+              <YAxis 
+                tick={{ fontSize: 12 }}
+                tickMargin={5}
+              />
+              <Tooltip 
+                contentStyle={{
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '6px'
+                }}
+              />
+              <Bar 
+                dataKey="conversions" 
+                fill="#10B981"
+                radius={[4, 4, 0, 0]}
+              />
             </BarChart>
           )}
         </ResponsiveContainer>

@@ -7,9 +7,7 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useWebhook } from '@/hooks/useWebhook';
 import { useClinicaData } from '@/hooks/useClinicaData';
 import { useAIConversationControl } from '@/hooks/useAIConversationControl';
-import { useUpdateLeadAiConversationStatus } from '@/hooks/useLeadsData';// Importar componentes de Avatar do shadcn/ui
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Lead } from '@/hooks/useLeadsData'; // Importar a interface Lead
+import { useUpdateLeadAiConversationStatus } from '@/hooks/useLeadsData';
 
 // Interface Message (se ainda não estiver em um arquivo de tipos compartilhado)
 // interface Message {
