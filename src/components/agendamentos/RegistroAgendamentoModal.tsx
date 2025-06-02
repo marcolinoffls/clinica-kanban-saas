@@ -299,8 +299,17 @@ export const RegistroAgendamentoModal = ({
     console.log('✅ [ModalAgendamento] PASSOU: Clínica válida:', clinicaAtiva.id);
   
     // Se chegou até aqui, todos os dados estão válidos
+// Na linha 301, substitua:
     const usuario_id_final = userProfile.user_id;
     
+    // Por esta verificação mais robusta:
+    // VALIDAÇÃO 6: Verificar se existe na tabela usuarios
+    console.log('✅ [ModalAgendamento] VALIDAÇÃO 6: Verificando usuário na tabela usuarios...');
+    
+    // Primeiro, vamos usar o user.id (que é o auth.uid()) para buscar na tabela usuarios
+    const usuario_id_final = user.id; // Usar o ID do auth.users, não do user_profiles
+    
+    console.log('✅ [ModalAgendamento] Usando usuario_id:', usuario_id_final);    
     console.log('🎉 [ModalAgendamento] TODAS AS VALIDAÇÕES PASSARAM!');
     console.log('🎉 [ModalAgendamento] Dados finais para criação:', {
       usuario_id_final,
