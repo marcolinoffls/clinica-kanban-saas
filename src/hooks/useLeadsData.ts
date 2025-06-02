@@ -4,21 +4,22 @@ import { toast } from 'sonner';
 
 // Interface para representar um Lead, incluindo o novo campo ai_conversation_enabled
 export interface Lead {
-  id: string;
-  nome: string;
-  telefone?: string | null;
-  email?: string | null;
-  origem_lead?: string | null;
-  servico_interesse?: string | null;
-  anotacoes?: string | null;
-  etapa_kanban_id: string;
-  tag_id?: string;
-  data_ultimo_contato?: string;
-  ai_conversation_enabled?: boolean; // Coluna correta
-  created_at: string;
-  updated_at: string;
-  clinica_id: string;
-  avatar_url?: string | null; // Adicionado para imagem do contato
+  id: string; // ID único do lead no sistema
+  nome: string; // Nome completo do lead
+  telefone?: string; // Número de telefone para contato
+  email?: string; // Email para contato
+  clinica_id: string; // ID da clínica à qual o lead pertence
+  tag_id?: string; // ID da tag/categoria associada ao lead
+  anotacoes?: string; // Observações e anotações sobre o lead
+  servico_interesse?: string; // Serviço de interesse do lead
+  status?: string; // Status atual do lead no pipeline
+  origem?: string; // Origem do lead (ex: Facebook Ads, site, etc.)
+  data_ultimo_contato?: string; // Data do último contato realizado
+  avatar_url?: string; // URL da imagem de avatar do lead
+  ltv?: number; // Lifetime Value - valor estimado do lead
+  ai_conversation_enabled?: boolean; // Se a IA está habilitada para este lead
+  created_at: string; // Data de criação do registro
+  updated_at: string; // Data da última atualização
 }
 
 // Interface para dados de criação de Lead

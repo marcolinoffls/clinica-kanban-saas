@@ -163,7 +163,7 @@ export const LeadInfoSidebar = ({
               </div>
             </div>
 
-            {typeof lead.ltv === 'number' && lead.ltv > 0 && (
+            {lead.ltv && typeof lead.ltv === 'number' && lead.ltv > 0 && (
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 bg-green-500 rounded-full flex-shrink-0"></div>
                 <span className="text-sm text-gray-700">
@@ -187,7 +187,7 @@ export const LeadInfoSidebar = ({
                   <Badge
                     key={tag.id}
                     style={{ backgroundColor: tag.cor }}
-                    className="text-white text-xs" // Shadcn Badge não tem text-white por padrão, talvez precise customizar
+                    className="text-white text-xs"
                   >
                     {tag.nome}
                   </Badge>
@@ -226,7 +226,7 @@ export const LeadInfoSidebar = ({
               <div className="space-y-3">
                 {historico.map((item) => (
                   <div key={item.id} className="flex items-start gap-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0"></div> {/* Ajuste no alinhamento da bolinha */}
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0"></div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-900 break-words">{item.descricao}</p>
                       <p className="text-xs text-gray-500">{formatarData(item.data)}</p>

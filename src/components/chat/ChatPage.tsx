@@ -8,17 +8,8 @@ import { useWebhook } from '@/hooks/useWebhook';
 import { useClinicaData } from '@/hooks/useClinicaData';
 import { useAIConversationControl } from '@/hooks/useAIConversationControl';
 import { useUpdateLeadAiConversationStatus } from '@/hooks/useLeadsData';
-
-// Interface Message (se ainda não estiver em um arquivo de tipos compartilhado)
-// interface Message {
-//   id: string;
-//   lead_id: string;
-//   conteudo: string;
-//   created_at: string;
-//   enviado_por: 'lead' | 'usuario';
-//   tipo: 'texto' | 'imagem' | 'arquivo' | 'audio';
-//   lida: boolean;
-// }
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Lead } from '@/hooks/useLeadsData';
 
 interface ChatPageProps {
   selectedLeadId?: string;
@@ -60,7 +51,6 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
   useEffect(() => {
     if (selectedConversation && mensagensNaoLidas[selectedConversation] > 0) {
-      // console.log('📖 Marcando mensagens como lidas para conversa selecionada:', selectedConversation);
       marcarMensagensComoLidas(selectedConversation);
     }
   }, [selectedConversation, mensagensNaoLidas, marcarMensagensComoLidas]);
@@ -73,12 +63,10 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
   const validarClinicaId = (clinicaId: string | null | undefined): clinicaId is string => {
     if (!clinicaId) {
-      // console.error('❌ [ChatPage] clinica_id é nulo ou indefinido para validação');
       return false;
     }
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(clinicaId)) {
-      // console.error('❌ [ChatPage] clinica_id não tem formato UUID válido:', clinicaId);
       return false;
     }
     return true;
@@ -89,7 +77,6 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
     try {
       setSendingMessage(true);
-      // console.log(`💬 [ChatPage] Preparando envio de mensagem para lead ID: ${selectedConversation}`);
 
       const leadSelecionado = leads.find(l => l.id === selectedConversation);
 
@@ -105,20 +92,14 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
       if (!clinicaIdParaWebhook) {
         console.error('❌ [ChatPage] ERRO CRÍTICO: Não foi possível determinar um clinica_id válido para o webhook.');
-        // Considerar lançar um erro ou mostrar um toast para o usuário aqui.
-        // throw new Error('Não foi possível determinar a clínica para envio do webhook');
         setSendingMessage(false);
         return;
       }
-      
-      // console.log(`🚀 [ChatPage] clinica_id para webhook: ${clinicaIdParaWebhook}, IA ativa para msg: ${aiEnabledForMessage || false}`);
 
       const novaMensagemRaw = await enviarMensagem(selectedConversation, messageInput);
-      // console.log(`✅ [ChatPage] Mensagem salva no Supabase: ${novaMensagemRaw.id}`);
       setMessageInput('');
 
       if (novaMensagemRaw.enviado_por === 'usuario') {
-        // console.log(`🚀 [ChatPage] Enviando webhook para mensagem ID: ${novaMensagemRaw.id}`);
         await enviarWebhook(
           novaMensagemRaw.id,
           novaMensagemRaw.lead_id,
@@ -128,20 +109,17 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           novaMensagemRaw.created_at,
           aiEnabledForMessage || false
         );
-      } else {
-        // console.log('ℹ️ [ChatPage] Webhook não enviado (mensagem não é do usuário)');
       }
 
     } catch (error: any) {
       console.error('❌ [ChatPage] Erro no envio da mensagem:', error.message);
-      // Não logar error.stack em produção, apenas error.message.
     } finally {
       setSendingMessage(false);
     }
   };
 
   const formatTime = (dateString: string) => {
-    if (!dateString) return ''; // Adicionar verificação para evitar erro com undefined/null
+    if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleTimeString('pt-BR', {
       hour: '2-digit',
@@ -149,14 +127,9 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     });
   };
 
-  // Simples placeholder, idealmente buscaria a última mensagem real.
   const getLastMessage = (lead: Lead) => {
-    // Se precisar exibir a última mensagem real, você precisaria buscar as mensagens
-    // ou ter essa informação agregada no objeto `lead`.
-    // Por enquanto, uma mensagem genérica.
     return lead.telefone || 'Clique para ver a conversa...';
   };
-
 
   if (loading) {
     return (
@@ -202,7 +175,6 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    {/* Avatar na lista de conversas */}
                     <Avatar className="w-12 h-12">
                       <AvatarImage src={lead.avatar_url || undefined} alt={`Avatar de ${lead.nome}`} />
                       <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
@@ -224,7 +196,6 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                           {lead.nome}
                         </h4>
                         <span className="text-xs text-gray-500 flex-shrink-0">
-                          {/* Usar updated_at do lead se data_ultimo_contato não existir */}
                           {formatTime(lead.data_ultimo_contato || lead.updated_at)}
                         </span>
                       </div>
@@ -259,7 +230,6 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
             {/* Header da conversa */}
             <div className="bg-white border-b border-gray-200 p-4 flex justify-between items-center flex-shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                {/* Avatar no header da conversa */}
                 <Avatar className="w-10 h-10">
                   <AvatarImage src={selectedLead.avatar_url || undefined} alt={`Avatar de ${selectedLead.nome}`} />
                   <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
@@ -293,7 +263,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
               <MessageInput
                 value={messageInput}
                 onChange={setMessageInput}
-                onSend={() => handleSendMessage(aiEnabled)} // Passa o estado atual da IA para a mensagem
+                onSend={() => handleSendMessage(aiEnabled)}
                 loading={sendingMessage}
                 respostasProntas={respostasProntas}
                 aiEnabled={aiEnabled}
@@ -322,10 +292,9 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       {/* Painel de Informações do Lead - Lateral direita */}
       {selectedLead && (
         <LeadInfoSidebar
-          // A prop `lead` em LeadInfoSidebar já espera um objeto Lead, que agora inclui avatar_url
           lead={selectedLead}
           tags={tags.filter(tag => tag.id === selectedLead.tag_id)}
-          historico={[]} // Placeholder, idealmente buscaria o histórico
+          historico={[]}
           onCallLead={() => console.log('Ligar para lead:', selectedLead.id)}
           onScheduleAppointment={() => console.log('Agendar para lead:', selectedLead.id)}
           onEditLead={() => console.log('Editar lead:', selectedLead.id)}
