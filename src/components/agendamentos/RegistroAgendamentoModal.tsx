@@ -1,8 +1,7 @@
-
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Calendar as CalendarIcon, Clock, X, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, X, Trash2, AlertCircle, RefreshCw } from 'lucide-react';
 import { format, setHours, setMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -25,6 +24,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Alert,
+  AlertDescription,
+} from '@/components/ui/alert';
 import {
   Form,
   FormControl,
@@ -87,11 +90,8 @@ import { ServicoSelector } from './ServicoSelector';
  * Integra com o sistema de leads para seleção de clientes e permite
  * cadastro de novos clientes durante o processo de agendamento.
  * 
- * Conecta com:
- * - Tabela 'agendamentos' no Supabase
- * - Sistema de leads/clientes
- * - Serviços da clínica
- * - Sistema de autenticação
+ * Após correção do trigger handle_new_user, o userProfile deve sempre
+ * estar disponível para usuários autenticados.
  */
 
 interface RegistroAgendamentoModalProps {
@@ -128,20 +128,24 @@ export const RegistroAgendamentoModal = ({
   const { data: leadsData, isLoading: loadingLeads } = useLeads();
   const { services: servicosData, isLoading: loadingServices } = useClinicServices();
   const { clinicaAtiva } = useClinica();
-  const { userProfile, user, isAuthenticated } = useAuthUser();
+  const { userProfile, user, isAuthenticated, profileError, refreshProfile } = useAuthUser();
 
-  // Log crítico para debugging do usuário autenticado
-  console.log('[ModalAgendamento] Estado de autenticação:', {
+  // Log detalhado para debugging do usuário autenticado
+  console.log('[ModalAgendamento] Estado de autenticação detalhado:', {
     isAuthenticated,
     user_id: user?.id,
+    userProfile_exists: !!userProfile,
     userProfile_user_id: userProfile?.user_id,
     clinica_id: clinicaAtiva?.id,
-    userProfile: userProfile ? 'exists' : 'null'
+    profileError: profileError?.message
   });
 
   // Garantir que os dados sejam sempre arrays válidos
   const leadsSeguro = Array.isArray(leadsData) ? leadsData : [];
   const servicosSeguro = Array.isArray(servicosData) ? servicosData : [];
+
+  // Verificar se existe problema de autenticação crítico
+  const hasAuthProblem = isAuthenticated && !userProfile && !profileError;
 
   // Configuração do formulário
   const form = useForm<AgendamentoFormData>({
@@ -163,93 +167,6 @@ export const RegistroAgendamentoModal = ({
     },
   });
 
-  // // ... keep existing code (useEffect para preencher formulário em modo de edição)
-  useEffect(() => {
-    console.log('[ModalAgendamento] useEffect de Edição/Pré-seleção. isOpen:', isOpen, 'agendamentoParaEditar:', agendamentoParaEditar, 'leadPreSelecionadoId:', leadPreSelecionadoId);
-    if (!isOpen) {
-        form.reset({
-            cliente_id: '',
-            titulo: '',
-            data_inicio: new Date(),
-            hora_inicio: format(new Date(), 'HH:mm'),
-            data_fim: new Date(new Date().getTime() + 60 * 60 * 1000),
-            hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'),
-            valor: 0,
-            status: AgendamentoStatus.AGENDADO,
-            descricao: '',
-            clinica_id: clinicaAtiva?.id || '',
-            usuario_id: userProfile?.user_id || '',
-            novo_cliente_nome: '',
-            novo_cliente_telefone: '',
-        });
-        setModoServico('selecionar');
-        setServicoSelecionadoIdHook(null);
-        setRegistrandoNovoCliente(false);
-        setClienteBuscaInput('');
-        return;
-    }
-
-    if (agendamentoParaEditar) {
-      console.log('[ModalAgendamento] Modo Edição - Preenchendo formulário com:', agendamentoParaEditar);
-      const dataInicio = new Date(agendamentoParaEditar.data_inicio);
-      const dataFim = new Date(agendamentoParaEditar.data_fim);
-
-      form.reset({
-        cliente_id: agendamentoParaEditar.cliente_id || '',
-        titulo: agendamentoParaEditar.titulo || '',
-        data_inicio: dataInicio,
-        hora_inicio: format(dataInicio, 'HH:mm'),
-        data_fim: dataFim,
-        hora_fim: format(dataFim, 'HH:mm'),
-        valor: agendamentoParaEditar.valor || 0,
-        status: (agendamentoParaEditar.status as AgendamentoStatus) || AgendamentoStatus.AGENDADO,
-        descricao: agendamentoParaEditar.descricao || '',
-        clinica_id: agendamentoParaEditar.clinica_id,
-        usuario_id: agendamentoParaEditar.usuario_id,
-      });
-
-      const servicoOriginal = servicosSeguro.find(s => s.nome_servico === agendamentoParaEditar.titulo);
-      if (servicoOriginal) {
-        setModoServico('selecionar');
-        setServicoSelecionadoIdHook(servicoOriginal.id);
-        form.setValue('titulo', servicoOriginal.nome_servico);
-      } else {
-        setModoServico('manual');
-        form.setValue('titulo', agendamentoParaEditar.titulo || '');
-      }
-      
-      const clienteDoAgendamento = leadsSeguro.find(l => l.id === agendamentoParaEditar.cliente_id);
-      if (clienteDoAgendamento) {
-        setClienteBuscaInput(clienteDoAgendamento.nome);
-      }
-
-    } else if (leadPreSelecionadoId) {
-        console.log('[ModalAgendamento] Pré-selecionando lead ID:', leadPreSelecionadoId);
-        form.setValue('cliente_id', leadPreSelecionadoId);
-        const clientePre = leadsSeguro.find(l => l.id === leadPreSelecionadoId);
-        if (clientePre) {
-            setClienteBuscaInput(clientePre.nome);
-        }
-    } else {
-        form.reset({
-            cliente_id: '',
-            titulo: '',
-            data_inicio: new Date(),
-            hora_inicio: format(new Date(), 'HH:mm'),
-            data_fim: new Date(new Date().getTime() + 60 * 60 * 1000),
-            hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'),
-            valor: 0,
-            status: AgendamentoStatus.AGENDADO,
-            descricao: '',
-            clinica_id: clinicaAtiva?.id || '',
-            usuario_id: userProfile?.user_id || '',
-            novo_cliente_nome: '',
-            novo_cliente_telefone: '',
-        });
-        setClienteBuscaInput('');
-    }
-  }, [agendamentoParaEditar, isOpen, form, leadPreSelecionadoId, clinicaAtiva, userProfile, leadsSeguro, servicosSeguro]);
-
   // Hooks de mutação do Supabase
   const createAgendamentoMutation = useCreateAgendamento();
   const updateAgendamentoMutation = useUpdateAgendamento();
@@ -264,7 +181,7 @@ export const RegistroAgendamentoModal = ({
     return novaData;
   };
 
-  // Função onSubmit principal com validações críticas
+  // Função onSubmit principal com validações críticas melhoradas
   const onSubmit = async (data: AgendamentoFormData) => {
     console.log('[ModalAgendamento] Iniciando submissão. Dados do formulário:', data);
     
@@ -275,13 +192,19 @@ export const RegistroAgendamentoModal = ({
       return;
     }
 
-    // Validação crítica 2: Verificar se temos user_id válido
+    // Validação crítica 2: Verificar se temos user_id válido com melhor diagnóstico
     const usuario_id_final = userProfile?.user_id || user?.id;
     if (!usuario_id_final) {
-      toast.error("Erro de autenticação: ID do usuário não encontrado. Faça logout e login novamente.");
+      const errorMsg = userProfile === null && user?.id 
+        ? "Perfil de usuário não encontrado. Clique em 'Tentar Novamente' ou faça logout e login."
+        : "ID do usuário não encontrado. Faça logout e login novamente.";
+      
+      toast.error(errorMsg);
       console.error("[ModalAgendamento] ERRO CRÍTICO: usuario_id não encontrado", { 
         userProfile_user_id: userProfile?.user_id, 
-        user_id: user?.id 
+        user_id: user?.id,
+        userProfile_exists: !!userProfile,
+        profileError: profileError?.message
       });
       return;
     }
@@ -373,6 +296,94 @@ export const RegistroAgendamentoModal = ({
     }
   };
 
+  // useEffect para preencher formulário em modo de edição
+  useEffect(() => {
+    console.log('[ModalAgendamento] useEffect de Edição/Pré-seleção. isOpen:', isOpen, 'agendamentoParaEditar:', agendamentoParaEditar, 'leadPreSelecionadoId:', leadPreSelecionadoId);
+    if (!isOpen) {
+        form.reset({
+            cliente_id: '',
+            titulo: '',
+            data_inicio: new Date(),
+            hora_inicio: format(new Date(), 'HH:mm'),
+            data_fim: new Date(new Date().getTime() + 60 * 60 * 1000),
+            hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'),
+            valor: 0,
+            status: AgendamentoStatus.AGENDADO,
+            descricao: '',
+            clinica_id: clinicaAtiva?.id || '',
+            usuario_id: userProfile?.user_id || '',
+            novo_cliente_nome: '',
+            novo_cliente_telefone: '',
+        });
+        setModoServico('selecionar');
+        setServicoSelecionadoIdHook(null);
+        setRegistrandoNovoCliente(false);
+        setClienteBuscaInput('');
+        return;
+    }
+
+    if (agendamentoParaEditar) {
+      console.log('[ModalAgendamento] Modo Edição - Preenchendo formulário com:', agendamentoParaEditar);
+      const dataInicio = new Date(agendamentoParaEditar.data_inicio);
+      const dataFim = new Date(agendamentoParaEditar.data_fim);
+
+      form.reset({
+        cliente_id: agendamentoParaEditar.cliente_id || '',
+        titulo: agendamentoParaEditar.titulo || '',
+        data_inicio: dataInicio,
+        hora_inicio: format(dataInicio, 'HH:mm'),
+        data_fim: dataFim,
+        hora_fim: format(dataFim, 'HH:mm'),
+        valor: agendamentoParaEditar.valor || 0,
+        status: (agendamentoParaEditar.status as AgendamentoStatus) || AgendamentoStatus.AGENDADO,
+        descricao: agendamentoParaEditar.descricao || '',
+        clinica_id: agendamentoParaEditar.clinica_id,
+        usuario_id: agendamentoParaEditar.usuario_id,
+      });
+
+      const servicoOriginal = servicosSeguro.find(s => s.nome_servico === agendamentoParaEditar.titulo);
+      if (servicoOriginal) {
+        setModoServico('selecionar');
+        setServicoSelecionadoIdHook(servicoOriginal.id);
+        form.setValue('titulo', servicoOriginal.nome_servico);
+      } else {
+        setModoServico('manual');
+        form.setValue('titulo', agendamentoParaEditar.titulo || '');
+      }
+      
+      const clienteDoAgendamento = leadsSeguro.find(l => l.id === agendamentoParaEditar.cliente_id);
+      if (clienteDoAgendamento) {
+        setClienteBuscaInput(clienteDoAgendamento.nome);
+      }
+
+    } else if (leadPreSelecionadoId) {
+        console.log('[ModalAgendamento] Pré-selecionando lead ID:', leadPreSelecionadoId);
+        form.setValue('cliente_id', leadPreSelecionadoId);
+        const clientePre = leadsSeguro.find(l => l.id === leadPreSelecionadoId);
+        if (clientePre) {
+            setClienteBuscaInput(clientePre.nome);
+        }
+    } else {
+        form.reset({
+            cliente_id: '',
+            titulo: '',
+            data_inicio: new Date(),
+            hora_inicio: format(new Date(), 'HH:mm'),
+            data_fim: new Date(new Date().getTime() + 60 * 60 * 1000),
+            hora_fim: format(new Date(new Date().getTime() + 60 * 60 * 1000), 'HH:mm'),
+            valor: 0,
+            status: AgendamentoStatus.AGENDADO,
+            descricao: '',
+            clinica_id: clinicaAtiva?.id || '',
+            usuario_id: userProfile?.user_id || '',
+            novo_cliente_nome: '',
+            novo_cliente_telefone: '',
+        });
+        setClienteBuscaInput('');
+    }
+  }, [agendamentoParaEditar, isOpen, form, leadPreSelecionadoId, clinicaAtiva, userProfile, leadsSeguro, servicosSeguro]);
+
+  // Função para fechar o modal
   const handleCloseModal = () => {
     form.reset({
         cliente_id: leadPreSelecionadoId || '',
@@ -399,6 +410,7 @@ export const RegistroAgendamentoModal = ({
     console.log('[ModalAgendamento] Modal fechado e formulário resetado.');
   };
 
+  // Função para excluir agendamento
   const handleDelete = async () => {
     if (!agendamentoParaEditar?.id) return;
     console.log(`[ModalAgendamento] Solicitando exclusão do agendamento ID: ${agendamentoParaEditar.id}`);
@@ -410,6 +422,7 @@ export const RegistroAgendamentoModal = ({
     }
   };
   
+  // Verificar se ainda está carregando dados essenciais
   const isLoadingMutation = createAgendamentoMutation.isPending || updateAgendamentoMutation.isPending || deleteAgendamentoMutation.isPending || isCreatingLead;
 
   // Se ainda está carregando dados essenciais, mostrar loading
@@ -482,6 +495,36 @@ export const RegistroAgendamentoModal = ({
         </DialogHeader>
 
         <div className="flex-grow overflow-y-auto pr-2 pl-0.5 py-1">
+          {/* Alerta para problemas de autenticação */}
+          {hasAuthProblem && (
+            <Alert className="mb-4 border-amber-200 bg-amber-50">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                <div className="flex items-center justify-between">
+                  <span>Problema de autenticação detectado. Perfil de usuário não encontrado.</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={refreshProfile}
+                    className="ml-2 h-7 text-amber-700 border-amber-300 hover:bg-amber-100"
+                  >
+                    <RefreshCw size={14} className="mr-1" />
+                    Tentar Novamente
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {profileError && (
+            <Alert className="mb-4 border-red-200 bg-red-50">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <AlertDescription className="text-red-800">
+                Erro ao carregar perfil do usuário: {profileError.message}
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
               {/* SELEÇÃO DE CLIENTE */}
