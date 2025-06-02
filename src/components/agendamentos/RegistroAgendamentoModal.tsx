@@ -299,9 +299,6 @@ export const RegistroAgendamentoModal = ({
     console.log('✅ [ModalAgendamento] PASSOU: Clínica válida:', clinicaAtiva.id);
   
     // Se chegou até aqui, todos os dados estão válidos
-// Na linha 301, substitua:
-    const usuario_id_final = userProfile.user_id;
-    
     // Por esta verificação mais robusta:
     // VALIDAÇÃO 6: Verificar se existe na tabela usuarios
     console.log('✅ [ModalAgendamento] VALIDAÇÃO 6: Verificando usuário na tabela usuarios...');
