@@ -100,7 +100,34 @@ export const useCreateAgendamento = () => {
 
   return useMutation({
     mutationFn: async (data: CreateAgendamentoData) => {
-      console.log('🔄 Criando agendamento no Supabase:', data);
+      console.log('🔄 [useCreateAgendamento] Dados recebidos para criação:', {
+        cliente_id: data.cliente_id,
+        clinica_id: data.clinica_id,
+        usuario_id: data.usuario_id,
+        titulo: data.titulo,
+        data_inicio: data.data_inicio,
+        data_fim: data.data_fim,
+      });
+
+      // Validação crítica: verificar se usuario_id é válido
+      if (!data.usuario_id || data.usuario_id.trim() === '') {
+        console.error('❌ [useCreateAgendamento] ERRO CRÍTICO: usuario_id está vazio ou nulo');
+        throw new Error('ID do usuário é obrigatório para criar agendamento');
+      }
+
+      // Validação crítica: verificar se clinica_id é válido
+      if (!data.clinica_id || data.clinica_id.trim() === '') {
+        console.error('❌ [useCreateAgendamento] ERRO CRÍTICO: clinica_id está vazio ou nulo');
+        throw new Error('ID da clínica é obrigatório para criar agendamento');
+      }
+
+      // Validação crítica: verificar se cliente_id é válido
+      if (!data.cliente_id || data.cliente_id.trim() === '') {
+        console.error('❌ [useCreateAgendamento] ERRO CRÍTICO: cliente_id está vazio ou nulo');
+        throw new Error('ID do cliente é obrigatório para criar agendamento');
+      }
+
+      console.log('✅ [useCreateAgendamento] Validações passaram, criando agendamento no Supabase');
       
       const { data: agendamento, error } = await supabase
         .from('agendamentos')
@@ -119,11 +146,23 @@ export const useCreateAgendamento = () => {
         .single();
 
       if (error) {
-        console.error('❌ Erro ao criar agendamento:', error);
+        console.error('❌ [useCreateAgendamento] Erro do Supabase:', error);
+        
+        // Verificar se é erro de chave estrangeira específico
+        if (error.message.includes('violates foreign key constraint') && error.message.includes('usuario_id_fkey')) {
+          console.error('❌ [useCreateAgendamento] ERRO DE FK: usuario_id não existe na tabela referenciada');
+          throw new Error('Usuário não encontrado no sistema. Faça logout e login novamente.');
+        }
+        
+        if (error.message.includes('violates foreign key constraint') && error.message.includes('cliente_id_fkey')) {
+          console.error('❌ [useCreateAgendamento] ERRO DE FK: cliente_id não existe na tabela referenciada');
+          throw new Error('Cliente não encontrado no sistema. Selecione um cliente válido.');
+        }
+
         throw error;
       }
 
-      console.log('✅ Agendamento criado com sucesso:', agendamento);
+      console.log('✅ [useCreateAgendamento] Agendamento criado com sucesso:', agendamento?.id);
       return agendamento;
     },
     onSuccess: (data) => {
@@ -137,7 +176,7 @@ export const useCreateAgendamento = () => {
       });
     },
     onError: (error: any) => {
-      console.error('❌ Erro na mutação de agendamento:', error);
+      console.error('❌ [useCreateAgendamento] Erro na mutação:', error);
       toast({
         variant: "destructive",
         title: "Erro ao criar agendamento",

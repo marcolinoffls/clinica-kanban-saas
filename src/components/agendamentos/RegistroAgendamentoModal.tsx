@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -127,7 +128,16 @@ export const RegistroAgendamentoModal = ({
   const { data: leadsData, isLoading: loadingLeads } = useLeads();
   const { services: servicosData, isLoading: loadingServices } = useClinicServices();
   const { clinicaAtiva } = useClinica();
-  const { userProfile } = useAuthUser();
+  const { userProfile, user, isAuthenticated } = useAuthUser();
+
+  // Log crítico para debugging do usuário autenticado
+  console.log('[ModalAgendamento] Estado de autenticação:', {
+    isAuthenticated,
+    user_id: user?.id,
+    userProfile_user_id: userProfile?.user_id,
+    clinica_id: clinicaAtiva?.id,
+    userProfile: userProfile ? 'exists' : 'null'
+  });
 
   // Garantir que os dados sejam sempre arrays válidos
   const leadsSeguro = Array.isArray(leadsData) ? leadsData : [];
@@ -147,7 +157,7 @@ export const RegistroAgendamentoModal = ({
       status: AgendamentoStatus.AGENDADO,
       descricao: '',
       clinica_id: clinicaAtiva?.id || '',
-      usuario_id: userProfile?.user_id || '',
+      usuario_id: userProfile?.user_id || user?.id || '',
       novo_cliente_nome: '',
       novo_cliente_telefone: '',
     },
@@ -254,14 +264,40 @@ export const RegistroAgendamentoModal = ({
     return novaData;
   };
 
-  // // ... keep existing code (função onSubmit principal)
+  // Função onSubmit principal com validações críticas
   const onSubmit = async (data: AgendamentoFormData) => {
-    console.log('[ModalAgendamento] Tentando salvar. Dados do formulário:', data);
-    if (!clinicaAtiva?.id || !userProfile?.user_id) {
-      toast.error("Erro de configuração: ID da clínica ou do usuário não encontrado.");
-      console.error("[ModalAgendamento] ERRO: clinicaId ou userId ausentes.", { clinicaId: clinicaAtiva?.id, userId: userProfile?.user_id });
+    console.log('[ModalAgendamento] Iniciando submissão. Dados do formulário:', data);
+    
+    // Validação crítica 1: Verificar autenticação
+    if (!isAuthenticated) {
+      toast.error("Você precisa estar logado para criar agendamentos.");
+      console.error("[ModalAgendamento] ERRO CRÍTICO: Usuário não autenticado");
       return;
     }
+
+    // Validação crítica 2: Verificar se temos user_id válido
+    const usuario_id_final = userProfile?.user_id || user?.id;
+    if (!usuario_id_final) {
+      toast.error("Erro de autenticação: ID do usuário não encontrado. Faça logout e login novamente.");
+      console.error("[ModalAgendamento] ERRO CRÍTICO: usuario_id não encontrado", { 
+        userProfile_user_id: userProfile?.user_id, 
+        user_id: user?.id 
+      });
+      return;
+    }
+
+    // Validação crítica 3: Verificar clínica
+    if (!clinicaAtiva?.id) {
+      toast.error("Erro de configuração: ID da clínica não encontrado.");
+      console.error("[ModalAgendamento] ERRO CRÍTICO: clinica_id não encontrado", { clinicaAtiva });
+      return;
+    }
+
+    console.log('[ModalAgendamento] ✅ Validações críticas passaram:', {
+      usuario_id_final,
+      clinica_id: clinicaAtiva.id,
+      isAuthenticated
+    });
 
     let cliente_id_final = data.cliente_id;
 
@@ -310,7 +346,7 @@ export const RegistroAgendamentoModal = ({
       ...(isEdicaoMode && agendamentoParaEditar && { id: agendamentoParaEditar.id }),
       cliente_id: cliente_id_final,
       clinica_id: clinicaAtiva.id,
-      usuario_id: userProfile.user_id,
+      usuario_id: usuario_id_final, // Usando o ID validado
       titulo: modoServico === 'manual' ? data.titulo : (servicosSeguro.find(s => s.id === servicoSelecionadoIdHook)?.nome_servico || data.titulo),
       data_inicio: formatarDataParaISO(dataInicioFinal),
       data_fim: formatarDataParaISO(dataFimFinal),
@@ -318,7 +354,12 @@ export const RegistroAgendamentoModal = ({
       status: data.status,
       descricao: data.descricao || null,
     };
-    console.log('[ModalAgendamento] Payload final para Supabase:', agendamentoPayload);
+    
+    console.log('[ModalAgendamento] ✅ Payload final para Supabase:', {
+      ...agendamentoPayload,
+      data_inicio: agendamentoPayload.data_inicio,
+      data_fim: agendamentoPayload.data_fim
+    });
 
     try {
       if (isEdicaoMode) {
