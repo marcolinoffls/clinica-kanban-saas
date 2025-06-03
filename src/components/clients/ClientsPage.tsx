@@ -35,8 +35,7 @@ const ClientsPage = () => {
   
   // Hooks para dados
   const { leads, loading, deleteLeadMutation } = useSupabaseData();
-  const { tags } = useTagsData();
-
+  const { data: tags = [] } = useTagsData();
   // Estados locais
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);

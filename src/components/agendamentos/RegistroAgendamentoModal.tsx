@@ -308,10 +308,12 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
           {/* Serviço Selector */}
           <ServicoSelector
             form={form as any}
-            servicos={[]}
-            loadingServices={false}
-            modoServico="selecionar"
-            setModoServico={() => {}}
+            servicos={servicosSeguro}
+            loadingServices={loadingServices}
+            modoServico={modoServico}
+            setModoServico={setModoServico}
+            servicoSelecionadoId={servicoSelecionadoIdHook}
+            setServicoSelecionadoId={setServicoSelecionadoIdHook}
           />
 
           <DialogFooter>
