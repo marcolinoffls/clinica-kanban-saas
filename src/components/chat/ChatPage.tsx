@@ -98,9 +98,9 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
   /**
    * Nova função para fazer upload de mídia para MinIO via Edge Function
-   * Esta função será chamada quando o usuário selecionar um arquivo
+   * Esta função é chamada quando o usuário seleciona um arquivo no MessageInput
    */
-  const handleFileUploadToMinIO = async (file: File) => {
+  const handleFileUploadAndSend = async (file: File) => {
     console.log('📤 Iniciando upload de mídia:', {
       fileName: file.name,
       fileType: file.type,
@@ -111,12 +111,12 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
     // Validações iniciais
     if (!selectedConversation) {
-      alert('Selecione uma conversa para enviar a mídia.');
+      alert('Por favor, selecione uma conversa para enviar a mídia.');
       return;
     }
     
     if (!clinicaId) {
-      alert('ID da clínica não encontrado. Não é possível fazer upload.');
+      alert('ID da clínica não está disponível. Não é possível fazer upload.');
       return;
     }
 
@@ -130,18 +130,19 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     formData.append('leadId', selectedConversation);
 
     try {
-      console.log('🚀 Chamando Edge Function upload-media-to-minio...');
+      console.log('🚀 Chamando Edge Function send-crm-media-to-minio...');
       
-      // Chamar a Edge Function (será criada na Etapa 3)
+      // Chamar a Edge Function send-crm-media-to-minio
       const { data: uploadResponse, error: functionError } = await supabase.functions.invoke(
-        'upload-media-to-minio',
+        'send-crm-media-to-minio',
         { body: formData }
       );
 
       if (functionError || !uploadResponse?.publicUrl) {
         console.error('❌ Erro na Edge Function ou URL não retornada:', functionError, uploadResponse);
-        setUploadError(functionError?.message || 'Falha ao obter URL da mídia.');
-        alert(`Erro no upload: ${functionError?.message || 'Falha ao obter URL da mídia.'}`);
+        const errorMessage = functionError?.message || uploadResponse?.error || 'Falha ao obter URL da mídia do MinIO.';
+        setUploadError(errorMessage);
+        alert(`Erro no upload: ${errorMessage}`);
         return;
       }
 
@@ -179,8 +180,11 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
    */
   const handleSendMessage = async (messageData: MessageData) => {
     // Validar se há conteúdo (texto) ou anexo (mídia)
-    if ((!messageData.content.trim() && !messageData.anexoUrl) || !selectedConversation || sendingMessage) {
-      return;
+    if ((!messageData.content.trim() && !messageData.anexoUrl) || !selectedConversation || sendingMessage || isUploadingMedia) {
+      // Validação específica por tipo
+      if (messageData.type === 'text' && !messageData.content.trim()) return;
+      if ((messageData.type === 'image' || messageData.type === 'audio') && !messageData.anexoUrl) return;
+      if (!selectedConversation || sendingMessage || isUploadingMedia) return;
     }
 
     console.log('📨 Enviando mensagem:', messageData);
@@ -200,6 +204,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
       if (!clinicaIdParaWebhook) {
         console.error('❌ [ChatPage] ERRO CRÍTICO: Não foi possível determinar um clinica_id válido para o webhook.');
+        alert('Erro: ID da clínica não pôde ser determinado para o envio.');
         setSendingMessage(false);
         return;
       }
@@ -231,6 +236,8 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           messageData.aiEnabled || false
         );
       }
+
+      console.log('✅ Mensagem e/ou mídia enviada com sucesso e webhook disparado.');
 
     } catch (error: any) {
       console.error('❌ [ChatPage] Erro no envio da mensagem:', error.message);
@@ -397,7 +404,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                   content: messageInput, 
                   aiEnabled: aiEnabled 
                 })}
-                onFileSelect={handleFileUploadToMinIO} // Passando a nova função de upload
+                onFileSelect={handleFileUploadAndSend} // Passando a nova função de upload
                 loading={sendingMessage || isUploadingMedia} // Considerando ambos os estados de loading
                 respostasProntas={respostasProntas}
                 aiEnabled={aiEnabled}
