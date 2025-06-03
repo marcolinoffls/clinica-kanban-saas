@@ -155,3 +155,4 @@ export const useDeleteTag = () => {
     },
   });
 };
+export const useTagsData = useTags;
