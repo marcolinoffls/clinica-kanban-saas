@@ -19,7 +19,7 @@ import { toast } from 'sonner';
  * - Usa RLS para filtrar dados por clínica
  * - Garante que apenas dados da clínica do usuário sejam acessados
  * - Valida clinica_id antes de operações críticas
- * - Suporta anexos de mídia (imagens e áudios)
+ * - Suporta anexos de mídia (imagens e áudios) via anexo_url
  */
 export const useSupabaseChat = () => {
   // Obter o clinicaId real do hook useClinicaData
@@ -147,12 +147,12 @@ export const useSupabaseChat = () => {
     }
   };
 
-  // Função para enviar mensagem com suporte a anexos de mídia
+  // Função para enviar mensagem com suporte a anexos de mídia (ATUALIZADA)
   const enviarMensagem = async (
     leadId: string, 
     conteudo: string, 
-    tipo: string = 'texto',
-    anexoUrl?: string // Novo parâmetro opcional para URL do anexo
+    tipo: string = 'text', // Novo parâmetro para tipo da mensagem
+    anexoUrl?: string | null // Novo parâmetro para URL do anexo (MinIO)
   ) => {
     // Validações rigorosas antes do envio
     if (!validarClinicaId('enviarMensagem')) {
@@ -175,13 +175,14 @@ export const useSupabaseChat = () => {
     console.log('- anexoUrl:', anexoUrl);
 
     try {
-      // Preparar dados da mensagem
+      // Preparar dados da mensagem com novos campos
       const mensagemData: any = {
         lead_id: leadId,
         clinica_id: clinicaId,
         conteudo: conteudo.trim(),
         enviado_por: 'usuario',
-        tipo: tipo
+        tipo: tipo, // Incluindo tipo da mensagem
+        lida: false // Mensagens enviadas pelo usuário podem começar como não lidas
       };
 
       // Adicionar anexo_url apenas se fornecido (para mídias)
@@ -271,7 +272,7 @@ export const useSupabaseChat = () => {
     buscarMensagensNaoLidas,
     marcarMensagensComoLidas,
     buscarMensagensLead,
-    enviarMensagem,
+    enviarMensagem, // Função atualizada com suporte a tipo e anexoUrl
     buscarRespostasProntas,
     // Indicador de que os dados do chat estão prontos para uso
     isChatDataReady: !!clinicaId && !clinicaDataLoading && !clinicaDataError

@@ -7,12 +7,13 @@ import { supabase } from '@/integrations/supabase/client';
  * Funcionalidades:
  * - Enviar webhook após nova mensagem
  * - Incluir estado do botão de IA no payload
+ * - Incluir informações de mídia (tipo e anexo_url) no payload
  * - Integração com Edge Function
  * - Tratamento de erros
  * - Logs detalhados para diagnóstico
  */
 export const useWebhook = () => {
-  // Função para enviar webhook via Edge Function com logs detalhados
+  // Função para enviar webhook via Edge Function com logs detalhados e suporte a mídia
   const enviarWebhook = async (
     mensagemId: string,
     leadId: string,
@@ -20,10 +21,11 @@ export const useWebhook = () => {
     conteudo: string,
     tipo: string,
     createdAt: string,
-    aiEnabled: boolean = false
+    aiEnabled: boolean = false,
+    anexo_url?: string | null // NOVO PARÂMETRO para URL do anexo (MinIO)
   ) => {
     try {
-      // Logs detalhados dos parâmetros recebidos
+      // Logs detalhados dos parâmetros recebidos (incluindo anexo_url)
       console.log('🔍 [useWebhook] Iniciando envio de webhook:');
       console.log('- mensagemId:', mensagemId, 'type:', typeof mensagemId);
       console.log('- leadId:', leadId, 'type:', typeof leadId);
@@ -32,6 +34,7 @@ export const useWebhook = () => {
       console.log('- tipo:', tipo);
       console.log('- createdAt:', createdAt);
       console.log('- aiEnabled:', aiEnabled);
+      console.log('- anexo_url:', anexo_url); // Log do novo parâmetro
 
       // Validações críticas antes de chamar a Edge Function
       if (!clinicaId || clinicaId === 'undefined' || clinicaId === 'null') {
@@ -46,7 +49,7 @@ export const useWebhook = () => {
         throw new Error('Parâmetros obrigatórios inválidos para webhook');
       }
 
-      // Payload que será enviado para a Edge Function
+      // Payload que será enviado para a Edge Function (com novo campo anexo_url)
       const webhookPayload = {
         mensagem_id: mensagemId,
         lead_id: leadId,
@@ -54,10 +57,11 @@ export const useWebhook = () => {
         conteudo: conteudo,
         tipo: tipo,
         created_at: createdAt,
-        evento_boolean: aiEnabled
+        evento_boolean: aiEnabled,
+        anexo_url: anexo_url // NOVO CAMPO para URL do anexo (MinIO)
       };
 
-      console.log('📤 [useWebhook] Payload a ser enviado para Edge Function:');
+      console.log('📤 [useWebhook] Payload a ser enviado para Edge Function (com anexo_url):');
       console.log(JSON.stringify(webhookPayload, null, 2));
       
       // Chamar a Edge Function
