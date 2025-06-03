@@ -155,13 +155,8 @@ const ClientsPage = () => {
 
   const handleOpenChat = (lead: Lead) => {
     console.log('💬 Abrindo chat com lead:', lead);
-    navigate('/chat', { 
-      state: { 
-        selectedLeadId: lead.id,
-        leadName: lead.nome,
-        leadPhone: lead.telefone 
-      } 
-    });
+    // Navegar para a página de chat com o leadId como parâmetro da URL
+    navigate(`/chat?leadId=${lead.id}`);
   };
 
   const handleDeleteLead = async (leadId: string) => {
