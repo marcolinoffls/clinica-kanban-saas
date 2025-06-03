@@ -65,7 +65,12 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
   const updateAgendamentoMutation = useUpdateAgendamento();
 
   const [isNovoCliente, setIsNovoCliente] = useState(false);
-
+  const [modoServico, setModoServico] = useState<'selecionar' | 'manual'>('selecionar');
+  const [servicoSelecionadoIdHook, setServicoSelecionadoIdHook] = useState<string | null>(null);
+  
+  // Dados fictícios para compilar sem erro
+  const servicosSeguro: any[] = [];
+  const loadingServices = false;
   const form = useForm<AgendamentoFormData>({
     resolver: zodResolver(agendamentoSchema),
     defaultValues: {
