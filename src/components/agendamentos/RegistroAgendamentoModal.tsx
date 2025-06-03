@@ -36,7 +36,7 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
   agendamentoParaEditar,
 }) => {
   const { clinicaAtiva } = useClinica();
-  const { userProfile, isLoading: isLoadingUser, error: userError, refetchUserProfile } = useAuthUser();
+  const { userProfile, loading: isLoadingUser, profileError: userError, refreshProfile: refetchUserProfile, user } = useAuthUser();
   const createAgendamentoMutation = useCreateAgendamento();
   const updateAgendamentoMutation = useUpdateAgendamento();
 
@@ -208,7 +208,7 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
             <AlertDescription>
               Não foi possível carregar seus dados de usuário. Faça logout e login novamente.
               <br />
-              <strong>Detalhes técnicos:</strong> {userError || 'Perfil de usuário não encontrado'}
+              <strong>Detalhes técnicos:</strong> {userError?.message || 'Perfil de usuário não encontrado'}
             </AlertDescription>
           </Alert>
           <div className="flex gap-2 mt-4">
@@ -241,7 +241,7 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            <strong>Usuário logado:</strong> {userProfile.email || 'Email não disponível'} {/* Corrigido: usar userProfile.email */}
+            <strong>Usuário logado:</strong> {user?.email || 'Email não disponível'} {/* Corrigido: usando user.email */}
             <br />
             <strong>Clínica ativa:</strong> {clinicaAtiva?.nome || 'Não identificada'}
           </AlertDescription>
@@ -251,16 +251,16 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
           <ClienteSelector
             isNovoCliente={isNovoCliente}
             setIsNovoCliente={setIsNovoCliente}
-            form={form}
+            form={form as any} // Cast temporário para resolver incompatibilidade de tipos
           />
 
           {isNovoCliente ? (
-            <NovoClienteFields form={form} />
+            <NovoClienteFields form={form as any} /> // Cast temporário para resolver incompatibilidade de tipos
           ) : null}
 
           <div className="grid grid-cols-1 gap-2">
             <Label htmlFor="titulo">Serviço</Label>
-            <ServicoSelector form={form} />
+            <ServicoSelector form={form as any} /> {/* Cast temporário para resolver incompatibilidade de tipos */}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

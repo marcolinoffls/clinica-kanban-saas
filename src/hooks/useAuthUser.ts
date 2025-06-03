@@ -1,4 +1,3 @@
-
 // src/hooks/useAuthUser.ts
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +15,7 @@ export interface UserProfile {
   profile_type: 'admin' | 'clinica' | 'usuario'; // Tipos de perfil possíveis
   status_usuario: string; // ex: 'ativo', 'inativo'
   clinica_id: string | null; // UUID da clínica associada, se houver
+  email?: string; // Adicionado para compatibilidade
   created_at: string;
   updated_at: string;
 }
@@ -176,6 +176,6 @@ export const useAuthUser = () => {
     isAdmin,
     isClinicUser,
     signOut: contextSignOut,
-    refreshProfile, // Nova função para debug
+    refreshProfile, // Renomeado de refreshProfile para consistência
   };
 };
