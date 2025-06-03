@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Edit, Clock, User, MessageSquare, Calendar as CalendarIconLucide } from 'lucide-react'; // Renomeado Calendar
+import { ChevronLeft, ChevronRight, Plus, Edit, Clock, User, MessageSquare, Calendar as CalendarIconLucide } from 'lucide-react';
 import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
 import { useFetchAgendamentos, AgendamentoFromDatabase } from '@/hooks/useAgendamentosData';
 import { useLeads } from '@/hooks/useLeadsData';
+import { AGENDAMENTO_STATUS_OPTIONS } from '@/constants/agendamentos';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, isSameMonth, isSameDay, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button'; // Importar Button
+import { Button } from '@/components/ui/button';
 
 /**
  * Página de Agenda/Calendário
@@ -19,13 +20,13 @@ import { Button } from '@/components/ui/button'; // Importar Button
  * - Visualização semanal agrupada por dia.
  */
 
-type MonthViewMode = 'calendar' | 'list' | 'grid'; // 'grid' é a visualização de colunas verticais para os dias do mês
+type MonthViewMode = 'calendar' | 'list' | 'grid';
 
 export const CalendarPage = () => {
   const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
-  const [monthViewMode, setMonthViewMode] = useState<MonthViewMode>('calendar'); // Padrão para calendário
+  const [monthViewMode, setMonthViewMode] = useState<MonthViewMode>('calendar');
   const [isAgendamentoModalOpen, setIsAgendamentoModalOpen] = useState(false);
   const [agendamentoParaEditar, setAgendamentoParaEditar] = useState<AgendamentoFromDatabase | null>(null);
 
@@ -53,7 +54,7 @@ export const CalendarPage = () => {
       case 'day':
         return format(currentDate, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR });
       case 'week':
-        const startWeek = startOfWeek(currentDate, { locale: ptBR, weekStartsOn: 1 }); // Semana começa na Segunda
+        const startWeek = startOfWeek(currentDate, { locale: ptBR, weekStartsOn: 1 });
         const endWeek = endOfWeek(currentDate, { locale: ptBR, weekStartsOn: 1 });
         if (format(startWeek, 'MMMM') === format(endWeek, 'MMMM')) {
           return `${format(startWeek, 'dd')} a ${format(endWeek, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`;
@@ -66,17 +67,16 @@ export const CalendarPage = () => {
   };
 
   const getStatusColor = (status: string) => {
-    // (Mantido como no seu código original)
     switch (status) {
       case 'CONFIRMADO': return 'border-green-500 bg-green-50';
       case 'AGENDADO': return 'border-blue-500 bg-blue-50';
-      case 'REALIZADO': return 'border-purple-500 bg-purple-50'; // Exemplo
+      case 'REALIZADO': return 'border-purple-500 bg-purple-50';
       case 'CANCELADO': return 'border-red-500 bg-red-50';
       default: return 'border-gray-300 bg-gray-50';
     }
   };
+
   const getStatusTextColor = (status: string) => {
-     // (Mantido como no seu código original)
     switch (status) {
       case 'CONFIRMADO': return 'text-green-700';
       case 'AGENDADO': return 'text-blue-700';
@@ -84,11 +84,9 @@ export const CalendarPage = () => {
       case 'CANCELADO': return 'text-red-700';
       default: return 'text-gray-700';
     }
-  }
-
+  };
 
   const getStatusText = (status: string) => {
-    // (Mantido como no seu código original)
     const statusOption = AGENDAMENTO_STATUS_OPTIONS.find(opt => opt.value === status);
     return statusOption ? statusOption.label : status;
   };
@@ -118,7 +116,6 @@ export const CalendarPage = () => {
     if (clienteId) navigate(`/chat?leadId=${clienteId}`);
   };
 
-  // Card de agendamento otimizado
   const renderAgendamentoCard = (agendamento: AgendamentoFromDatabase, showDate: boolean = false) => (
     <div
       key={agendamento.id}
@@ -158,12 +155,16 @@ export const CalendarPage = () => {
               onClick={(e) => { e.stopPropagation(); handleOpenChat(agendamento.cliente_id); }}
               className="p-1 hover:bg-blue-100 rounded text-blue-500 hover:text-blue-700"
               title="Enviar mensagem"
-            > <MessageSquare size={12} /> </button>
+            >
+              <MessageSquare size={12} />
+            </button>
             <button
               onClick={(e) => { e.stopPropagation(); handleEditAgendamento(agendamento); }}
               className="p-1 hover:bg-gray-200 rounded text-gray-500 hover:text-gray-700"
               title="Editar agendamento"
-            > <Edit size={12} /> </button>
+            >
+              <Edit size={12} />
+            </button>
           </div>
         </div>
       </div>
@@ -211,7 +212,7 @@ export const CalendarPage = () => {
   const renderCalendarGridForMonth = () => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
-    const startDateCal = startOfWeek(monthStart, { locale: ptBR, weekStartsOn: 0 }); // Calendário começa no Domingo
+    const startDateCal = startOfWeek(monthStart, { locale: ptBR, weekStartsOn: 0 });
     const endDateCal = endOfWeek(monthEnd, { locale: ptBR, weekStartsOn: 0 });
     const daysInCalendar = eachDayOfInterval({ start: startDateCal, end: endDateCal });
     const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -257,7 +258,6 @@ export const CalendarPage = () => {
     );
   };
 
-  // Renderiza visualização em grade (colunas verticais) para o mês
   const renderMonthAsVerticalGrid = () => {
     const monthStart = startOfMonth(currentDate);
     const daysInMonth = eachDayOfInterval({ start: monthStart, end: endOfMonth(currentDate) });
@@ -267,6 +267,26 @@ export const CalendarPage = () => {
       </div>
     );
   };
+
+  const getAgendamentosFiltrados = () => {
+    switch (viewMode) {
+      case 'day':
+        return agendamentos.filter(ag => isSameDay(new Date(ag.data_inicio), currentDate));
+      case 'week':
+        const startWeek = startOfWeek(currentDate, { locale: ptBR, weekStartsOn: 1 });
+        const endWeek = endOfWeek(currentDate, { locale: ptBR, weekStartsOn: 1 });
+        return agendamentos.filter(ag => {
+          const agDate = new Date(ag.data_inicio);
+          return agDate >= startWeek && agDate <= endWeek;
+        });
+      case 'month':
+        return agendamentos.filter(ag => isSameMonth(new Date(ag.data_inicio), currentDate));
+      default:
+        return agendamentos;
+    }
+  };
+
+  const agendamentosFiltrados = getAgendamentosFiltrados();
 
   const renderContent = () => {
     if (loadingAgendamentos) {
@@ -281,10 +301,9 @@ export const CalendarPage = () => {
     if (viewMode === 'month') {
       if (monthViewMode === 'calendar') return renderCalendarGridForMonth();
       if (monthViewMode === 'grid') return renderMonthAsVerticalGrid();
-      // Fallback para lista se 'list' ou não reconhecido
     }
     if (viewMode === 'week') return renderWeekView();
-    // Para 'day' ou 'month' com monthViewMode 'list'
+    
     if (agendamentosFiltrados.length === 0) {
       return (
         <div className="text-center py-12 h-full flex flex-col items-center justify-center">
@@ -303,7 +322,6 @@ export const CalendarPage = () => {
       </div>
     );
   };
-
 
   return (
     <div className="h-screen flex flex-col p-0 sm:p-4 md:p-6 bg-gray-50">
@@ -385,12 +403,10 @@ export const CalendarPage = () => {
 
       {/* Área de Conteúdo Principal (Rolável) e Métricas Fixas */}
       <div className="flex-1 flex flex-col bg-white rounded-lg border border-gray-200 overflow-hidden">
-        {/* Área rolável para os agendamentos */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
           {renderContent()}
         </div>
 
-        {/* Métricas fixas no rodapé */}
         <div className="flex-shrink-0 bg-gray-50 border-t border-gray-200 p-3 sm:p-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-center">
             {[
