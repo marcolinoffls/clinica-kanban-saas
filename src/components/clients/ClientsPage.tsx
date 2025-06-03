@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,7 @@ import { ContactsFilters } from './ContactsFilters';
 import { ContactsLoadingState } from './ContactsLoadingState';
 import { ContactsEmptyState } from './ContactsEmptyState';
 import { FilterState, SortField, SortOrder } from './types';
-import { useTagsData } from '@/hooks/useTagsData';
+import { useTags } from '@/hooks/useTagsData';
 import { getUniqueOrigens, getUniqueServicos } from './utils';
 
 /**
@@ -36,12 +35,14 @@ const ClientsPage = () => {
   
   // Hooks para dados
   const { data: leads = [], isLoading: loading } = useLeads();
-  const { data: tags = [] } = useTagsData();
+  const { data: tags = [] } = useTags();
+  
   // Estados locais
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Estado dos filtros
   const [filters, setFilters] = useState<FilterState>({
@@ -74,9 +75,6 @@ const ClientsPage = () => {
 
       // Filtro por serviço
       const matchesServico = !filters.servico || lead.servico_interesse === filters.servico;
-
-      // Filtro por período (se implementado)
-      // const matchesDateRange = ... (implementar se necessário)
 
       return matchesSearch && matchesTag && matchesOrigem && matchesServico;
     });
@@ -153,8 +151,15 @@ const ClientsPage = () => {
 
   const handleDeleteLead = async (leadId: string) => {
     if (window.confirm('Tem certeza que deseja excluir este contato?')) {
-      console.log('Deletar lead:', leadId);
-      // TODO: Implementar exclusão de lead
+      setIsDeleting(true);
+      try {
+        console.log('Deletar lead:', leadId);
+        // TODO: Implementar exclusão de lead
+      } catch (error) {
+        console.error('Erro ao deletar lead:', error);
+      } finally {
+        setIsDeleting(false);
+      }
     }
   };
 
@@ -219,7 +224,7 @@ const ClientsPage = () => {
           onEdit={handleEditLead}
           onChat={handleOpenChat}
           onDelete={handleDeleteLead}
-          isDeleting={false}
+          isDeleting={isDeleting}
         />
       ) : (
         <div className="flex items-center justify-center min-h-[400px] border rounded-lg bg-muted/10">
