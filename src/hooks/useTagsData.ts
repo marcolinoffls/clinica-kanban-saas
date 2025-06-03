@@ -155,4 +155,6 @@ export const useDeleteTag = () => {
     },
   });
 };
+
+// Exportar useTagsData como alias para useTags (compatibilidade)
 export const useTagsData = useTags;
