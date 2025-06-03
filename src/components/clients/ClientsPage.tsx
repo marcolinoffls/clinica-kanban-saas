@@ -11,6 +11,7 @@ import { ContactsFilters } from './ContactsFilters';
 import { ContactsLoadingState } from './ContactsLoadingState';
 import { ContactsEmptyState } from './ContactsEmptyState';
 import { FilterState, SortField, SortOrder } from './types';
+  import { useTagsData } from '@/hooks/useTagsData';
 import { getUniqueOrigens, getUniqueServicos } from './utils';
 
 /**
