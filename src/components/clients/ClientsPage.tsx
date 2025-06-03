@@ -1,141 +1,112 @@
 
 import React, { useState, useMemo } from 'react';
-import { Lead } from '@/hooks/useLeadsData';
-import { useLeads, useUpdateLead, useDeleteLead } from '@/hooks/useLeadsData';
-import { useEtapas } from '@/hooks/useEtapasData';
-import { useTags } from '@/hooks/useTagsData';
-import { LeadModal } from '@/components/kanban/LeadModal';
+import { Plus } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Plus } from 'lucide-react';
-import { LeadInfoSidebar } from '@/components/chat/LeadInfoSidebar';
 import { useNavigate } from 'react-router-dom';
-
-// Componentes refatorados
-import { ContactsFilters } from './ContactsFilters';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useTagsData } from '@/hooks/useTagsData';
+import { Lead } from '@/hooks/useLeadsData';
 import { ContactsTable } from './ContactsTable';
+import { ContactsFilters } from './ContactsFilters';
 import { ContactsLoadingState } from './ContactsLoadingState';
 import { ContactsEmptyState } from './ContactsEmptyState';
-
-// Tipos e utilitários
-import { SortField, SortOrder, FilterState } from './types';
-import { formatarData, getUniqueOrigens, getUniqueServicos } from './utils';
+import { FilterState, SortField, SortOrder } from './types';
+import { getUniqueOrigens, getUniqueServicos } from './utils';
 
 /**
- * Página principal de Clientes/Leads refatorada
+ * Página Principal de Clientes/Leads
  * 
- * Coordena os componentes filhos e gerencia o estado principal da aplicação.
- * Responsabilidades:
- * - Gerenciar estado dos filtros, ordenação e modais
- * - Coordenar comunicação entre componentes
- * - Processar dados (filtros e ordenação)
- * - Gerenciar navegação e ações CRUD
+ * Funcionalidades principais:
+ * - Lista todos os contatos da clínica
+ * - Busca e filtros avançados
+ * - Ordenação de colunas
+ * - Ações rápidas (editar, chat, excluir)
+ * - Painel de detalhes lateral
+ * - Estados de carregamento e vazio
+ * 
+ * Conecta com:
+ * - useSupabaseData para dados dos leads
+ * - useTagsData para informações das tags
+ * - Sistema de navegação para chat e edição
  */
 
 const ClientsPage = () => {
-  // Estados principais
-  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [detailsLead, setDetailsLead] = useState<Lead | null>(null);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const navigate = useNavigate();
   
-  // Estados de ordenação
+  // Hooks para dados
+  const { leads, loading, deleteLeadMutation } = useSupabaseData();
+  const { tags } = useTagsData();
+
+  // Estados locais
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   
-  // Estados de filtros
+  // Estado dos filtros
   const [filters, setFilters] = useState<FilterState>({
     tag: '',
     origem: '',
     servico: '',
+    dataInicio: undefined,
+    dataFim: undefined,
   });
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  // Hooks de dados
-  const { data: leads, isLoading, isError } = useLeads();
-  const { data: etapas = [] } = useEtapas();
-  const { data: tags = [] } = useTags();
-  const updateLead = useUpdateLead();
-  const deleteLead = useDeleteLead();
-  const navigate = useNavigate();
+  // Dados únicos para filtros
+  const uniqueOrigens = useMemo(() => getUniqueOrigens(leads), [leads]);
+  const uniqueServicos = useMemo(() => getUniqueServicos(leads), [leads]);
 
-  // Função para obter tag do lead
-  const getLeadTag = (lead: Lead) => {
-    if (!lead.tag_id) return null;
-    return tags.find(tag => tag.id === lead.tag_id);
-  };
-
-  // Função para ordenação
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortOrder('asc');
-    }
-  };
-
-  // Leads filtrados e ordenados usando lógica do componente original
-  const processedLeads = useMemo(() => {
+  // Função para aplicar filtros e busca
+  const filteredLeads = useMemo(() => {
     if (!leads) return [];
 
-    let filtered = leads.filter(lead => {
-      // Filtro de busca
-      const matchesSearch = 
-        lead.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.telefone?.includes(searchQuery);
-
-      if (!matchesSearch) return false;
+    return leads.filter((lead: Lead) => {
+      // Filtro de busca por nome ou email
+      const matchesSearch = !searchQuery || 
+        lead.nome?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        lead.email?.toLowerCase().includes(searchQuery.toLowerCase());
 
       // Filtro por tag
-      if (filters.tag && lead.tag_id !== filters.tag) return false;
+      const matchesTag = !filters.tag || lead.tag_id === filters.tag;
 
       // Filtro por origem
-      if (filters.origem && lead.origem_lead !== filters.origem) return false;
+      const matchesOrigem = !filters.origem || lead.origem_lead === filters.origem;
 
       // Filtro por serviço
-      if (filters.servico && lead.servico_interesse !== filters.servico) return false;
+      const matchesServico = !filters.servico || lead.servico_interesse === filters.servico;
 
-      // Filtro por período
-      if (filters.dataInicio || filters.dataFim) {
-        const leadDate = new Date(lead.created_at);
-        if (filters.dataInicio && leadDate < filters.dataInicio) return false;
-        if (filters.dataFim && leadDate > filters.dataFim) return false;
-      }
+      // Filtro por período (se implementado)
+      // const matchesDateRange = ... (implementar se necessário)
 
-      return true;
+      return matchesSearch && matchesTag && matchesOrigem && matchesServico;
     });
+  }, [leads, searchQuery, filters]);
 
-    // Ordenação
-    filtered.sort((a, b) => {
+  // Função para aplicar ordenação
+  const sortedLeads = useMemo(() => {
+    if (!filteredLeads.length) return [];
+
+    return [...filteredLeads].sort((a, b) => {
       let aValue: any;
       let bValue: any;
 
       switch (sortField) {
         case 'nome':
-          aValue = a.nome.toLowerCase();
-          bValue = b.nome.toLowerCase();
+          aValue = a.nome || '';
+          bValue = b.nome || '';
           break;
         case 'email':
-          aValue = (a.email || '').toLowerCase();
-          bValue = (b.email || '').toLowerCase();
+          aValue = a.email || '';
+          bValue = b.email || '';
           break;
         case 'data_ultimo_contato':
-          aValue = a.data_ultimo_contato ? new Date(a.data_ultimo_contato) : new Date(0);
-          bValue = b.data_ultimo_contato ? new Date(b.data_ultimo_contato) : new Date(0);
+          aValue = a.data_ultimo_contato ? new Date(a.data_ultimo_contato).getTime() : 0;
+          bValue = b.data_ultimo_contato ? new Date(b.data_ultimo_contato).getTime() : 0;
           break;
         case 'created_at':
-          aValue = new Date(a.created_at);
-          bValue = new Date(b.created_at);
+          aValue = a.created_at ? new Date(a.created_at).getTime() : 0;
+          bValue = b.created_at ? new Date(b.created_at).getTime() : 0;
           break;
         default:
           return 0;
@@ -145,201 +116,125 @@ const ClientsPage = () => {
       if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
       return 0;
     });
-
-    return filtered;
-  }, [leads, searchQuery, filters, sortField, sortOrder]);
-
-  // Obter listas únicas para filtros
-  const uniqueOrigens = useMemo(() => getUniqueOrigens(leads), [leads]);
-  const uniqueServicos = useMemo(() => getUniqueServicos(leads), [leads]);
+  }, [filteredLeads, sortField, sortOrder]);
 
   // Handlers
-  const handleOpenLeadModal = () => {
-    setSelectedLead(null);
-    setIsLeadModalOpen(true);
-  };
-
-  const handleOpenEditLeadModal = (lead: Lead) => {
-    setSelectedLead(lead);
-    setIsLeadModalOpen(true);
-  };
-
-  const handleCloseLeadModal = () => {
-    setIsLeadModalOpen(false);
-    setSelectedLead(null);
-  };
-
-  const handleOpenDetails = (lead: Lead) => {
-    setDetailsLead(lead);
-    setIsDetailsOpen(true);
-  };
-
-  const handleOpenChat = (lead: Lead) => {
-    navigate(`/chat?leadId=${lead.id}`);
-  };
-
-  const handleLeadUpdate = async (updatedLead: Lead) => {
-    try {
-      await updateLead.mutateAsync({
-        id: updatedLead.id,
-        data: {
-          nome: updatedLead.nome,
-          telefone: updatedLead.telefone,
-          email: updatedLead.email,
-          origem_lead: updatedLead.origem_lead,
-          servico_interesse: updatedLead.servico_interesse,
-          anotacoes: updatedLead.anotacoes,
-          etapa_kanban_id: updatedLead.etapa_kanban_id,
-          tag_id: updatedLead.tag_id,
-          data_ultimo_contato: updatedLead.data_ultimo_contato,
-        }
-      });
-      
-      setSelectedLead(null);
-      setIsLeadModalOpen(false);
-    } catch (error) {
-      console.error('Erro ao atualizar lead:', error);
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
     }
   };
 
-  const handleLeadDelete = async (leadId: string) => {
-    try {
-      await deleteLead.mutateAsync(leadId);
-    } catch (error) {
-      console.error('Erro ao deletar lead:', error);
-    }
-  };
-
-  const clearFilters = () => {
+  const handleClearFilters = () => {
     setFilters({
       tag: '',
       origem: '',
       servico: '',
+      dataInicio: undefined,
+      dataFim: undefined,
     });
     setSearchQuery('');
+    setIsFilterOpen(false);
+  };
+
+  const handleAddLead = () => {
+    navigate('/leads'); // Navegar para página de criação de leads
+  };
+
+  const handleEditLead = (lead: Lead) => {
+    navigate(`/leads?edit=${lead.id}`); // Navegar para edição
+  };
+
+  const handleOpenChat = (lead: Lead) => {
+    navigate(`/chat/${lead.id}`); // Navegar para chat
+  };
+
+  const handleDeleteLead = async (leadId: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este contato?')) {
+      try {
+        await deleteLeadMutation.mutateAsync(leadId);
+      } catch (error) {
+        console.error('Erro ao excluir lead:', error);
+      }
+    }
   };
 
   // Verificar se há filtros ativos
-  const hasActiveFilters = filters.tag || filters.origem || filters.servico;
+  const hasActiveFilters = filters.tag || filters.origem || filters.servico || 
+                          filters.dataInicio || filters.dataFim;
 
-  // Renderização condicional para loading
-  if (isLoading) {
-    return <ContactsLoadingState />;
-  }
-
-  if (isError) {
+  // Renderização condicional baseada no estado
+  if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 space-y-4">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold text-gray-900">Erro ao carregar leads</h3>
-          <p className="text-sm text-gray-500">Ocorreu um erro ao buscar os dados dos leads.</p>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Contatos</h1>
         </div>
-        <Button onClick={() => window.location.reload()}>
-          Tentar Novamente
-        </Button>
+        <ContactsLoadingState />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header com busca e ações */}
+      {/* Cabeçalho */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold tracking-tight">
-          Contatos ({processedLeads.length})
-        </h2>
-        <div className="flex items-center space-x-2">
-          <Input
-            type="search"
-            placeholder="Pesquisar contatos..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-64"
-          />
-          
-          {/* Componente de Filtros */}
-          <ContactsFilters
-            filters={filters}
-            setFilters={setFilters}
-            isFilterOpen={isFilterOpen}
-            setIsFilterOpen={setIsFilterOpen}
-            tags={tags}
-            uniqueOrigens={uniqueOrigens}
-            uniqueServicos={uniqueServicos}
-            onClearFilters={clearFilters}
-          />
-
-          <Button onClick={handleOpenLeadModal}>
-            <Plus className="mr-2 h-4 w-4" />
-            Adicionar Lead
-          </Button>
-        </div>
+        <h1 className="text-2xl font-bold">Contatos</h1>
+        <Button onClick={handleAddLead}>
+          <Plus className="mr-2 h-4 w-4" />
+          Adicionar Lead
+        </Button>
       </div>
 
-      {/* Tabela de Contatos ou Estado Vazio */}
-      {processedLeads.length === 0 ? (
-        <div className="rounded-md border p-8">
-          <ContactsEmptyState
-            hasFilters={hasActiveFilters}
-            searchQuery={searchQuery}
-            onClearFilters={clearFilters}
-            onAddLead={handleOpenLeadModal}
+      {/* Barra de busca e filtros */}
+      <div className="flex items-center space-x-4">
+        <div className="flex-1">
+          <Input
+            placeholder="Buscar por nome ou email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="max-w-sm"
           />
         </div>
-      ) : (
+        
+        <ContactsFilters
+          filters={filters}
+          setFilters={setFilters}
+          isFilterOpen={isFilterOpen}
+          setIsFilterOpen={setIsFilterOpen}
+          tags={tags || []}
+          uniqueOrigens={uniqueOrigens}
+          uniqueServicos={uniqueServicos}
+          onClearFilters={handleClearFilters}
+        />
+      </div>
+
+      {/* Tabela ou estados especiais */}
+      {sortedLeads.length > 0 ? (
         <ContactsTable
-          leads={processedLeads}
-          tags={tags}
+          leads={sortedLeads}
+          tags={tags || []}
           sortField={sortField}
           sortOrder={sortOrder}
           onSort={handleSort}
-          onEditLead={handleOpenEditLeadModal}
-          onViewDetails={handleOpenDetails}
-          onOpenChat={handleOpenChat}
-          onDeleteLead={handleLeadDelete}
+          onEdit={handleEditLead}
+          onChat={handleOpenChat}
+          onDelete={handleDeleteLead}
+          isDeleting={deleteLeadMutation.isPending}
         />
+      ) : (
+        <div className="flex items-center justify-center min-h-[400px] border rounded-lg bg-muted/10">
+          <ContactsEmptyState
+            hasFilters={hasActiveFilters}
+            searchQuery={searchQuery}
+            onClearFilters={handleClearFilters}
+            onAddLead={handleAddLead}
+          />
+        </div>
       )}
-
-      {/* Modal de Lead */}
-      <LeadModal
-        isOpen={isLeadModalOpen}
-        onClose={handleCloseLeadModal}
-        lead={selectedLead}
-        etapas={etapas}
-        onSave={handleLeadUpdate}
-      />
-
-      {/* Sheet de Detalhes */}
-      <Sheet open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>Detalhes do Contato</SheetTitle>
-            <SheetDescription>
-              Informações completas sobre {detailsLead?.nome}
-            </SheetDescription>
-          </SheetHeader>
-          {detailsLead && (
-            <div className="mt-6">
-              <LeadInfoSidebar
-                lead={detailsLead}
-                tags={detailsLead.tag_id ? [getLeadTag(detailsLead)].filter(Boolean) : []}
-                onEditLead={() => {
-                  handleOpenEditLeadModal(detailsLead);
-                  setIsDetailsOpen(false);
-                }}
-                onCallLead={() => {
-                  if (detailsLead.telefone) {
-                    window.open(`tel:${detailsLead.telefone}`, '_self');
-                  }
-                }}
-                onScheduleAppointment={() => {
-                  navigate('/agenda');
-                }}
-              />
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 };

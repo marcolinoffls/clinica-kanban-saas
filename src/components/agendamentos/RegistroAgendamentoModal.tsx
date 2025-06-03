@@ -23,7 +23,6 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
-// Corrigido: usar AgendamentoFromDatabase em vez de AgendamentoFormData
 import { useCreateAgendamento, useUpdateAgendamento, type AgendamentoFromDatabase } from '@/hooks/useAgendamentosData';
 import { useClinica } from '@/contexts/ClinicaContext';
 import { useAuthUser } from '@/hooks/useAuthUser';
@@ -32,7 +31,7 @@ import { NovoClienteFields } from './NovoClienteFields';
 import { ServicoSelector } from './ServicoSelector';
 import { AGENDAMENTO_STATUS_OPTIONS } from '@/constants/agendamentos';
 
-// Esquema usando AgendamentoFromDatabase como base
+// Esquema de validação
 const agendamentoSchema = z.object({
   titulo: z.string().min(1, 'Título é obrigatório'),
   descricao: z.string().optional(),
@@ -50,7 +49,7 @@ type AgendamentoFormData = z.infer<typeof agendamentoSchema>;
 interface RegistroAgendamentoModalProps {
   isOpen: boolean;
   onClose: () => void;
-  agendamento?: AgendamentoFromDatabase; // Corrigido: usar AgendamentoFromDatabase
+  agendamento?: AgendamentoFromDatabase; // Prop para edição
   selectedDate?: Date;
 }
 
@@ -74,7 +73,7 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
       descricao: '',
       data_inicio: selectedDate || new Date(),
       data_fim: selectedDate || new Date(),
-      status: 'agendado',
+      status: 'agendado' as const, // Garante que é do tipo correto
       cliente_id: '',
       valor: 0,
       clinica_id: clinicaAtiva?.id || '',
@@ -89,7 +88,7 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
         descricao: agendamento.descricao || '',
         data_inicio: agendamento.data_inicio ? new Date(agendamento.data_inicio) : selectedDate || new Date(),
         data_fim: agendamento.data_fim ? new Date(agendamento.data_fim) : selectedDate || new Date(),
-        status: agendamento.status || 'agendado',
+        status: agendamento.status as 'agendado' | 'confirmado' | 'realizado' | 'cancelado', // Cast para tipo correto
         cliente_id: agendamento.cliente_id || '',
         valor: agendamento.valor || 0,
         clinica_id: clinicaAtiva?.id || '',
@@ -101,7 +100,7 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
         descricao: '',
         data_inicio: selectedDate || new Date(),
         data_fim: selectedDate || new Date(),
-        status: 'agendado',
+        status: 'agendado' as const,
         cliente_id: '',
         valor: 0,
         clinica_id: clinicaAtiva?.id || '',
@@ -111,31 +110,41 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
   }, [agendamento, selectedDate, clinicaAtiva, userProfile, form]);
 
   const onSubmit = async (data: AgendamentoFormData) => {
-    const agendamentoData = {
-      ...data,
-      valor: Number(data.valor),
-    };
-
-    if (agendamento) {
-      try {
-        // Corrigido: passar os dados diretamente, não dentro de um objeto 'data'
-        await updateAgendamentoMutation.mutateAsync({ 
-          id: agendamento.id, 
-          ...agendamentoData 
-        });
-        onClose();
-      } catch (error: any) {
-        console.error('Erro ao atualizar agendamento:', error);
-        alert(`Erro ao atualizar agendamento: ${error.message}`);
+    try {
+      if (agendamento) {
+        // Para atualização, converter datas para strings ISO
+        const updateData = {
+          id: agendamento.id,
+          titulo: data.titulo,
+          descricao: data.descricao,
+          data_inicio: data.data_inicio.toISOString(),
+          data_fim: data.data_fim.toISOString(),
+          status: data.status,
+          cliente_id: data.cliente_id,
+          valor: Number(data.valor),
+        };
+        
+        await updateAgendamentoMutation.mutateAsync(updateData);
+      } else {
+        // Para criação, garantir que todos os campos obrigatórios estão presentes
+        const createData = {
+          titulo: data.titulo,
+          descricao: data.descricao,
+          data_inicio: data.data_inicio.toISOString(),
+          data_fim: data.data_fim.toISOString(),
+          status: data.status,
+          cliente_id: data.cliente_id,
+          clinica_id: data.clinica_id,
+          usuario_id: data.usuario_id,
+          valor: Number(data.valor) || 0,
+        };
+        
+        await createAgendamentoMutation.mutateAsync(createData);
       }
-    } else {
-      try {
-        await createAgendamentoMutation.mutateAsync(agendamentoData);
-        onClose();
-      } catch (error: any) {
-        console.error('Erro ao criar agendamento:', error);
-        alert(`Erro ao criar agendamento: ${error.message}`);
-      }
+      onClose();
+    } catch (error: any) {
+      console.error('Erro ao salvar agendamento:', error);
+      alert(`Erro ao salvar agendamento: ${error.message}`);
     }
   };
 
@@ -275,36 +284,34 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
             </div>
           </div>
 
-          {/* Cliente Selector com props corretas */}
+          {/* Cliente Selector */}
           <ClienteSelector
-            form={form as any} // Cast temporário para contornar diferenças de tipo
-            leads={[]} // Será carregado pelo componente
+            form={form as any}
+            leads={[]}
             clienteBuscaInput=""
             setClienteBuscaInput={() => {}}
             setRegistrandoNovoCliente={setIsNovoCliente}
-            loadingLeads={false} // Adicionada prop faltante
-            registrandoNovoCliente={isNovoCliente} // Adicionada prop faltante
+            loadingLeads={false}
+            registrandoNovoCliente={isNovoCliente}
           />
 
           {/* Campos de novo cliente */}
           {isNovoCliente && (
             <NovoClienteFields
-              form={form as any} // Cast temporário para contornar diferenças de tipo
+              form={form as any}
               setRegistrandoNovoCliente={setIsNovoCliente}
               setClienteBuscaInput={() => {}}
               leads={[]}
             />
           )}
 
-          {/* Serviço Selector com props corretas */}
+          {/* Serviço Selector */}
           <ServicoSelector
-            form={form as any} // Cast temporário para contornar diferenças de tipo
+            form={form as any}
             servicos={[]}
             loadingServices={false}
-            modoServico="selecionar" // Corrigido: usar "selecionar" em vez de "existente"
+            modoServico="selecionar"
             setModoServico={() => {}}
-            novoServicoNome=""
-            setNovoServicoNome={() => {}}
           />
 
           <DialogFooter>
