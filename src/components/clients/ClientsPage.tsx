@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from 'react-router-dom';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { Lead, useLeads } from '@/hooks/useLeadsData';
+import { Lead, useLeadsData } from '@/hooks/useLeadsData';
 import { ContactsTable } from './ContactsTable';
 import { ContactsFilters } from './ContactsFilters';
 import { ContactsLoadingState } from './ContactsLoadingState';
