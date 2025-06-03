@@ -101,79 +101,75 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
    * Esta função é chamada quando o usuário seleciona um arquivo no MessageInput
    */
   const handleFileUploadAndSend = async (file: File) => {
-    console.log('📤 Iniciando upload de mídia:', {
-      fileName: file.name,
-      fileType: file.type,
-      fileSize: file.size,
-      selectedConversation,
-      clinicaId
-    });
-
-    // Validações iniciais
     if (!selectedConversation) {
-      alert('Por favor, selecione uma conversa para enviar a mídia.');
+      // Usando alert como placeholder, idealmente use toast.error()
+      alert('Por favor, selecione uma conversa antes de enviar uma mídia.');
+      console.error('[ChatPage] Tentativa de upload sem conversa selecionada.');
       return;
     }
-    
-    if (!clinicaId) {
+  
+    // Use o clinicaId obtido do hook useClinicaData
+    // (supondo que você o chamou de clinicaIdFromHook no escopo do ChatPage)
+    if (!clinicaIdFromHook) {
       alert('ID da clínica não está disponível. Não é possível fazer upload.');
+      console.error('[ChatPage] clinicaIdFromHook não disponível para upload.');
       return;
     }
-
+  
     setIsUploadingMedia(true);
     setUploadError(null);
-
-    // Preparar FormData para a Edge Function
+    console.log(`[ChatPage] Iniciando upload do CRM para: leadId=${selectedConversation}, clinicaId=${clinicaIdFromHook}, arquivo=${file.name}`);
+  
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('clinicaId', clinicaId);
+    formData.append('clinicaId', clinicaIdFromHook);
     formData.append('leadId', selectedConversation);
-
+  
     try {
-      console.log('🚀 Chamando Edge Function send-crm-media-to-minio...');
-      
-      // Chamar a Edge Function send-crm-media-to-minio
+      // Chama a Edge Function que faz o upload para o MinIO
       const { data: uploadResponse, error: functionError } = await supabase.functions.invoke(
-        'send-crm-media-to-minio',
+        'send-crm-media-to-minio', // Nome EXATO da sua Edge Function
         { body: formData }
       );
-
+  
       if (functionError || !uploadResponse?.publicUrl) {
-        console.error('❌ Erro na Edge Function ou URL não retornada:', functionError, uploadResponse);
         const errorMessage = functionError?.message || uploadResponse?.error || 'Falha ao obter URL da mídia do MinIO.';
+        console.error('[ChatPage] Erro ao invocar send-crm-media-to-minio ou URL não retornada:', functionError, uploadResponse);
         setUploadError(errorMessage);
-        alert(`Erro no upload: ${errorMessage}`);
+        alert(`Erro no upload: ${errorMessage}`); // Substitua por toast.error()
+        setIsUploadingMedia(false);
         return;
       }
-
-      console.log('✅ Upload realizado com sucesso:', uploadResponse);
-
+  
       const { publicUrl } = uploadResponse;
-      const fileType = file.type.startsWith('image/') ? 'image' : 
-                      file.type.startsWith('audio/') ? 'audio' : 'file';
-
-      // Criar objeto de mensagem com dados da mídia
-      const messageData: MessageData = {
-        type: fileType,
-        content: file.name, // Nome do arquivo como conteúdo inicial
+  
+      // Determina o tipo de arquivo baseado no mimetype para enviar para o Supabase
+      // e corresponder à constraint do banco de dados.
+      let determinedFileType: 'imagem' | 'audio' | 'arquivo' = 'arquivo'; // Valor padrão
+      if (file.type.startsWith('image/')) {
+        determinedFileType = 'imagem';
+      } else if (file.type.startsWith('audio/')) {
+        determinedFileType = 'audio';
+      }
+  
+      console.log(`[ChatPage] Upload do CRM para MinIO bem-sucedido. URL: ${publicUrl}. Tipo: ${determinedFileType}. Chamando handleSendMessage.`);
+      
+      // Agora, chame handleSendMessage com os dados da mídia
+      await handleSendMessage({
+        type: determinedFileType,
+        content: file.name, // Usar nome do arquivo como 'conteúdo' para mídias. Você pode adicionar um campo de legenda no futuro.
         anexoUrl: publicUrl,
-        aiEnabled: aiEnabled
-      };
-
-      console.log('💬 Enviando mensagem de mídia:', messageData);
-
-      // Enviar mensagem com os dados da mídia
-      await handleSendMessage(messageData);
-
-    } catch (error: any) {
-      console.error('❌ Erro durante o processo de upload:', error);
-      setUploadError(error.message || 'Erro desconhecido durante o upload.');
-      alert(`Erro no upload: ${error.message || 'Erro desconhecido durante o upload.'}`);
+        aiEnabled: aiEnabled // Usa o estado atual da IA da conversa
+      });
+  
+    } catch (e: any) {
+      console.error("[ChatPage] Erro durante o processo de upload da mídia pelo CRM:", e);
+      setUploadError(e.message || 'Erro desconhecido durante o upload.');
+      alert(`Erro no upload: ${e.message || 'Erro desconhecido'}`); // Substitua por toast.error()
     } finally {
       setIsUploadingMedia(false);
     }
   };
-
   /**
    * Função modificada para lidar com envio de mensagens (texto e mídia)
    * Agora recebe um objeto MessageData ao invés de apenas aiEnabledForMessage
