@@ -458,5 +458,5 @@ export const CalendarPage = () => {
         onClose={() => setModalEditarAberto(false)}
         agendamento={agendamentoSelecionado}
       />
-  );
-};
+    );
+  };
