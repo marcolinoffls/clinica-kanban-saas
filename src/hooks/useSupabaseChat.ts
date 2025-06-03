@@ -1,4 +1,3 @@
-
 // src/hooks/useSupabaseChat.ts
 
 import { useState, useEffect } from 'react';
@@ -11,7 +10,7 @@ import { toast } from 'sonner';
  * 
  * Funcionalidades principais:
  * - Busca mensagens de leads específicos
- * - Envia mensagens para leads
+ * - Envia mensagens para leads (texto e mídia)
  * - Gerencia contadores de mensagens não lidas
  * - Busca respostas prontas da clínica
  * - Marca mensagens como lidas
@@ -20,6 +19,7 @@ import { toast } from 'sonner';
  * - Usa RLS para filtrar dados por clínica
  * - Garante que apenas dados da clínica do usuário sejam acessados
  * - Valida clinica_id antes de operações críticas
+ * - Suporta anexos de mídia (imagens e áudios)
  */
 export const useSupabaseChat = () => {
   // Obter o clinicaId real do hook useClinicaData
@@ -147,8 +147,13 @@ export const useSupabaseChat = () => {
     }
   };
 
-  // Função para enviar mensagem com logs detalhados
-  const enviarMensagem = async (leadId: string, conteudo: string, tipo: string = 'texto') => {
+  // Função para enviar mensagem com suporte a anexos de mídia
+  const enviarMensagem = async (
+    leadId: string, 
+    conteudo: string, 
+    tipo: string = 'texto',
+    anexoUrl?: string // Novo parâmetro opcional para URL do anexo
+  ) => {
     // Validações rigorosas antes do envio
     if (!validarClinicaId('enviarMensagem')) {
       const errorMsg = 'Não é possível enviar mensagem: ID da clínica não está disponível ou dados da clínica estão carregando/com erro.';
@@ -167,17 +172,26 @@ export const useSupabaseChat = () => {
     console.log('- clinicaId:', clinicaId, 'type:', typeof clinicaId);
     console.log('- conteudo:', conteudo.substring(0, 50) + '...');
     console.log('- tipo:', tipo);
+    console.log('- anexoUrl:', anexoUrl);
 
     try {
+      // Preparar dados da mensagem
+      const mensagemData: any = {
+        lead_id: leadId,
+        clinica_id: clinicaId,
+        conteudo: conteudo.trim(),
+        enviado_por: 'usuario',
+        tipo: tipo
+      };
+
+      // Adicionar anexo_url apenas se fornecido (para mídias)
+      if (anexoUrl) {
+        mensagemData.anexo_url = anexoUrl;
+      }
+
       const { data, error } = await supabase
         .from('chat_mensagens')
-        .insert({
-          lead_id: leadId,
-          clinica_id: clinicaId,
-          conteudo: conteudo.trim(),
-          enviado_por: 'usuario',
-          tipo: tipo
-        })
+        .insert(mensagemData)
         .select()
         .single();
 
@@ -190,6 +204,8 @@ export const useSupabaseChat = () => {
       console.log('- ID da mensagem:', data.id);
       console.log('- clinica_id salvo:', data.clinica_id);
       console.log('- lead_id salvo:', data.lead_id);
+      console.log('- tipo salvo:', data.tipo);
+      console.log('- anexo_url salvo:', data.anexo_url);
 
       return data;
     } catch (error) {

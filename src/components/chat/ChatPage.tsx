@@ -10,13 +10,33 @@ import { useAIConversationControl } from '@/hooks/useAIConversationControl';
 import { useUpdateLeadAiConversationStatus } from '@/hooks/useLeadsData';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Lead } from '@/hooks/useLeadsData';
+import { supabase } from '@/integrations/supabase/client';
+
+/**
+ * Página principal do chat com funcionalidades de mídia
+ * 
+ * Funcionalidades:
+ * - Chat de texto tradicional
+ * - Upload e envio de imagens e áudios via MinIO
+ * - Integração com IA
+ * - Webhook para notificações
+ * - Estados de carregamento para uploads
+ */
 
 interface ChatPageProps {
   selectedLeadId?: string;
 }
 
+// Interface para dados de mensagem (texto ou mídia)
+interface MessageData {
+  type: string;
+  content: string;
+  anexoUrl?: string;
+  aiEnabled?: boolean;
+}
+
 export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
-  const { clinicaId: clinicaIdDireto, clinica: clinicaCompleta } = useClinicaData();
+  const { clinicaId } = useClinicaData(); // Obtém o ID da clínica diretamente
 
   const {
     leads,
@@ -35,6 +55,10 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const [messageInput, setMessageInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  
+  // Estados para upload de mídia
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const selectedLead = leads.find(l => l.id === selectedConversation) || null;
 
@@ -72,8 +96,94 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     return true;
   };
 
-  const handleSendMessage = async (aiEnabledForMessage?: boolean) => {
-    if (!messageInput.trim() || !selectedConversation || sendingMessage) return;
+  /**
+   * Nova função para fazer upload de mídia para MinIO via Edge Function
+   * Esta função será chamada quando o usuário selecionar um arquivo
+   */
+  const handleFileUploadToMinIO = async (file: File) => {
+    console.log('📤 Iniciando upload de mídia:', {
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      selectedConversation,
+      clinicaId
+    });
+
+    // Validações iniciais
+    if (!selectedConversation) {
+      alert('Selecione uma conversa para enviar a mídia.');
+      return;
+    }
+    
+    if (!clinicaId) {
+      alert('ID da clínica não encontrado. Não é possível fazer upload.');
+      return;
+    }
+
+    setIsUploadingMedia(true);
+    setUploadError(null);
+
+    // Preparar FormData para a Edge Function
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('clinicaId', clinicaId);
+    formData.append('leadId', selectedConversation);
+
+    try {
+      console.log('🚀 Chamando Edge Function upload-media-to-minio...');
+      
+      // Chamar a Edge Function (será criada na Etapa 3)
+      const { data: uploadResponse, error: functionError } = await supabase.functions.invoke(
+        'upload-media-to-minio',
+        { body: formData }
+      );
+
+      if (functionError || !uploadResponse?.publicUrl) {
+        console.error('❌ Erro na Edge Function ou URL não retornada:', functionError, uploadResponse);
+        setUploadError(functionError?.message || 'Falha ao obter URL da mídia.');
+        alert(`Erro no upload: ${functionError?.message || 'Falha ao obter URL da mídia.'}`);
+        return;
+      }
+
+      console.log('✅ Upload realizado com sucesso:', uploadResponse);
+
+      const { publicUrl } = uploadResponse;
+      const fileType = file.type.startsWith('image/') ? 'image' : 
+                      file.type.startsWith('audio/') ? 'audio' : 'file';
+
+      // Criar objeto de mensagem com dados da mídia
+      const messageData: MessageData = {
+        type: fileType,
+        content: file.name, // Nome do arquivo como conteúdo inicial
+        anexoUrl: publicUrl,
+        aiEnabled: aiEnabled
+      };
+
+      console.log('💬 Enviando mensagem de mídia:', messageData);
+
+      // Enviar mensagem com os dados da mídia
+      await handleSendMessage(messageData);
+
+    } catch (error: any) {
+      console.error('❌ Erro durante o processo de upload:', error);
+      setUploadError(error.message || 'Erro desconhecido durante o upload.');
+      alert(`Erro no upload: ${error.message || 'Erro desconhecido durante o upload.'}`);
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  };
+
+  /**
+   * Função modificada para lidar com envio de mensagens (texto e mídia)
+   * Agora recebe um objeto MessageData ao invés de apenas aiEnabledForMessage
+   */
+  const handleSendMessage = async (messageData: MessageData) => {
+    // Validar se há conteúdo (texto) ou anexo (mídia)
+    if ((!messageData.content.trim() && !messageData.anexoUrl) || !selectedConversation || sendingMessage) {
+      return;
+    }
+
+    console.log('📨 Enviando mensagem:', messageData);
 
     try {
       setSendingMessage(true);
@@ -84,10 +194,8 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
       if (leadSelecionado?.clinica_id && validarClinicaId(leadSelecionado.clinica_id)) {
         clinicaIdParaWebhook = leadSelecionado.clinica_id;
-      } else if (clinicaIdDireto && validarClinicaId(clinicaIdDireto)) {
-        clinicaIdParaWebhook = clinicaIdDireto;
-      } else if (clinicaCompleta?.id && validarClinicaId(clinicaCompleta.id)) {
-        clinicaIdParaWebhook = clinicaCompleta.id;
+      } else if (clinicaId && validarClinicaId(clinicaId)) {
+        clinicaIdParaWebhook = clinicaId;
       }
 
       if (!clinicaIdParaWebhook) {
@@ -96,43 +204,40 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
         return;
       }
 
-      const novaMensagemRaw = await enviarMensagem(selectedConversation, messageInput);
-      setMessageInput('');
+      // Chamar enviarMensagem com os novos parâmetros (incluindo tipo e anexoUrl)
+      const novaMensagemRaw = await enviarMensagem(
+        selectedConversation,        // leadId
+        messageData.content,         // conteúdo (nome do arquivo para mídia, texto para mensagens de texto)
+        messageData.type,            // tipo: 'text', 'image', 'audio'
+        messageData.anexoUrl         // URL do MinIO para mídias, undefined para texto
+      );
 
-      if (novaMensagemRaw.enviado_por === 'usuario') {
+      // Limpar input de texto apenas se for mensagem de texto
+      if (messageData.type === 'text') {
+        setMessageInput('');
+      }
+
+      // Enviar webhook se a mensagem foi criada com sucesso
+      if (novaMensagemRaw && novaMensagemRaw.enviado_por === 'usuario') {
+        console.log('📡 Enviando webhook para a mensagem:', novaMensagemRaw.id);
+        
         await enviarWebhook(
           novaMensagemRaw.id,
           novaMensagemRaw.lead_id,
           clinicaIdParaWebhook,
           novaMensagemRaw.conteudo,
-          novaMensagemRaw.tipo || 'texto',
+          novaMensagemRaw.tipo || 'text',
           novaMensagemRaw.created_at,
-          aiEnabledForMessage || false
+          messageData.aiEnabled || false
         );
       }
 
     } catch (error: any) {
       console.error('❌ [ChatPage] Erro no envio da mensagem:', error.message);
+      alert(`Erro no envio: ${error.message}`);
     } finally {
       setSendingMessage(false);
     }
-  };
-
-  const handleFileSelect = (file: File) => {
-    console.log('📎 Arquivo selecionado:', {
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      leadId: selectedConversation
-    });
-    
-    // TODO: Em etapas futuras, aqui iremos:
-    // 1. Enviar o arquivo para a Edge Function de upload para MinIO
-    // 2. Receber a URL do arquivo
-    // 3. Criar uma nova mensagem com tipo 'image' ou 'audio' e a URL do anexo
-    
-    // Por enquanto, apenas logamos o arquivo selecionado
-    alert(`Arquivo selecionado: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
   };
 
   const formatTime = (dateString: string) => {
@@ -277,17 +382,28 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
             </div>
 
             <div className="border-t border-gray-200 bg-white flex-shrink-0">
+              {/* Exibir erro de upload se houver */}
+              {uploadError && (
+                <div className="px-4 py-2 bg-red-50 border-b border-red-200">
+                  <p className="text-sm text-red-600">Erro no upload: {uploadError}</p>
+                </div>
+              )}
+              
               <MessageInput
                 value={messageInput}
                 onChange={setMessageInput}
-                onSend={() => handleSendMessage(aiEnabled)}
-                onFileSelect={handleFileSelect} // Nova prop para seleção de arquivos
-                loading={sendingMessage}
+                onSend={() => handleSendMessage({ 
+                  type: 'text', 
+                  content: messageInput, 
+                  aiEnabled: aiEnabled 
+                })}
+                onFileSelect={handleFileUploadToMinIO} // Passando a nova função de upload
+                loading={sendingMessage || isUploadingMedia} // Considerando ambos os estados de loading
                 respostasProntas={respostasProntas}
                 aiEnabled={aiEnabled}
                 onToggleAI={toggleAI}
                 isAIInitializing={isInitializing || isUpdating}
-                leadId={selectedConversation} // Nova prop com o ID do lead selecionado
+                leadId={selectedConversation} // Passando o ID do lead para o MessageInput
               />
             </div>
           </>
