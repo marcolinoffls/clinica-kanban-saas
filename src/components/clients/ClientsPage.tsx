@@ -11,6 +11,7 @@ import { ContactsLoadingState } from './ContactsLoadingState';
 import { ContactsEmptyState } from './ContactsEmptyState';
 import { FilterState, SortField, SortOrder } from './types';
 import { useTags } from '@/hooks/useTagsData';
+import { LeadModal } from '@/components/kanban/LeadModal';
 import { getUniqueOrigens, getUniqueServicos } from './utils';
 
 /**
@@ -43,7 +44,12 @@ const ClientsPage = () => {
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [isDeleting, setIsDeleting] = useState(false);
-  
+
+  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
+  const [selectedLeadForEdit, setSelectedLeadForEdit] = useState<Lead | null>(null);
+
+  const { etapas = [] } = useSupabaseData();
+
   // Estado dos filtros
   const [filters, setFilters] = useState<FilterState>({
     tag: '',
@@ -143,15 +149,15 @@ const ClientsPage = () => {
 
   const handleEditLead = (lead: Lead) => {
     console.log('🔧 Editando lead:', lead);
-    // Navegar para página de edição do lead
-    navigate(`/leads/edit/${lead.id}`);
+    setSelectedLeadForEdit(lead);
+    setIsLeadModalOpen(true);
   };
 
   const handleOpenChat = (lead: Lead) => {
     console.log('💬 Abrindo chat com lead:', lead);
-    // Navegar para página de chat com o lead
-    navigate(`/chat/${lead.id}`, { 
+    navigate('/chat', { 
       state: { 
+        selectedLeadId: lead.id,
         leadName: lead.nome,
         leadPhone: lead.telefone 
       } 
@@ -169,6 +175,18 @@ const ClientsPage = () => {
       } finally {
         setIsDeleting(false);
       }
+    }
+  };
+
+  const handleSaveLead = async (leadData: any) => {
+    try {
+      console.log('💾 Salvando alterações do lead:', leadData);
+      // TODO: Implementar salvamento via hook
+      setIsLeadModalOpen(false);
+      setSelectedLeadForEdit(null);
+      // Recarregar dados se necessário
+    } catch (error) {
+      console.error('Erro ao salvar lead:', error);
     }
   };
 
@@ -245,6 +263,17 @@ const ClientsPage = () => {
           />
         </div>
       )}
+            {/* Modal de Edição de Lead */}
+      <LeadModal
+        isOpen={isLeadModalOpen}
+        onClose={() => {
+          setIsLeadModalOpen(false);
+          setSelectedLeadForEdit(null);
+        }}
+        lead={selectedLeadForEdit}
+        etapas={etapas}
+        onSave={handleSaveLead}
+      />
     </div>
   );
 };
