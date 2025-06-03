@@ -142,11 +142,20 @@ const ClientsPage = () => {
   };
 
   const handleEditLead = (lead: Lead) => {
-    navigate(`/leads?edit=${lead.id}`); // Navegar para edição
+    console.log('🔧 Editando lead:', lead);
+    // Navegar para página de edição do lead
+    navigate(`/leads/edit/${lead.id}`);
   };
 
   const handleOpenChat = (lead: Lead) => {
-    navigate(`/chat/${lead.id}`); // Navegar para chat
+    console.log('💬 Abrindo chat com lead:', lead);
+    // Navegar para página de chat com o lead
+    navigate(`/chat/${lead.id}`, { 
+      state: { 
+        leadName: lead.nome,
+        leadPhone: lead.telefone 
+      } 
+    });
   };
 
   const handleDeleteLead = async (leadId: string) => {
