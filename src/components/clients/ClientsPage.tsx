@@ -82,7 +82,7 @@ const ClientsPage = () => {
       // Filtro por serviço
       const matchesServico = !filters.servico || lead.servico_interesse === filters.servico;
 
-      // Filtro por data
+      // Filtro por data - CORREÇÃO: garantir que matchesDate seja sempre boolean
       let matchesDate = true;
       if (filters.dataInicio || filters.dataFim) {
         const leadDate = lead.created_at ? new Date(lead.created_at) : null;
@@ -202,8 +202,8 @@ const ClientsPage = () => {
   };
 
   // Verificar se há filtros ativos
-  const hasActiveFilters = filters.tag || filters.origem || filters.servico || 
-                          filters.dataInicio || filters.dataFim;
+  const hasActiveFilters = Boolean(filters.tag || filters.origem || filters.servico || 
+                          filters.dataInicio || filters.dataFim);
 
   // Renderização condicional baseada no estado
   if (loading) {
