@@ -11,7 +11,7 @@ import { ContactsFilters } from './ContactsFilters';
 import { ContactsLoadingState } from './ContactsLoadingState';
 import { ContactsEmptyState } from './ContactsEmptyState';
 import { FilterState, SortField, SortOrder } from './types';
-  import { useTagsData } from '@/hooks/useTagsData';
+import { useTagsData } from '@/hooks/useTagsData';
 import { getUniqueOrigens, getUniqueServicos } from './utils';
 
 /**
@@ -35,7 +35,7 @@ const ClientsPage = () => {
   const navigate = useNavigate();
   
   // Hooks para dados
-  const { leads, loading, deleteLeadMutation } = useSupabaseData();
+  const { leads, loading } = useLeadsData();
   const { data: tags = [] } = useTagsData();
   // Estados locais
   const [searchQuery, setSearchQuery] = useState('');
