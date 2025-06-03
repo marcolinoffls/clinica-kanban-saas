@@ -82,7 +82,25 @@ const ClientsPage = () => {
       // Filtro por serviço
       const matchesServico = !filters.servico || lead.servico_interesse === filters.servico;
 
-      return matchesSearch && matchesTag && matchesOrigem && matchesServico;
+      // Filtro por data
+      let matchesDate = true;
+      if (filters.dataInicio || filters.dataFim) {
+        const leadDate = lead.created_at ? new Date(lead.created_at) : null;
+        if (leadDate) {
+          if (filters.dataInicio) {
+            const startDate = new Date(filters.dataInicio);
+            matchesDate = matchesDate && leadDate >= startDate;
+          }
+          if (filters.dataFim) {
+            const endDate = new Date(filters.dataFim);
+            matchesDate = matchesDate && leadDate <= endDate;
+          }
+        } else {
+          matchesDate = false;
+        }
+      }
+
+      return matchesSearch && matchesTag && matchesOrigem && matchesServico && matchesDate;
     });
   }, [leads, searchQuery, filters]);
 
@@ -144,7 +162,7 @@ const ClientsPage = () => {
   };
 
   const handleAddLead = () => {
-    navigate('/leads'); // Navegar para página de criação de leads
+    navigate('/leads');
   };
 
   const handleEditLead = (lead: Lead) => {
@@ -155,7 +173,6 @@ const ClientsPage = () => {
 
   const handleOpenChat = (lead: Lead) => {
     console.log('💬 Abrindo chat com lead:', lead);
-    // Navegar para a página de chat com o leadId como parâmetro da URL
     navigate(`/chat?leadId=${lead.id}`);
   };
 
@@ -179,7 +196,6 @@ const ClientsPage = () => {
       // TODO: Implementar salvamento via hook
       setIsLeadModalOpen(false);
       setSelectedLeadForEdit(null);
-      // Recarregar dados se necessário
     } catch (error) {
       console.error('Erro ao salvar lead:', error);
     }
@@ -258,7 +274,8 @@ const ClientsPage = () => {
           />
         </div>
       )}
-            {/* Modal de Edição de Lead */}
+      
+      {/* Modal de Edição de Lead */}
       <LeadModal
         isOpen={isLeadModalOpen}
         onClose={() => {

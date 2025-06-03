@@ -1,4 +1,5 @@
 
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import * as djwt from "https://deno.land/x/djwt@v2.7/mod.ts"
@@ -9,11 +10,13 @@ const corsHeaders = {
 }
 
 /**
- * Edge Function para envio de webhooks - VERSÃO ROBUSTA
+ * Edge Function para envio de webhooks - VERSÃO ROBUSTA COM SUPORTE A MÍDIA
  * 
  * Funcionalidades:
  * - Envia webhook automaticamente após nova mensagem no chat
  * - Inclui estado do botão de IA (evento_boolean)
+ * - NOVO: Suporte completo a mensagens de mídia (imagens e áudios)
+ * - NOVO: Usa anexo_url (do MinIO) para construir payload específico de mídia
  * - Usa URL fixa para webhook do n8n com multi-tenancy via clinica_id
  * - Inclui autenticação JWT segura usando djwt
  * - Busca e valida evolution_instance_name da clínica com tratamento robusto de erro
@@ -23,6 +26,13 @@ const corsHeaders = {
  * - Nova estrutura de payload inspirada na Evolution API
  * - CORREÇÃO: Tratamento robusto para clínicas não encontradas
  */
+
+// Interface atualizada para suportar diferentes tipos de mensagem
+interface WebhookMessageContent {
+  conversation?: string;
+  image?: { url: string; caption?: string; mimetype?: string };
+  audio?: { url: string; ptt?: boolean; mimetype?: string };
+}
 
 interface WebhookPayload {
   event: string;
@@ -34,9 +44,7 @@ interface WebhookPayload {
       id: string;
     };
     pushName: string | null;
-    message: {
-      conversation: string;
-    };
+    message: WebhookMessageContent; // Campo atualizado para suportar mídia
     messageType: string;
     messageTimestamp: number;
   };
@@ -72,14 +80,15 @@ serve(async (req) => {
       mensagem_id, 
       lead_id, 
       clinica_id, 
-      conteudo, 
-      tipo, 
+      conteudo, // Para texto: o texto. Para mídia: nome do arquivo ou legenda
+      tipo,     // 'text', 'image', 'audio'
       created_at,
-      evento_boolean = false // Estado do botão IA
+      evento_boolean = false, // Estado do botão IA
+      anexo_url // NOVO: URL do anexo (do MinIO para mídias)
     } = requestBody
 
-    // Validações detalhadas do payload
-    console.log('✅ [send-webhook] Validando parâmetros:');
+    // Validações detalhadas do payload (incluindo anexo_url)
+    console.log('✅ [send-webhook] Validando parâmetros (com anexo):');
     console.log('- mensagem_id:', mensagem_id, 'type:', typeof mensagem_id);
     console.log('- lead_id:', lead_id, 'type:', typeof lead_id);
     console.log('- clinica_id:', clinica_id, 'type:', typeof clinica_id);
@@ -87,6 +96,7 @@ serve(async (req) => {
     console.log('- tipo:', tipo);
     console.log('- created_at:', created_at);
     console.log('- evento_boolean:', evento_boolean);
+    console.log('- anexo_url:', anexo_url); // Log do novo parâmetro
 
     if (!clinica_id) {
       console.error('❌ [send-webhook] ERRO: clinica_id não fornecido');
@@ -238,6 +248,28 @@ serve(async (req) => {
       return `${numeroLimpo}@s.whatsapp.net`
     }
 
+    // NOVA LÓGICA: Construção condicional do messagePayload baseado no tipo
+    let messagePayload: WebhookMessageContent;
+
+    if (tipo === 'image' && anexo_url) {
+      console.log('[send-webhook] Preparando payload para IMAGEM');
+      messagePayload = {
+        image: { url: anexo_url }, // Evolution API espera 'url' para a imagem
+        caption: conteudo // Usando 'conteudo' como legenda da imagem
+      };
+    } else if (tipo === 'audio' && anexo_url) {
+      console.log('[send-webhook] Preparando payload para ÁUDIO');
+      messagePayload = {
+        audio: { url: anexo_url },
+        ptt: true // Geralmente 'true' para áudios de WhatsApp (Push to Talk)
+      };
+    } else {
+      console.log('[send-webhook] Preparando payload para TEXTO');
+      messagePayload = {
+        conversation: conteudo
+      };
+    }
+
     // Criar payload do webhook com nova estrutura inspirada na Evolution API
     const webhookPayload: WebhookPayload = {
       event: "crm.send.message", // Identificador do evento
@@ -249,10 +281,8 @@ serve(async (req) => {
           id: mensagem_id // ID da mensagem no nosso banco
         },
         pushName: lead?.nome || null, // Nome do lead no CRM (pode ser null)
-        message: {
-          conversation: conteudo // Conteúdo da mensagem
-        },
-        messageType: tipo || 'conversation', // Tipo da mensagem
+        message: messagePayload, // PAYLOAD CONDICIONAL (texto, imagem ou áudio)
+        messageType: tipo || 'conversation', // Tipo real da mensagem
         messageTimestamp: Math.floor(new Date(created_at).getTime() / 1000) // Timestamp Unix UTC
       },
       origin: {
@@ -262,6 +292,9 @@ serve(async (req) => {
       },
       timestamp_sp: timestampSP // Timestamp formatado para São Paulo
     }
+
+    // Log do payload final que será enviado para o n8n
+    console.log('📤 [send-webhook] Payload final para n8n/Evolution API:', JSON.stringify(webhookPayload, null, 2));
 
     // Gerar JWT seguro usando djwt
     const secretKey = Deno.env.get('EVOLUTION_API_KEY') || 'default-secret'
@@ -291,10 +324,12 @@ serve(async (req) => {
     let statusCode = 0
     let resposta = ''
 
-    console.log('Enviando webhook com payload validado:', JSON.stringify(webhookPayload, null, 2))
-    console.log('URL do webhook:', webhookUrl)
-    console.log('Instância Evolution:', clinica.evolution_instance_name)
-    console.log('Telefone formatado:', formatarTelefone(lead?.telefone))
+    console.log('🚀 [send-webhook] Enviando webhook para n8n:');
+    console.log('- URL:', webhookUrl);
+    console.log('- Instância Evolution:', clinica.evolution_instance_name);
+    console.log('- Telefone formatado:', formatarTelefone(lead?.telefone));
+    console.log('- Tipo de mensagem:', tipo);
+    console.log('- Anexo URL:', anexo_url);
 
     // Tentar enviar webhook (máximo 3 tentativas com backoff exponencial)
     while (tentativas <= 3 && !sucesso) {
@@ -313,15 +348,15 @@ serve(async (req) => {
 
         if (webhookResponse.ok) {
           sucesso = true
-          console.log('Webhook enviado com sucesso:', resposta)
+          console.log('✅ [send-webhook] Webhook enviado com sucesso:', resposta)
         } else {
           ultimoErro = `HTTP ${statusCode}: ${resposta}`
-          console.error('Erro no webhook:', ultimoErro)
+          console.error('❌ [send-webhook] Erro no webhook:', ultimoErro)
         }
       } catch (error) {
         ultimoErro = `Erro de rede: ${error.message}`
         statusCode = 0
-        console.error('Erro de rede no webhook:', error)
+        console.error('❌ [send-webhook] Erro de rede no webhook:', error)
       }
 
       if (!sucesso) {
