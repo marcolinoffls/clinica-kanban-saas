@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -22,7 +23,8 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
-import { useCreateAgendamento, useUpdateAgendamento, type AgendamentoFormData } from '@/hooks/useAgendamentosData';
+// Corrigido: usar AgendamentoFromDatabase em vez de AgendamentoFormData
+import { useCreateAgendamento, useUpdateAgendamento, type AgendamentoFromDatabase } from '@/hooks/useAgendamentosData';
 import { useClinica } from '@/contexts/ClinicaContext';
 import { useAuthUser } from '@/hooks/useAuthUser';
 import { ClienteSelector } from './ClienteSelector';
@@ -30,6 +32,7 @@ import { NovoClienteFields } from './NovoClienteFields';
 import { ServicoSelector } from './ServicoSelector';
 import { AGENDAMENTO_STATUS_OPTIONS } from '@/constants/agendamentos';
 
+// Esquema usando AgendamentoFromDatabase como base
 const agendamentoSchema = z.object({
   titulo: z.string().min(1, 'Título é obrigatório'),
   descricao: z.string().optional(),
@@ -42,10 +45,12 @@ const agendamentoSchema = z.object({
   usuario_id: z.string().min(1, 'Usuário é obrigatório'),
 });
 
+type AgendamentoFormData = z.infer<typeof agendamentoSchema>;
+
 interface RegistroAgendamentoModalProps {
   isOpen: boolean;
   onClose: () => void;
-  agendamento?: any;
+  agendamento?: AgendamentoFromDatabase; // Corrigido: usar AgendamentoFromDatabase
   selectedDate?: Date;
 }
 
@@ -113,7 +118,11 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
 
     if (agendamento) {
       try {
-        await updateAgendamentoMutation.mutateAsync({ id: agendamento.id, data: agendamentoData });
+        // Corrigido: passar os dados diretamente, não dentro de um objeto 'data'
+        await updateAgendamentoMutation.mutateAsync({ 
+          id: agendamento.id, 
+          ...agendamentoData 
+        });
         onClose();
       } catch (error: any) {
         console.error('Erro ao atualizar agendamento:', error);
@@ -268,17 +277,19 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
 
           {/* Cliente Selector com props corretas */}
           <ClienteSelector
-            form={form}
+            form={form as any} // Cast temporário para contornar diferenças de tipo
             leads={[]} // Será carregado pelo componente
             clienteBuscaInput=""
             setClienteBuscaInput={() => {}}
             setRegistrandoNovoCliente={setIsNovoCliente}
+            loadingLeads={false} // Adicionada prop faltante
+            registrandoNovoCliente={isNovoCliente} // Adicionada prop faltante
           />
 
           {/* Campos de novo cliente */}
           {isNovoCliente && (
             <NovoClienteFields
-              form={form}
+              form={form as any} // Cast temporário para contornar diferenças de tipo
               setRegistrandoNovoCliente={setIsNovoCliente}
               setClienteBuscaInput={() => {}}
               leads={[]}
@@ -287,10 +298,10 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
 
           {/* Serviço Selector com props corretas */}
           <ServicoSelector
-            form={form}
+            form={form as any} // Cast temporário para contornar diferenças de tipo
             servicos={[]}
             loadingServices={false}
-            modoServico="existente"
+            modoServico="selecionar" // Corrigido: usar "selecionar" em vez de "existente"
             setModoServico={() => {}}
             novoServicoNome=""
             setNovoServicoNome={() => {}}

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Lead } from '@/hooks/useLeadsData';
 import { useLeads } from '@/hooks/useLeadsData';
@@ -65,7 +64,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LeadInfoSidebar } from '@/components/chat/LeadInfoSidebar';
-import { useRouter } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Componente aprimorado da página de Clientes/Leads
@@ -119,7 +118,7 @@ const ClientsPage = () => {
   const { data: tags = [] } = useTags();
   const updateLead = useUpdateLead();
   const deleteLead = useDeleteLead();
-  const router = useRouter();
+  const navigate = useNavigate();
 
   // Função para formatizar data
   const formatarData = (dataString: string | null | undefined) => {
@@ -256,7 +255,7 @@ const ClientsPage = () => {
   };
 
   const handleOpenChat = (lead: Lead) => {
-    router.navigate(`/chat?leadId=${lead.id}`);
+    navigate(`/chat?leadId=${lead.id}`);
   };
 
   const handleLeadUpdate = async (updatedLead: Lead) => {
@@ -642,7 +641,7 @@ const ClientsPage = () => {
                 }}
                 onScheduleAppointment={() => {
                   // Implementar navegação para agenda
-                  router.navigate('/agenda');
+                  navigate('/agenda');
                 }}
               />
             </div>
