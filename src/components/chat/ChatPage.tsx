@@ -118,6 +118,23 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     }
   };
 
+  const handleFileSelect = (file: File) => {
+    console.log('📎 Arquivo selecionado:', {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      leadId: selectedConversation
+    });
+    
+    // TODO: Em etapas futuras, aqui iremos:
+    // 1. Enviar o arquivo para a Edge Function de upload para MinIO
+    // 2. Receber a URL do arquivo
+    // 3. Criar uma nova mensagem com tipo 'image' ou 'audio' e a URL do anexo
+    
+    // Por enquanto, apenas logamos o arquivo selecionado
+    alert(`Arquivo selecionado: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+  };
+
   const formatTime = (dateString: string) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -264,11 +281,13 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                 value={messageInput}
                 onChange={setMessageInput}
                 onSend={() => handleSendMessage(aiEnabled)}
+                onFileSelect={handleFileSelect} // Nova prop para seleção de arquivos
                 loading={sendingMessage}
                 respostasProntas={respostasProntas}
                 aiEnabled={aiEnabled}
                 onToggleAI={toggleAI}
                 isAIInitializing={isInitializing || isUpdating}
+                leadId={selectedConversation} // Nova prop com o ID do lead selecionado
               />
             </div>
           </>

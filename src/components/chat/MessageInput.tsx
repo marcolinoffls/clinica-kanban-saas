@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
  * Funcionalidades:
  * - Área de texto com redimensionamento automático
  * - Suporte a Shift+Enter para nova linha
+ * - Seleção de arquivos de mídia (imagens e áudios)
  * - Botões para anexos, respostas prontas, IA e emojis
  * - Controle granular de ativação da IA com estado persistente
  * - Integração com respostas prontas via atalhos
@@ -22,7 +23,7 @@ interface MessageInputProps {
   value: string;
   onChange: (value: string) => void;
   onSend: (aiEnabled?: boolean) => void;
-  onAttachFile?: () => void;
+  onFileSelect: (file: File) => void; // Nova prop para seleção de arquivos
   loading?: boolean;
   respostasProntas?: Array<{
     id: string;
@@ -30,25 +31,45 @@ interface MessageInputProps {
     conteudo: string;
     atalho?: string;
   }>;
-  // NOVOS props para controle da IA
+  // Props para controle da IA
   aiEnabled: boolean;
   onToggleAI: () => void;
   isAIInitializing?: boolean;
+  leadId: string | null; // Será usado em etapas futuras para nomear arquivos no MinIO
 }
 
 export const MessageInput = ({
   value,
   onChange,
   onSend,
-  onAttachFile,
+  onFileSelect, // Nova prop para lidar com seleção de arquivos
   loading = false,
   respostasProntas = [],
-  aiEnabled, // Estado da IA vem de fora agora
-  onToggleAI, // Função para alternar IA vem de fora
-  isAIInitializing = false
+  aiEnabled,
+  onToggleAI,
+  isAIInitializing = false,
+  leadId // Nova prop para identificar o lead
 }: MessageInputProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // Ref para o input de arquivo
   const [showRespostasProntas, setShowRespostasProntas] = useState(false);
+
+  // Função para acionar a seleção de arquivo ao clicar no botão de anexo
+  const handleTriggerFileUpload = () => {
+    fileInputRef.current?.click(); // Simula clique no input de arquivo oculto
+  };
+
+  // Função para lidar com a seleção do arquivo
+  const handleFileSelectedAndForward = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; // Pega o primeiro arquivo selecionado
+    if (file) {
+      onFileSelect(file); // Envia o arquivo para o componente pai (ChatPage.tsx)
+    }
+    // Limpa o valor do input para permitir que o mesmo arquivo seja selecionado novamente
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   // Função para lidar com teclas especiais
   const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -86,15 +107,25 @@ export const MessageInput = ({
     <div className="bg-white border-t border-gray-200 p-4">
       {/* Barra de ferramentas superior */}
       <div className="flex items-center gap-2 mb-3">
+        {/* NOVO BOTÃO DE ANEXO E INPUT OCULTO */}
         <Button
           variant="ghost"
           size="sm"
-          onClick={onAttachFile}
+          onClick={handleTriggerFileUpload}
           className="text-gray-500 hover:text-gray-700"
           title="Anexar arquivo"
+          type="button"
         >
           <Paperclip size={16} />
         </Button>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelectedAndForward}
+          style={{ display: 'none' }}
+          accept="image/*,audio/*"
+        />
+        {/* FIM DO NOVO BOTÃO E INPUT */}
 
         <Popover open={showRespostasProntas} onOpenChange={setShowRespostasProntas}>
           <PopoverTrigger asChild>
@@ -194,7 +225,7 @@ export const MessageInput = ({
         </div>
 
         <Button
-          onClick={() => onSend(aiEnabled)} // Passar estado atual da IA ao enviar
+          onClick={() => onSend(aiEnabled)}
           disabled={!value.trim() || loading}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 h-[60px]"
         >
