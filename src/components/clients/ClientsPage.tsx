@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from 'react-router-dom';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { Lead, useLeadsData } from '@/hooks/useLeadsData';
+import { Lead, useLeads } from '@/hooks/useLeadsData';
 import { ContactsTable } from './ContactsTable';
 import { ContactsFilters } from './ContactsFilters';
 import { ContactsLoadingState } from './ContactsLoadingState';
@@ -35,7 +35,7 @@ const ClientsPage = () => {
   const navigate = useNavigate();
   
   // Hooks para dados
-  const { leads, loading } = useLeads();
+  const { data: leads = [], isLoading: loading } = useLeads();
   const { data: tags = [] } = useTagsData();
   // Estados locais
   const [searchQuery, setSearchQuery] = useState('');

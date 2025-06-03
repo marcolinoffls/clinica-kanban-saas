@@ -454,9 +454,9 @@ export const CalendarPage = () => {
 
       {/* Modal de Registro/Edição de Agendamento */}
       <RegistroAgendamentoModal
-        isOpen={modalEditarAberto}
-        onClose={() => setModalEditarAberto(false)}
-        agendamento={agendamentoSelecionado}
+        isOpen={isAgendamentoModalOpen}
+        onClose={handleCloseModal}
+        agendamento={agendamentoParaEditar}
       />
     </div>
   );
