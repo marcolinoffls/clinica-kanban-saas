@@ -1,283 +1,442 @@
-
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Paperclip, X } from 'lucide-react';
+import { Search, Phone, Video, MessageSquare } from 'lucide-react';
+import { MessageInput } from './MessageInput';
 import { ChatWindow } from './ChatWindow';
 import { LeadInfoSidebar } from './LeadInfoSidebar';
-import { MessageInput } from './MessageInput';
-import { useSupabaseChat } from '@/hooks/useSupabaseChat';
-import { useLeads } from '@/hooks/useLeadsData'; // Corrigido: useLeads em vez de useLeadsData
-import { useClinica } from '@/contexts/ClinicaContext';
-import { toast } from 'sonner';
-
-// Interface para mensagem no formato esperado pelo componente
-interface Message {
-  id: string;
-  content: string;
-  sender: string;
-  created_at: string;
-  type?: string;
-  media_url?: string;
-}
-
-// Interface para lead
-interface Lead {
-  id: string;
-  nome: string;
-  telefone: string;
-  email: string;
-  origem_lead: string;
-  status_conversao: string;
-  created_at: string;
-  updated_at: string;
-  clinica_id: string;
-  anotacoes?: string;
-  ltv?: number;
-  ai_conversation_enabled?: boolean;
-  avatar_url?: string;
-}
+import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useWebhook } from '@/hooks/useWebhook';
+import { useClinicaData } from '@/hooks/useClinicaData';
+import { useAIConversationControl } from '@/hooks/useAIConversationControl';
+import { useUpdateLeadAiConversationStatus } from '@/hooks/useLeadsData';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Lead } from '@/hooks/useLeadsData';
+import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Página de Chat para conversas com leads
+ * Página principal do chat com funcionalidades de mídia
  * 
  * Funcionalidades:
- * - Exibe conversa em tempo real com um lead específico
- * - Permite envio de mensagens de texto e arquivos
- * - Controla ativação/desativação da IA para o lead
- * - Mostra informações do lead na sidebar
- * - Upload de arquivos via MinIO
+ * - Chat de texto tradicional
+ * - Upload e envio de imagens e áudios via MinIO
+ * - Integração com IA
+ * - Webhook para notificações
+ * - Estados de carregamento para uploads
  */
-export const ChatPage = () => {
-  const { leadId } = useParams<{ leadId: string }>();
-  const navigate = useNavigate();
-  const { clinicaAtiva } = useClinica();
-  
-  // Estados do componente
-  const [lead, setLead] = useState<Lead | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isUploading, setIsUploading] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(true);
-  const [aiActive, setAiActive] = useState(false);
-  const [messageValue, setMessageValue] = useState('');
-  
-  // Hooks para operações com Supabase
-  const { 
-    enviarMensagem,
-    buscarMensagensLead,
-    marcarMensagensComoLidas
-  } = useSupabaseChat();
-  
-  const { data: leads } = useLeads(); // Hook correto para buscar leads
 
-  // Função para upload de arquivos no MinIO
-  const handleFileUpload = async (file: File) => {
-    if (!leadId || !clinicaAtiva?.id) {
-      toast.error('Erro: Lead ou clínica não encontrada');
+interface ChatPageProps {
+  selectedLeadId?: string;
+}
+
+// Interface para dados de mensagem (texto ou mídia)
+interface MessageData {
+  type: string;
+  content: string;
+  anexoUrl?: string;
+  aiEnabled?: boolean;
+}
+
+export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
+  const { clinicaId } = useClinicaData(); // Obtém o ID da clínica diretamente
+
+  const {
+    leads,
+    tags,
+    enviarMensagem,
+    respostasProntas,
+    mensagensNaoLidas,
+    marcarMensagensComoLidas,
+    loading
+  } = useSupabaseData();
+
+  const { enviarWebhook } = useWebhook();
+  const updateLeadAiStatusMutation = useUpdateLeadAiConversationStatus();
+
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(selectedLeadId || null);
+  const [messageInput, setMessageInput] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  
+  // Estados para upload de mídia
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const selectedLead = leads.find(l => l.id === selectedConversation) || null;
+
+  const { aiEnabled, toggleAI, isInitializing, isUpdating } = useAIConversationControl({
+    selectedLead,
+    updateLeadAiConversationStatus: updateLeadAiStatusMutation.mutateAsync
+  });
+
+  useEffect(() => {
+    if (selectedLeadId) {
+      setSelectedConversation(selectedLeadId);
+    }
+  }, [selectedLeadId]);
+
+  useEffect(() => {
+    if (selectedConversation && mensagensNaoLidas[selectedConversation] > 0) {
+      marcarMensagensComoLidas(selectedConversation);
+    }
+  }, [selectedConversation, mensagensNaoLidas, marcarMensagensComoLidas]);
+
+  const leadsComMensagens = leads.filter(lead =>
+    lead.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    lead.telefone?.includes(searchTerm) ||
+    lead.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const validarClinicaId = (clinicaId: string | null | undefined): clinicaId is string => {
+    if (!clinicaId) {
+      return false;
+    }
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(clinicaId)) {
+      return false;
+    }
+    return true;
+  };
+
+  /**
+   * Nova função para fazer upload de mídia para MinIO via Edge Function
+   * Esta função é chamada quando o usuário seleciona um arquivo no MessageInput
+   */
+  const handleFileUploadAndSend = async (file: File) => {
+    if (!selectedConversation) {
+      // Usando alert como placeholder, idealmente use toast.error()
+      alert('Por favor, selecione uma conversa antes de enviar uma mídia.');
+      console.error('[ChatPage] Tentativa de upload sem conversa selecionada.');
       return;
     }
-
+  
+    // Use o clinicaId obtido do hook useClinicaData
+    // (supondo que você o chamou de clinicaIdFromHook no escopo do ChatPage)
+    if (!clinicaIdFromHook) {
+      alert('ID da clínica não está disponível. Não é possível fazer upload.');
+      console.error('[ChatPage] clinicaIdFromHook não disponível para upload.');
+      return;
+    }
+  
+    setIsUploadingMedia(true);
+    setUploadError(null);
+    console.log(`[ChatPage] Iniciando upload do CRM para: leadId=${selectedConversation}, clinicaId=${clinicaIdFromHook}, arquivo=${file.name}`);
+  
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('clinicaId', clinicaIdFromHook);
+    formData.append('leadId', selectedConversation);
+  
     try {
-      setIsUploading(true);
+      // Chama a Edge Function que faz o upload para o MinIO
+      const { data: uploadResponse, error: functionError } = await supabase.functions.invoke(
+        'send-crm-media-to-minio', // Nome EXATO da sua Edge Function
+        { body: formData }
+      );
+  
+      if (functionError || !uploadResponse?.publicUrl) {
+        const errorMessage = functionError?.message || uploadResponse?.error || 'Falha ao obter URL da mídia do MinIO.';
+        console.error('[ChatPage] Erro ao invocar send-crm-media-to-minio ou URL não retornada:', functionError, uploadResponse);
+        setUploadError(errorMessage);
+        alert(`Erro no upload: ${errorMessage}`); // Substitua por toast.error()
+        setIsUploadingMedia(false);
+        return;
+      }
+  
+      const { publicUrl } = uploadResponse;
+  
+      // Determina o tipo de arquivo baseado no mimetype para enviar para o Supabase
+      // e corresponder à constraint do banco de dados.
+      let determinedFileType: 'imagem' | 'audio' | 'arquivo' = 'arquivo'; // Valor padrão
+      if (file.type.startsWith('image/')) {
+        determinedFileType = 'imagem';
+      } else if (file.type.startsWith('audio/')) {
+        determinedFileType = 'audio';
+      }
+  
+      console.log(`[ChatPage] Upload do CRM para MinIO bem-sucedido. URL: ${publicUrl}. Tipo: ${determinedFileType}. Chamando handleSendMessage.`);
       
-      // Criar FormData para enviar o arquivo
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('clinicaId', clinicaAtiva.id);
-      formData.append('leadId', leadId);
-
-      // Chamar a Edge Function para fazer upload no MinIO
-      const response = await fetch('/functions/v1/send-crm-media-to-minio', {
-        method: 'POST',
-        body: formData,
+      // Agora, chame handleSendMessage com os dados da mídia
+      await handleSendMessage({
+        type: determinedFileType,
+        content: file.name, // Usar nome do arquivo como 'conteúdo' para mídias. Você pode adicionar um campo de legenda no futuro.
+        anexoUrl: publicUrl,
+        aiEnabled: aiEnabled // Usa o estado atual da IA da conversa
       });
-
-      if (!response.ok) {
-        throw new Error('Falha no upload do arquivo');
-      }
-
-      const { publicUrl } = await response.json();
-      
-      // Determinar o tipo de mídia baseado no arquivo
-      const fileType = file.type.startsWith('image/') ? 'image' : 
-                      file.type.startsWith('audio/') ? 'audio' : 'file';
-      
-      // Enviar mensagem com a URL do arquivo
-      await sendMessage(file.name, fileType, publicUrl);
-      
-      toast.success('Arquivo enviado com sucesso!');
-    } catch (error) {
-      console.error('Erro no upload:', error);
-      toast.error('Erro ao enviar arquivo');
+  
+    } catch (e: any) {
+      console.error("[ChatPage] Erro durante o processo de upload da mídia pelo CRM:", e);
+      setUploadError(e.message || 'Erro desconhecido durante o upload.');
+      alert(`Erro no upload: ${e.message || 'Erro desconhecido'}`); // Substitua por toast.error()
     } finally {
-      setIsUploading(false);
+      setIsUploadingMedia(false);
     }
   };
+  /**
+   * Função modificada para lidar com envio de mensagens (texto e mídia)
+   * Agora recebe um objeto MessageData ao invés de apenas aiEnabledForMessage
+   */
+  const handleSendMessage = async (messageData: MessageData) => {
+    // Validar se há conteúdo (texto) ou anexo (mídia)
+    if ((!messageData.content.trim() && !messageData.anexoUrl) || !selectedConversation || sendingMessage || isUploadingMedia) {
+      // Validação específica por tipo
+      if (messageData.type === 'text' && !messageData.content.trim()) return;
+      if ((messageData.type === 'image' || messageData.type === 'audio') && !messageData.anexoUrl) return;
+      if (!selectedConversation || sendingMessage || isUploadingMedia) return;
+    }
 
-  // Carregar dados do lead e mensagens
-  useEffect(() => {
-    const loadLeadAndMessages = async () => {
-      if (!leadId) return;
-      
-      try {
-        setLoading(true);
-        
-        // Buscar dados do lead na lista de leads carregados
-        const leadData = leads?.find(l => l.id === leadId);
-        if (leadData) {
-          setLead(leadData);
-          setAiActive(leadData.ai_conversation_enabled || false);
-        }
-        
-        // Carregar mensagens do lead
-        const mensagens = await buscarMensagensLead(leadId);
-        
-        // Converter mensagens para o formato esperado pelo componente
-        const messagesFormatted: Message[] = mensagens.map(msg => ({
-          id: msg.id,
-          content: msg.conteudo, // Mapear conteudo para content
-          sender: msg.enviado_por, // Mapear enviado_por para sender
-          created_at: msg.created_at,
-          type: msg.tipo,
-          media_url: msg.anexo_url
-        }));
-        
-        setMessages(messagesFormatted);
-        
-        // Marcar mensagens como lidas
-        await marcarMensagensComoLidas(leadId);
-        
-      } catch (error) {
-        console.error('Erro ao carregar dados:', error);
-        toast.error('Erro ao carregar conversa');
-      } finally {
-        setLoading(false);
+    console.log('📨 Enviando mensagem:', messageData);
+
+    try {
+      setSendingMessage(true);
+
+      const leadSelecionado = leads.find(l => l.id === selectedConversation);
+
+      let clinicaIdParaWebhook: string | null = null;
+
+      if (leadSelecionado?.clinica_id && validarClinicaId(leadSelecionado.clinica_id)) {
+        clinicaIdParaWebhook = leadSelecionado.clinica_id;
+      } else if (clinicaId && validarClinicaId(clinicaId)) {
+        clinicaIdParaWebhook = clinicaId;
       }
-    };
-    
-    if (leads) { // Só executa quando os leads estão carregados
-      loadLeadAndMessages();
-    }
-  }, [leadId, leads, buscarMensagensLead, marcarMensagensComoLidas]);
 
-  // Função para enviar mensagem
-  const sendMessage = async (content: string, type: string = 'text', mediaUrl?: string) => {
-    if (!leadId || !content.trim()) return;
-    
-    try {
-      await enviarMensagem(leadId, content, type, mediaUrl);
-      
-      // Limpar o input após enviar
-      setMessageValue('');
-      
-      // Recarregar mensagens após envio
-      const mensagens = await buscarMensagensLead(leadId);
-      const messagesFormatted: Message[] = mensagens.map(msg => ({
-        id: msg.id,
-        content: msg.conteudo,
-        sender: msg.enviado_por,
-        created_at: msg.created_at,
-        type: msg.tipo,
-        media_url: msg.anexo_url
-      }));
-      setMessages(messagesFormatted);
-      
-    } catch (error) {
-      console.error('Erro ao enviar mensagem:', error);
-      toast.error('Erro ao enviar mensagem');
-    }
-  };
+      if (!clinicaIdParaWebhook) {
+        console.error('❌ [ChatPage] ERRO CRÍTICO: Não foi possível determinar um clinica_id válido para o webhook.');
+        alert('Erro: ID da clínica não pôde ser determinado para o envio.');
+        setSendingMessage(false);
+        return;
+      }
 
-  // Função para alternar IA
-  const handleToggleAI = async () => {
-    if (!leadId) return;
-    
-    try {
-      const newAiState = !aiActive;
-      setAiActive(newAiState);
-      
-      toast.success(`IA ${newAiState ? 'ativada' : 'desativada'} para este lead`);
-    } catch (error) {
-      console.error('Erro ao alternar IA:', error);
-      toast.error('Erro ao alternar IA');
-    }
-  };
+      // Chamar enviarMensagem com os novos parâmetros (incluindo tipo e anexoUrl)
+      const novaMensagemRaw = await enviarMensagem(
+        selectedConversation,        // leadId
+        messageData.content,         // conteúdo (nome do arquivo para mídia, texto para mensagens de texto)
+        messageData.type,            // tipo: 'text', 'image', 'audio'
+        messageData.anexoUrl         // URL do MinIO para mídias, undefined para texto
+      );
 
-  // Função para voltar à lista de leads
-  const handleBack = () => {
-    navigate('/leads');
-  };
+      // Limpar input de texto apenas se for mensagem de texto
+      if (messageData.type === 'text') {
+        setMessageInput('');
+      }
 
-  return (
-    <div className="flex h-full">
-      {/* Chat principal */}
-      <div className="flex flex-col flex-1 h-full overflow-hidden">
-        {/* Header do chat */}
-        <div className="flex items-center justify-between px-4 py-2 border-b">
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={handleBack}
-              className="p-1 rounded-full hover:bg-gray-100"
-            >
-              <ArrowLeft className="h-5 w-5 text-gray-600" />
-            </button>
-            <div>
-              <h2 className="font-medium">{lead?.nome || 'Carregando...'}</h2>
-              <p className="text-sm text-gray-500">{lead?.telefone || ''}</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowSidebar(!showSidebar)}
-              className="text-sm text-blue-600 hover:text-blue-800"
-            >
-              {showSidebar ? 'Ocultar detalhes' : 'Mostrar detalhes'}
-            </button>
-            
-            <div className="flex items-center gap-2 ml-4">
-              <span className="text-sm text-gray-600">IA:</span>
-              <button
-                onClick={handleToggleAI}
-                className={`px-3 py-1 text-xs font-medium rounded-full ${
-                  aiActive 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-gray-100 text-gray-800'
-                }`}
-              >
-                {aiActive ? 'Ativada' : 'Desativada'}
-              </button>
-            </div>
-          </div>
-        </div>
+      // Enviar webhook se a mensagem foi criada com sucesso
+      if (novaMensagemRaw && novaMensagemRaw.enviado_por === 'usuario') {
+        console.log('📡 Enviando webhook para a mensagem:', novaMensagemRaw.id);
         
-        {/* Área de mensagens - passa leadId em vez de mensagens */}
-        <ChatWindow 
-          leadId={leadId || ''}
-        />
-        
-        {/* Input de mensagem */}
-        <div className="border-t p-3">
-          <MessageInput 
-            value={messageValue}
-            onChange={setMessageValue}
-            onSend={() => sendMessage(messageValue)}
-            onFileSelect={handleFileUpload}
-            loading={isUploading}
-            aiEnabled={aiActive}
-            onToggleAI={handleToggleAI}
-            leadId={leadId || null}
-          />
+        await enviarWebhook(
+          novaMensagemRaw.id,
+          novaMensagemRaw.lead_id,
+          clinicaIdParaWebhook,
+          novaMensagemRaw.conteudo,
+          novaMensagemRaw.tipo || 'text',
+          novaMensagemRaw.created_at,
+          messageData.aiEnabled || false
+        );
+      }
+
+      console.log('✅ Mensagem e/ou mídia enviada com sucesso e webhook disparado.');
+
+    } catch (error: any) {
+      console.error('❌ [ChatPage] Erro no envio da mensagem:', error.message);
+      alert(`Erro no envio: ${error.message}`);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const formatTime = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getLastMessage = (lead: Lead) => {
+    return lead.telefone || 'Clique para ver a conversa...';
+  };
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Carregando conversas...</p>
         </div>
       </div>
-      
-      {/* Sidebar com informações do lead */}
-      {showSidebar && lead && (
-        <div className="w-80 border-l h-full overflow-y-auto">
-          <LeadInfoSidebar 
-            lead={lead}
-          />
+    );
+  }
+
+  return (
+    <div className="h-screen flex overflow-hidden">
+      {/* Lista de conversas - Lateral esquerda */}
+      <div className="w-80 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+        {/* Header da lista */}
+        <div className="p-4 border-b border-gray-200 flex-shrink-0">
+          <h2 className="text-xl font-semibold text-gray-900 mb-3">Conversas</h2>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              placeholder="Buscar conversas..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
+
+        {/* Lista de conversas com rolagem própria */}
+        <div className="flex-1 overflow-y-auto">
+          {leadsComMensagens.length > 0 ? (
+            leadsComMensagens.map((lead) => {
+              const mensagensNaoLidasCount = mensagensNaoLidas[lead.id] || 0;
+              return (
+                <div
+                  key={lead.id}
+                  onClick={() => setSelectedConversation(lead.id)}
+                  className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 relative ${
+                    selectedConversation === lead.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-12 h-12">
+                      <AvatarImage src={lead.avatar_url || undefined} alt={`Avatar de ${lead.nome}`} />
+                      <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
+                        {lead.nome.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    {mensagensNaoLidasCount > 0 && (
+                      <div className="absolute top-2 left-11 bg-green-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+                        {mensagensNaoLidasCount > 99 ? '99+' : mensagensNaoLidasCount}
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start">
+                        <h4 className={`font-medium truncate ${
+                          mensagensNaoLidasCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-900'
+                        }`}>
+                          {lead.nome}
+                        </h4>
+                        <span className="text-xs text-gray-500 flex-shrink-0">
+                          {formatTime(lead.data_ultimo_contato || lead.updated_at)}
+                        </span>
+                      </div>
+                      <p className={`text-sm truncate mt-1 ${
+                        mensagensNaoLidasCount > 0 ? 'text-gray-700 font-medium' : 'text-gray-600'
+                      }`}>
+                        {getLastMessage(lead)}
+                      </p>
+                    </div>
+                  </div>
+                  {mensagensNaoLidasCount > 0 && (
+                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="p-8 text-center">
+              <MessageSquare size={32} className="text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">Nenhuma conversa encontrada</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Área de mensagens - Centro */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {selectedLead ? (
+          <>
+            {/* Header da conversa */}
+            <div className="bg-white border-b border-gray-200 p-4 flex justify-between items-center flex-shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar className="w-10 h-10">
+                  <AvatarImage src={selectedLead.avatar_url || undefined} alt={`Avatar de ${selectedLead.nome}`} />
+                  <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
+                    {selectedLead.nome.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-gray-900 truncate">
+                    {selectedLead.nome}
+                  </h3>
+                  <p className="text-sm text-gray-500 truncate">
+                    {selectedLead.telefone}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
+                  <Phone size={20} />
+                </button>
+                <button className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
+                  <Video size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-gray-50 overflow-hidden">
+              <ChatWindow leadId={selectedConversation} />
+            </div>
+
+            <div className="border-t border-gray-200 bg-white flex-shrink-0">
+              {/* Exibir erro de upload se houver */}
+              {uploadError && (
+                <div className="px-4 py-2 bg-red-50 border-b border-red-200">
+                  <p className="text-sm text-red-600">Erro no upload: {uploadError}</p>
+                </div>
+              )}
+              
+              <MessageInput
+                value={messageInput}
+                onChange={setMessageInput}
+                onSend={() => handleSendMessage({ 
+                  type: 'text', 
+                  content: messageInput, 
+                  aiEnabled: aiEnabled 
+                })}
+                onFileSelect={handleFileUploadAndSend} // Passando a nova função de upload
+                loading={sendingMessage || isUploadingMedia} // Considerando ambos os estados de loading
+                respostasProntas={respostasProntas}
+                aiEnabled={aiEnabled}
+                onToggleAI={toggleAI}
+                isAIInitializing={isInitializing || isUpdating}
+                leadId={selectedConversation} // Passando o ID do lead para o MessageInput
+              />
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center bg-gray-50">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                <MessageSquare size={32} className="text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Selecione uma conversa
+              </h3>
+              <p className="text-gray-500">
+                Escolha uma conversa para começar a mensagear
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Painel de Informações do Lead - Lateral direita */}
+      {selectedLead && (
+        <LeadInfoSidebar
+          lead={selectedLead}
+          tags={tags.filter(tag => tag.id === selectedLead.tag_id)}
+          historico={[]}
+          onCallLead={() => console.log('Ligar para lead:', selectedLead.id)}
+          onScheduleAppointment={() => console.log('Agendar para lead:', selectedLead.id)}
+          onEditLead={() => console.log('Editar lead:', selectedLead.id)}
+        />
       )}
     </div>
   );

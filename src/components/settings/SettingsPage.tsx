@@ -132,7 +132,7 @@ export const SettingsPage = () => {
     }
   };
 
-  // Tabs de navegação
+  // Tabs de navegação (adicionando nova aba "Serviços")
   const tabs = [
     { id: 'clinic', label: 'Clínica', icon: Shield },
     { id: 'services', label: 'Serviços', icon: Settings },
@@ -307,6 +307,7 @@ export const SettingsPage = () => {
             </div>
           )}
 
+          {/* Nova aba de Serviços */}
           {activeTab === 'services' && (
             <div className="bg-white rounded-lg p-6 border border-gray-200">
               <ClinicServicesManager />

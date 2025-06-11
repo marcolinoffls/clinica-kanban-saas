@@ -1,22 +1,25 @@
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Building2, Users, TrendingUp, Calendar } from 'lucide-react';
+import { ArrowLeft, Building2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
-import { ClinicBasicInfo } from './clinic-details/ClinicBasicInfo';
+import { useToast } from '@/hooks/use-toast';
 import { ClinicStatsCards } from './clinic-details/ClinicStatsCards';
-import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
+import { ClinicBasicInfo } from './clinic-details/ClinicBasicInfo';
 import { AdminPromptSection } from './clinic-details/AdminPromptSection';
-import { AdminAISettingsSection } from './AdminAISettingsSection';
+import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
 
 /**
- * Componente de Detalhes da Clínica no Painel Administrativo
+ * Componente principal de detalhes da clínica no painel administrativo
  * 
- * Exibe informações detalhadas de uma clínica específica, incluindo:
- * - Informações básicas (nome, contato, etc.)
- * - Estatísticas de leads e agendamentos
+ * Coordena todos os componentes de detalhes da clínica:
+ * - Estatísticas e métricas da clínica
+ * - Informações básicas de contato
+ * - Configuração do prompt administrativo
  * - Configurações da Evolution API
- * - Prompt administrativo personalizado
- * - Configurações de IA (NOVA SEÇÃO)
+ * 
+ * Este componente foi refatorado em componentes menores para
+ * melhor organização e manutenibilidade do código.
  */
 
 interface AdminClinicDetailsProps {
@@ -25,169 +28,182 @@ interface AdminClinicDetailsProps {
 }
 
 export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProps) => {
-  const { 
-    buscarEstatisticasClinica,
+  const {
+    buscarDetalhesClinica,
     atualizarPromptClinica,
     atualizarNomeInstanciaEvolution,
-    atualizarApiKeyEvolution,
-    loading
+    atualizarApiKeyEvolution
   } = useSupabaseAdmin();
-  
-  const [activeTab, setActiveTab] = useState('info');
-  const [clinicaData, setClinicaData] = useState<any>(null);
+
+  const { toast } = useToast();
+
+  const [clinica, setClinica] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingApiKey, setSavingApiKey] = useState(false);
-  const [loadingData, setLoadingData] = useState(true);
 
-  // Carregar dados da clínica
+  // Carregar dados da clínica ao inicializar
   useEffect(() => {
-    const carregarDados = async () => {
+    const carregarDetalhes = async () => {
       try {
-        setLoadingData(true);
-        const dados = await buscarEstatisticasClinica(clinicaId);
-        setClinicaData(dados);
+        setLoading(true);
+        const dados = await buscarDetalhesClinica(clinicaId);
+        setClinica(dados);
       } catch (error) {
-        console.error('Erro ao carregar dados da clínica:', error);
+        console.error('Erro ao carregar detalhes da clínica:', error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar os detalhes da clínica.",
+          variant: "destructive",
+        });
       } finally {
-        setLoadingData(false);
+        setLoading(false);
       }
     };
 
-    carregarDados();
-  }, [clinicaId, buscarEstatisticasClinica]);
+    carregarDetalhes();
+  }, [clinicaId]);
 
-  // Função para salvar prompt administrativo
-  const handleSavePrompt = async (prompt: string) => {
+  // Função para salvar o prompt administrativo
+  const salvarPrompt = async (prompt: string) => {
     try {
       setSaving(true);
       await atualizarPromptClinica(clinicaId, prompt);
-      setClinicaData((prev: any) => ({ ...prev, admin_prompt: prompt }));
+      
+      toast({
+        title: "Sucesso",
+        description: "Prompt administrativo salvo com sucesso.",
+      });
     } catch (error) {
       console.error('Erro ao salvar prompt:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar o prompt administrativo.",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
   };
 
-  // Função para salvar nome da instância Evolution
-  const handleSaveInstanceName = async (instanceName: string) => {
+  // Função para salvar o nome da instância Evolution
+  const salvarEvolutionInstanceName = async (instanceName: string) => {
     try {
       setSaving(true);
       await atualizarNomeInstanciaEvolution(clinicaId, instanceName);
-      setClinicaData((prev: any) => ({ ...prev, evolution_instance_name: instanceName }));
+      
+      toast({
+        title: "Sucesso",
+        description: "Nome da instância Evolution salvo com sucesso.",
+      });
     } catch (error) {
       console.error('Erro ao salvar nome da instância:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar o nome da instância.",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
   };
 
-  // Função para salvar API Key da Evolution
-  const handleSaveApiKey = async (apiKey: string) => {
+  // Função para salvar a API Key da Evolution
+  const salvarEvolutionApiKey = async (apiKey: string) => {
     try {
       setSavingApiKey(true);
       await atualizarApiKeyEvolution(clinicaId, apiKey);
+      
+      toast({
+        title: "Sucesso",
+        description: "API Key da Evolution salva com sucesso.",
+      });
     } catch (error) {
       console.error('Erro ao salvar API Key:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar a API Key.",
+        variant: "destructive",
+      });
     } finally {
       setSavingApiKey(false);
     }
   };
 
-  const tabs = [
-    { id: 'info', label: 'Informações', icon: Building2 },
-    { id: 'ai', label: 'Inteligência Artificial', icon: Users },
-    { id: 'stats', label: 'Estatísticas', icon: TrendingUp },
-    { id: 'integrations', label: 'Integrações', icon: Calendar }
-  ];
-
-  if (loadingData) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando dados da clínica...</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!clinica) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-4xl mx-auto">
+          <Button onClick={onBack} variant="outline" className="mb-6">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Voltar
+          </Button>
+          <div className="text-center py-12">
+            <p className="text-gray-500">Clínica não encontrada.</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header com botão de voltar */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-        >
-          <ArrowLeft className="h-5 w-5" />
-          Voltar para o painel
-        </button>
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">
-            {clinicaData?.nome || 'Carregando...'}
-          </h2>
-          <p className="text-gray-600">Gerenciamento detalhado da clínica</p>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Header com botão de voltar */}
+        <div className="mb-6">
+          <Button onClick={onBack} variant="outline" className="mb-4">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Voltar para Lista de Clínicas
+          </Button>
+          
+          <div className="flex items-center gap-3">
+            <Building2 className="w-8 h-8 text-blue-600" />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                {clinica.nome}
+              </h1>
+              <p className="text-gray-600">
+                Detalhes e configurações administrativas
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Navegação por abas */}
-      <div className="border-b border-gray-200">
-        <nav className="flex space-x-8">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
+        {/* Cards com estatísticas da clínica */}
+        <div className="mb-8">
+          <ClinicStatsCards clinica={clinica} />
+        </div>
 
-      {/* Conteúdo das abas */}
-      <div className="bg-white rounded-lg">
-        {activeTab === 'info' && (
-          <ClinicBasicInfo clinica={clinicaData} />
-        )}
+        {/* Informações básicas da clínica */}
+        <div className="mb-6">
+          <ClinicBasicInfo clinica={clinica} />
+        </div>
 
-        {activeTab === 'ai' && (
-          <div className="p-6">
-            <AdminAISettingsSection clinicaId={clinicaId} />
-          </div>
-        )}
+        {/* Prompt Administrativo */}
+        <div className="mb-6">
+          <AdminPromptSection 
+            clinica={clinica}
+            onSave={salvarPrompt}
+            saving={saving}
+          />
+        </div>
 
-        {activeTab === 'stats' && (
-          <div className="p-6">
-            <ClinicStatsCards clinica={clinicaData} />
-          </div>
-        )}
-
-        {activeTab === 'integrations' && (
-          <div className="p-6 space-y-6">
-            <EvolutionApiSettings 
-              clinica={clinicaData}
-              onSaveInstanceName={handleSaveInstanceName}
-              onSaveApiKey={handleSaveApiKey}
-              saving={saving}
-              savingApiKey={savingApiKey}
-            />
-            <AdminPromptSection 
-              clinica={clinicaData}
-              onSave={handleSavePrompt}
-              saving={saving}
-            />
-          </div>
-        )}
+        {/* Configurações da Evolution API */}
+        <EvolutionApiSettings 
+          clinica={clinica}
+          onSaveInstanceName={salvarEvolutionInstanceName}
+          onSaveApiKey={salvarEvolutionApiKey}
+          saving={saving}
+          savingApiKey={savingApiKey}
+        />
       </div>
     </div>
   );
