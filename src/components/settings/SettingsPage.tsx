@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Save, Users, Bell, Shield, CreditCard, Settings } from 'lucide-react';
+import { Save, Users, Bell, Shield, CreditCard, Settings, Bot } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PasswordInput } from '@/components/ui/password-input';
 import { ClinicServicesManager } from './ClinicServicesManager';
+import { AISettingsTab } from './AISettingsTab';
 
 /**
  * Página de Configurações
  * 
  * Seções de configuração:
  * - Informações da clínica (incluindo webhook_usuario)
+ * - Inteligência Artificial (nova aba com configurações de IA)
  * - Gerenciamento de usuários e permissões
  * - Configurações de notificações
  * - Integrações externas (inclui evolution_instance_name com campo seguro)
@@ -132,9 +134,10 @@ export const SettingsPage = () => {
     }
   };
 
-  // Tabs de navegação (adicionando nova aba "Serviços")
+  // Tabs de navegação (adicionando nova aba "IA")
   const tabs = [
     { id: 'clinic', label: 'Clínica', icon: Shield },
+    { id: 'ai', label: 'Inteligência Artificial', icon: Bot },
     { id: 'services', label: 'Serviços', icon: Settings },
     { id: 'users', label: 'Usuários', icon: Users },
     { id: 'notifications', label: 'Notificações', icon: Bell },
@@ -151,14 +154,16 @@ export const SettingsPage = () => {
             Configure sua clínica e personalize o sistema
           </p>
         </div>
-        <button
-          onClick={salvarConfiguracoes}
-          disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
-        >
-          <Save size={20} />
-          {loading ? 'Salvando...' : 'Salvar Alterações'}
-        </button>
+        {activeTab !== 'ai' && (
+          <button
+            onClick={salvarConfiguracoes}
+            disabled={loading}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            <Save size={20} />
+            {loading ? 'Salvando...' : 'Salvar Alterações'}
+          </button>
+        )}
       </div>
 
       <div className="flex gap-6">
@@ -307,7 +312,16 @@ export const SettingsPage = () => {
             </div>
           )}
 
-          {/* Nova aba de Serviços */}
+          {/* Nova aba de IA */}
+          {activeTab === 'ai' && (
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-6">
+                Configurações da Inteligência Artificial
+              </h3>
+              <AISettingsTab />
+            </div>
+          )}
+
           {activeTab === 'services' && (
             <div className="bg-white rounded-lg p-6 border border-gray-200">
               <ClinicServicesManager />
