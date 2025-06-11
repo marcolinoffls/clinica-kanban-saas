@@ -6,10 +6,11 @@ import { ChatWindow } from './ChatWindow';
 import { LeadInfoSidebar } from './LeadInfoSidebar';
 import { MessageInput } from './MessageInput';
 import { useSupabaseChat } from '@/hooks/useSupabaseChat';
-import { useLeadsData } from '@/hooks/useLeadsData';
+import { useLeads } from '@/hooks/useLeadsData'; // Corrigido: useLeads em vez de useLeadsData
 import { useClinica } from '@/contexts/ClinicaContext';
 import { toast } from 'sonner';
 
+// Interface para mensagem no formato esperado pelo componente
 interface Message {
   id: string;
   content: string;
@@ -19,6 +20,7 @@ interface Message {
   media_url?: string;
 }
 
+// Interface para lead
 interface Lead {
   id: string;
   nome: string;
@@ -35,11 +37,22 @@ interface Lead {
   avatar_url?: string;
 }
 
+/**
+ * Página de Chat para conversas com leads
+ * 
+ * Funcionalidades:
+ * - Exibe conversa em tempo real com um lead específico
+ * - Permite envio de mensagens de texto e arquivos
+ * - Controla ativação/desativação da IA para o lead
+ * - Mostra informações do lead na sidebar
+ * - Upload de arquivos via MinIO
+ */
 export const ChatPage = () => {
   const { leadId } = useParams<{ leadId: string }>();
   const navigate = useNavigate();
   const { clinicaAtiva } = useClinica();
   
+  // Estados do componente
   const [lead, setLead] = useState<Lead | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,15 +61,16 @@ export const ChatPage = () => {
   const [aiActive, setAiActive] = useState(false);
   const [messageValue, setMessageValue] = useState('');
   
+  // Hooks para operações com Supabase
   const { 
     enviarMensagem,
     buscarMensagensLead,
     marcarMensagensComoLidas
   } = useSupabaseChat();
   
-  const { updateLead } = useLeadsData();
+  const { data: leads } = useLeads(); // Hook correto para buscar leads
 
-  // Função para lidar com upload de arquivo
+  // Função para upload de arquivos no MinIO
   const handleFileUpload = async (file: File) => {
     if (!leadId || !clinicaAtiva?.id) {
       toast.error('Erro: Lead ou clínica não encontrada');
@@ -108,9 +122,27 @@ export const ChatPage = () => {
       try {
         setLoading(true);
         
+        // Buscar dados do lead na lista de leads carregados
+        const leadData = leads?.find(l => l.id === leadId);
+        if (leadData) {
+          setLead(leadData);
+          setAiActive(leadData.ai_conversation_enabled || false);
+        }
+        
         // Carregar mensagens do lead
         const mensagens = await buscarMensagensLead(leadId);
-        setMessages(mensagens);
+        
+        // Converter mensagens para o formato esperado pelo componente
+        const messagesFormatted: Message[] = mensagens.map(msg => ({
+          id: msg.id,
+          content: msg.conteudo, // Mapear conteudo para content
+          sender: msg.enviado_por, // Mapear enviado_por para sender
+          created_at: msg.created_at,
+          type: msg.tipo,
+          media_url: msg.anexo_url
+        }));
+        
+        setMessages(messagesFormatted);
         
         // Marcar mensagens como lidas
         await marcarMensagensComoLidas(leadId);
@@ -123,8 +155,10 @@ export const ChatPage = () => {
       }
     };
     
-    loadLeadAndMessages();
-  }, [leadId, buscarMensagensLead, marcarMensagensComoLidas]);
+    if (leads) { // Só executa quando os leads estão carregados
+      loadLeadAndMessages();
+    }
+  }, [leadId, leads, buscarMensagensLead, marcarMensagensComoLidas]);
 
   // Função para enviar mensagem
   const sendMessage = async (content: string, type: string = 'text', mediaUrl?: string) => {
@@ -133,16 +167,21 @@ export const ChatPage = () => {
     try {
       await enviarMensagem(leadId, content, type, mediaUrl);
       
-      // Atualizar mensagem mais recente
-      if (lead) {
-        await updateLead({
-          id: leadId,
-          nome: lead.nome,
-          telefone: lead.telefone,
-          email: lead.email,
-          clinica_id: lead.clinica_id
-        });
-      }
+      // Limpar o input após enviar
+      setMessageValue('');
+      
+      // Recarregar mensagens após envio
+      const mensagens = await buscarMensagensLead(leadId);
+      const messagesFormatted: Message[] = mensagens.map(msg => ({
+        id: msg.id,
+        content: msg.conteudo,
+        sender: msg.enviado_por,
+        created_at: msg.created_at,
+        type: msg.tipo,
+        media_url: msg.anexo_url
+      }));
+      setMessages(messagesFormatted);
+      
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
       toast.error('Erro ao enviar mensagem');
@@ -212,11 +251,9 @@ export const ChatPage = () => {
           </div>
         </div>
         
-        {/* Área de mensagens */}
+        {/* Área de mensagens - passa leadId em vez de mensagens */}
         <ChatWindow 
-          mensagens={messages} 
-          loading={loading} 
-          nomeContato={lead?.nome || 'Lead'}
+          leadId={leadId || ''}
         />
         
         {/* Input de mensagem */}
