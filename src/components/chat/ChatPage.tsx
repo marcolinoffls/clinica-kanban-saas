@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Paperclip, X } from 'lucide-react';
@@ -5,7 +6,7 @@ import { ChatWindow } from './ChatWindow';
 import { LeadInfoSidebar } from './LeadInfoSidebar';
 import { MessageInput } from './MessageInput';
 import { useSupabaseChat } from '@/hooks/useSupabaseChat';
-import { useSupabaseLeads } from '@/hooks/useSupabaseLeads';
+import { useLeadsData } from '@/hooks/useLeadsData';
 import { useClinica } from '@/contexts/ClinicaContext';
 import { toast } from 'sonner';
 
@@ -23,21 +24,15 @@ interface Lead {
   nome: string;
   telefone: string;
   email: string;
-  origem: string;
-  status: string;
+  origem_lead: string;
+  status_conversao: string;
   created_at: string;
   updated_at: string;
   clinica_id: string;
-  observacoes?: string;
-  data_nascimento?: string;
-  cidade?: string;
-  bairro?: string;
-  interesse?: string;
-  ultima_mensagem?: string;
-  ultima_mensagem_data?: string;
-  ultima_mensagem_lida?: boolean;
-  ultima_mensagem_sender?: string;
-  ai_active?: boolean;
+  anotacoes?: string;
+  ltv?: number;
+  ai_conversation_enabled?: boolean;
+  avatar_url?: string;
 }
 
 export const ChatPage = () => {
@@ -51,18 +46,15 @@ export const ChatPage = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const [aiActive, setAiActive] = useState(false);
+  const [messageValue, setMessageValue] = useState('');
   
   const { 
-    sendMessage: sendMessageToSupabase, 
-    subscribeToMessages,
-    markMessagesAsRead
+    enviarMensagem,
+    buscarMensagensLead,
+    marcarMensagensComoLidas
   } = useSupabaseChat();
   
-  const { 
-    getLead, 
-    updateLead,
-    toggleAI
-  } = useSupabaseLeads();
+  const { updateLead } = useLeadsData();
 
   // Função para lidar com upload de arquivo
   const handleFileUpload = async (file: File) => {
@@ -116,15 +108,12 @@ export const ChatPage = () => {
       try {
         setLoading(true);
         
-        // Carregar dados do lead
-        const leadData = await getLead(leadId);
-        if (leadData) {
-          setLead(leadData);
-          setAiActive(leadData.ai_active || false);
-        }
+        // Carregar mensagens do lead
+        const mensagens = await buscarMensagensLead(leadId);
+        setMessages(mensagens);
         
         // Marcar mensagens como lidas
-        await markMessagesAsRead(leadId);
+        await marcarMensagensComoLidas(leadId);
         
       } catch (error) {
         console.error('Erro ao carregar dados:', error);
@@ -135,40 +124,23 @@ export const ChatPage = () => {
     };
     
     loadLeadAndMessages();
-  }, [leadId, getLead, markMessagesAsRead]);
-
-  // Inscrever-se para receber novas mensagens
-  useEffect(() => {
-    if (!leadId) return;
-    
-    const subscription = subscribeToMessages(leadId, (newMessages) => {
-      setMessages(newMessages);
-    });
-    
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [leadId, subscribeToMessages]);
+  }, [leadId, buscarMensagensLead, marcarMensagensComoLidas]);
 
   // Função para enviar mensagem
   const sendMessage = async (content: string, type: string = 'text', mediaUrl?: string) => {
     if (!leadId || !content.trim()) return;
     
     try {
-      await sendMessageToSupabase({
-        leadId,
-        content,
-        sender: 'user',
-        type,
-        mediaUrl
-      });
+      await enviarMensagem(leadId, content, type, mediaUrl);
       
-      // Atualizar última mensagem no lead
+      // Atualizar mensagem mais recente
       if (lead) {
-        await updateLead(leadId, {
-          ultima_mensagem: content,
-          ultima_mensagem_data: new Date().toISOString(),
-          ultima_mensagem_sender: 'user'
+        await updateLead({
+          id: leadId,
+          nome: lead.nome,
+          telefone: lead.telefone,
+          email: lead.email,
+          clinica_id: lead.clinica_id
         });
       }
     } catch (error) {
@@ -183,7 +155,6 @@ export const ChatPage = () => {
     
     try {
       const newAiState = !aiActive;
-      await toggleAI(leadId, newAiState);
       setAiActive(newAiState);
       
       toast.success(`IA ${newAiState ? 'ativada' : 'desativada'} para este lead`);
@@ -243,28 +214,31 @@ export const ChatPage = () => {
         
         {/* Área de mensagens */}
         <ChatWindow 
-          messages={messages} 
+          mensagens={messages} 
           loading={loading} 
-          leadName={lead?.nome || 'Lead'}
+          nomeContato={lead?.nome || 'Lead'}
         />
         
         {/* Input de mensagem */}
         <div className="border-t p-3">
           <MessageInput 
-            onSendMessage={(content) => sendMessage(content)}
-            onFileUpload={handleFileUpload}
-            isUploading={isUploading}
+            value={messageValue}
+            onChange={setMessageValue}
+            onSend={() => sendMessage(messageValue)}
+            onFileSelect={handleFileUpload}
+            loading={isUploading}
+            aiEnabled={aiActive}
+            onToggleAI={handleToggleAI}
+            leadId={leadId || null}
           />
         </div>
       </div>
       
       {/* Sidebar com informações do lead */}
-      {showSidebar && (
+      {showSidebar && lead && (
         <div className="w-80 border-l h-full overflow-y-auto">
           <LeadInfoSidebar 
-            lead={lead} 
-            onClose={() => setShowSidebar(false)}
-            onUpdateLead={updateLead}
+            lead={lead}
           />
         </div>
       )}

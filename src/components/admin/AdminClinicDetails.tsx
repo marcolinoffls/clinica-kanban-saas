@@ -25,43 +25,74 @@ interface AdminClinicDetailsProps {
 }
 
 export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProps) => {
-  const { buscarEstatisticasClinica } = useSupabaseAdmin();
+  const { 
+    buscarEstatisticasClinica,
+    atualizarPromptClinica,
+    atualizarNomeInstanciaEvolution,
+    atualizarApiKeyEvolution,
+    loading
+  } = useSupabaseAdmin();
+  
   const [activeTab, setActiveTab] = useState('info');
   const [clinicaData, setClinicaData] = useState<any>(null);
-  const [stats, setStats] = useState({
-    totalLeads: 0,
-    leadsUltimos30Dias: 0,
-    agendamentosUltimos30Dias: 0,
-    taxaConversao: 0
-  });
-  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savingApiKey, setSavingApiKey] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
 
-  // Carregar dados da clínica e estatísticas
+  // Carregar dados da clínica
   useEffect(() => {
     const carregarDados = async () => {
       try {
-        setLoading(true);
-        const [clinicaInfo, estatisticas] = await Promise.all([
-          buscarEstatisticasClinica(clinicaId),
-          buscarEstatisticasClinica(clinicaId) // Buscar stats específicas se houver função separada
-        ]);
-        
-        setClinicaData(clinicaInfo);
-        setStats({
-          totalLeads: estatisticas?.totalLeads || 0,
-          leadsUltimos30Dias: estatisticas?.leadsUltimos30Dias || 0,
-          agendamentosUltimos30Dias: estatisticas?.agendamentosUltimos30Dias || 0,
-          taxaConversao: estatisticas?.taxaConversao || 0
-        });
+        setLoadingData(true);
+        const dados = await buscarEstatisticasClinica(clinicaId);
+        setClinicaData(dados);
       } catch (error) {
         console.error('Erro ao carregar dados da clínica:', error);
       } finally {
-        setLoading(false);
+        setLoadingData(false);
       }
     };
 
     carregarDados();
   }, [clinicaId, buscarEstatisticasClinica]);
+
+  // Função para salvar prompt administrativo
+  const handleSavePrompt = async (prompt: string) => {
+    try {
+      setSaving(true);
+      await atualizarPromptClinica(clinicaId, prompt);
+      setClinicaData((prev: any) => ({ ...prev, admin_prompt: prompt }));
+    } catch (error) {
+      console.error('Erro ao salvar prompt:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Função para salvar nome da instância Evolution
+  const handleSaveInstanceName = async (instanceName: string) => {
+    try {
+      setSaving(true);
+      await atualizarNomeInstanciaEvolution(clinicaId, instanceName);
+      setClinicaData((prev: any) => ({ ...prev, evolution_instance_name: instanceName }));
+    } catch (error) {
+      console.error('Erro ao salvar nome da instância:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Função para salvar API Key da Evolution
+  const handleSaveApiKey = async (apiKey: string) => {
+    try {
+      setSavingApiKey(true);
+      await atualizarApiKeyEvolution(clinicaId, apiKey);
+    } catch (error) {
+      console.error('Erro ao salvar API Key:', error);
+    } finally {
+      setSavingApiKey(false);
+    }
+  };
 
   const tabs = [
     { id: 'info', label: 'Informações', icon: Building2 },
@@ -70,7 +101,7 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
     { id: 'integrations', label: 'Integrações', icon: Calendar }
   ];
 
-  if (loading) {
+  if (loadingData) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
@@ -126,7 +157,7 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
       {/* Conteúdo das abas */}
       <div className="bg-white rounded-lg">
         {activeTab === 'info' && (
-          <ClinicBasicInfo clinicaId={clinicaId} clinicaData={clinicaData} />
+          <ClinicBasicInfo clinica={clinicaData} />
         )}
 
         {activeTab === 'ai' && (
@@ -137,14 +168,24 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
 
         {activeTab === 'stats' && (
           <div className="p-6">
-            <ClinicStatsCards stats={stats} />
+            <ClinicStatsCards clinica={clinicaData} />
           </div>
         )}
 
         {activeTab === 'integrations' && (
           <div className="p-6 space-y-6">
-            <EvolutionApiSettings clinicaId={clinicaId} clinicaData={clinicaData} />
-            <AdminPromptSection clinicaId={clinicaId} />
+            <EvolutionApiSettings 
+              clinica={clinicaData}
+              onSaveInstanceName={handleSaveInstanceName}
+              onSaveApiKey={handleSaveApiKey}
+              saving={saving}
+              savingApiKey={savingApiKey}
+            />
+            <AdminPromptSection 
+              clinica={clinicaData}
+              onSave={handleSavePrompt}
+              saving={saving}
+            />
           </div>
         )}
       </div>

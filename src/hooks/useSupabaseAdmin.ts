@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -171,6 +172,27 @@ export const useSupabaseAdmin = () => {
       return [];
     } finally {
       setLoading(false);
+    }
+  };
+
+  // NOVA FUNÇÃO: Buscar estatísticas de uma clínica específica
+  const buscarEstatisticasClinica = async (clinicaId: string) => {
+    try {
+      console.log('🔍 Buscando estatísticas da clínica:', clinicaId);
+
+      const { data, error } = await supabase
+        .from('clinicas_stats')
+        .select('*')
+        .eq('id', clinicaId)
+        .single();
+
+      if (error) throw error;
+
+      console.log('📋 Estatísticas da clínica carregadas:', data);
+      return data;
+    } catch (error) {
+      console.error('Erro ao buscar estatísticas da clínica:', error);
+      throw error;
     }
   };
 
@@ -364,6 +386,7 @@ export const useSupabaseAdmin = () => {
     verificarPermissaoAdmin,
     buscarKPIsGlobais,
     buscarEstatisticasClinicas,
+    buscarEstatisticasClinica, // NOVA FUNÇÃO ADICIONADA
     buscarDetalhesClinica,
     atualizarInformacoesClinica,
     buscarUsuariosClinica,
