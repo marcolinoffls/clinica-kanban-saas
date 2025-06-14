@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -26,6 +25,8 @@ import { AlertCircle } from 'lucide-react';
 import { useCreateAgendamento, useUpdateAgendamento, type AgendamentoFromDatabase } from '@/hooks/useAgendamentosData';
 import { useClinica } from '@/contexts/ClinicaContext';
 import { useAuthUser } from '@/hooks/useAuthUser';
+import { useLeadsData, type Lead } from '@/hooks/useLeadsData';
+import { useClinicServices } from '@/hooks/useClinicServices';
 import { ClienteSelector } from './ClienteSelector';
 import { NovoClienteFields } from './NovoClienteFields';
 import { ServicoSelector } from './ServicoSelector';
@@ -42,6 +43,8 @@ const agendamentoSchema = z.object({
   valor: z.number().optional(),
   clinica_id: z.string().min(1, 'Clínica é obrigatória'),
   usuario_id: z.string().min(1, 'Usuário é obrigatório'),
+  novo_cliente_nome: z.string().optional(),
+  novo_cliente_telefone: z.string().optional(),
 });
 
 type AgendamentoFormData = z.infer<typeof agendamentoSchema>;
@@ -51,6 +54,7 @@ interface RegistroAgendamentoModalProps {
   onClose: () => void;
   agendamento?: AgendamentoFromDatabase; // Prop para edição
   selectedDate?: Date;
+  lead?: Lead; // Prop para novo agendamento a partir do chat
 }
 
 export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> = ({
@@ -58,19 +62,22 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
   onClose,
   agendamento,
   selectedDate,
+  lead,
 }) => {
   const { clinicaAtiva } = useClinica();
   const { userProfile, loading: isLoadingUser, profileError: userError, user } = useAuthUser();
   const createAgendamentoMutation = useCreateAgendamento();
   const updateAgendamentoMutation = useUpdateAgendamento();
 
+  // Hooks para buscar dados para os seletores
+  const { services: servicos, isLoading: loadingServices } = useClinicServices();
+  const { leads, isLoading: loadingLeads } = useLeadsData();
+
   const [isNovoCliente, setIsNovoCliente] = useState(false);
+  const [clienteBuscaInput, setClienteBuscaInput] = useState('');
   const [modoServico, setModoServico] = useState<'selecionar' | 'manual'>('selecionar');
   const [servicoSelecionadoIdHook, setServicoSelecionadoIdHook] = useState<string | null>(null);
   
-  // Dados fictícios para compilar sem erro
-  const servicosSeguro: any[] = [];
-  const loadingServices = false;
   const form = useForm<AgendamentoFormData>({
     resolver: zodResolver(agendamentoSchema),
     defaultValues: {
@@ -78,41 +85,74 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
       descricao: '',
       data_inicio: selectedDate || new Date(),
       data_fim: selectedDate || new Date(),
-      status: 'agendado' as const, // Garante que é do tipo correto
+      status: 'agendado' as const,
       cliente_id: '',
       valor: 0,
       clinica_id: clinicaAtiva?.id || '',
       usuario_id: userProfile?.id || '',
+      novo_cliente_nome: '',
+      novo_cliente_telefone: ''
     },
   });
 
   useEffect(() => {
-    if (agendamento) {
-      form.reset({
-        titulo: agendamento.titulo || '',
-        descricao: agendamento.descricao || '',
-        data_inicio: agendamento.data_inicio ? new Date(agendamento.data_inicio) : selectedDate || new Date(),
-        data_fim: agendamento.data_fim ? new Date(agendamento.data_fim) : selectedDate || new Date(),
-        status: agendamento.status as 'agendado' | 'confirmado' | 'realizado' | 'cancelado', // Cast para tipo correto
-        cliente_id: agendamento.cliente_id || '',
-        valor: agendamento.valor || 0,
-        clinica_id: clinicaAtiva?.id || '',
-        usuario_id: userProfile?.id || '',
-      });
-    } else {
-      form.reset({
-        titulo: '',
-        descricao: '',
-        data_inicio: selectedDate || new Date(),
-        data_fim: selectedDate || new Date(),
-        status: 'agendado' as const,
-        cliente_id: '',
-        valor: 0,
-        clinica_id: clinicaAtiva?.id || '',
-        usuario_id: userProfile?.id || '',
-      });
+    // Lógica para resetar o formulário com base nos dados recebidos
+    const resetForm = () => {
+      if (agendamento) {
+        // Modo de edição de um agendamento existente
+        form.reset({
+          titulo: agendamento.titulo || '',
+          descricao: agendamento.descricao || '',
+          data_inicio: agendamento.data_inicio ? new Date(agendamento.data_inicio) : selectedDate || new Date(),
+          data_fim: agendamento.data_fim ? new Date(agendamento.data_fim) : selectedDate || new Date(),
+          status: agendamento.status as 'agendado' | 'confirmado' | 'realizado' | 'cancelado',
+          cliente_id: agendamento.cliente_id || '',
+          valor: agendamento.valor || 0,
+          clinica_id: clinicaAtiva?.id || '',
+          usuario_id: userProfile?.id || '',
+        });
+        const clienteExistente = leads?.find(l => l.id === agendamento.cliente_id);
+        if (clienteExistente) {
+          setClienteBuscaInput(clienteExistente.nome);
+        }
+        setIsNovoCliente(false);
+      } else if (lead) {
+        // Modo de criação a partir do chat com um lead pré-selecionado
+        form.reset({
+          titulo: '',
+          descricao: '',
+          data_inicio: selectedDate || new Date(),
+          data_fim: selectedDate || new Date(),
+          status: 'agendado' as const,
+          cliente_id: lead.id,
+          valor: 0,
+          clinica_id: clinicaAtiva?.id || '',
+          usuario_id: userProfile?.id || '',
+        });
+        setClienteBuscaInput(lead.nome);
+        setIsNovoCliente(false);
+      } else {
+        // Modo de criação de um novo agendamento
+        form.reset({
+          titulo: '',
+          descricao: '',
+          data_inicio: selectedDate || new Date(),
+          data_fim: selectedDate || new Date(),
+          status: 'agendado' as const,
+          cliente_id: '',
+          valor: 0,
+          clinica_id: clinicaAtiva?.id || '',
+          usuario_id: userProfile?.id || '',
+        });
+        setClienteBuscaInput('');
+        setIsNovoCliente(false);
+      }
+    };
+
+    if (isOpen) {
+      resetForm();
     }
-  }, [agendamento, selectedDate, clinicaAtiva, userProfile, form]);
+  }, [agendamento, lead, selectedDate, clinicaAtiva, userProfile, form, leads, isOpen]);
 
   const onSubmit = async (data: AgendamentoFormData) => {
     try {
@@ -215,24 +255,48 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
           </Alert>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+          {/* Seletor de Cliente (movido para o topo e populado com dados reais) */}
+          <ClienteSelector
+            form={form as any}
+            leads={leads || []}
+            clienteBuscaInput={clienteBuscaInput}
+            setClienteBuscaInput={setClienteBuscaInput}
+            setRegistrandoNovoCliente={setIsNovoCliente}
+            loadingLeads={loadingLeads}
+            registrandoNovoCliente={isNovoCliente}
+          />
+
+          {/* Campos para novo cliente (condicional) */}
+          {isNovoCliente && (
+            <NovoClienteFields
+              form={form as any}
+              setRegistrandoNovoCliente={setIsNovoCliente}
+              setClienteBuscaInput={setClienteBuscaInput}
+              leads={leads || []}
+            />
+          )}
+
+          {/* Seletor de Serviço/Título (movido para o topo e populado com dados reais) */}
+          <ServicoSelector
+            form={form as any}
+            servicos={servicos || []}
+            loadingServices={loadingServices}
+            modoServico={modoServico}
+            setModoServico={setModoServico}
+            servicoSelecionadoId={servicoSelecionadoIdHook}
+            setServicoSelecionadoId={setServicoSelecionadoIdHook}
+          />
+
           <div className="grid grid-cols-1 gap-4">
             <div>
-              <Label htmlFor="titulo">Título</Label>
-              <Input id="titulo" type="text" {...form.register('titulo')} />
-              {form.formState.errors.titulo && (
-                <p className="text-red-500 text-sm">{form.formState.errors.titulo.message}</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="descricao">Descrição</Label>
+              <Label htmlFor="descricao">Descrição (Opcional)</Label>
               <Textarea id="descricao" {...form.register('descricao')} />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="data_inicio">Data de Início</Label>
+                <Label htmlFor="data_inicio">Data de Início *</Label>
                 <Input
                   id="data_inicio"
                   type="datetime-local"
@@ -247,7 +311,7 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
               </div>
 
               <div>
-                <Label htmlFor="data_fim">Data de Fim</Label>
+                <Label htmlFor="data_fim">Data de Fim *</Label>
                 <Input
                   id="data_fim"
                   type="datetime-local"
@@ -262,64 +326,41 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="status">Status</Label>
-              <Select {...form.register('status')}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {AGENDAMENTO_STATUS_OPTIONS.map((statusOption) => (
-                    <SelectItem key={statusOption.value} value={statusOption.value}>
-                      {statusOption.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="status">Status</Label>
+                <Select
+                  onValueChange={(value) => form.setValue('status', value as any)}
+                  value={form.watch('status')}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AGENDAMENTO_STATUS_OPTIONS.map((statusOption) => (
+                      <SelectItem key={statusOption.value} value={statusOption.value}>
+                        {statusOption.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.status && (
+                  <p className="text-red-500 text-sm">{form.formState.errors.status.message}</p>
+                )}
+              </div>
+              
+              <div>
+                <Label htmlFor="valor">Valor</Label>
+                <Input
+                  id="valor"
+                  type="number"
+                  step="0.01"
+                  {...form.register('valor', { valueAsNumber: true })}
+                />
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="valor">Valor</Label>
-              <Input
-                id="valor"
-                type="number"
-                step="0.01"
-                {...form.register('valor', { valueAsNumber: true })}
-              />
-            </div>
           </div>
-
-          {/* Cliente Selector */}
-          <ClienteSelector
-            form={form as any}
-            leads={[]}
-            clienteBuscaInput=""
-            setClienteBuscaInput={() => {}}
-            setRegistrandoNovoCliente={setIsNovoCliente}
-            loadingLeads={false}
-            registrandoNovoCliente={isNovoCliente}
-          />
-
-          {/* Campos de novo cliente */}
-          {isNovoCliente && (
-            <NovoClienteFields
-              form={form as any}
-              setRegistrandoNovoCliente={setIsNovoCliente}
-              setClienteBuscaInput={() => {}}
-              leads={[]}
-            />
-          )}
-
-          {/* Serviço Selector */}
-          <ServicoSelector
-            form={form as any}
-            servicos={servicosSeguro}
-            loadingServices={loadingServices}
-            modoServico={modoServico}
-            setModoServico={setModoServico}
-            servicoSelecionadoId={servicoSelecionadoIdHook}
-            setServicoSelecionadoId={setServicoSelecionadoIdHook}
-          />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
