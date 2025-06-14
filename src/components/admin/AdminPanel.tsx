@@ -1,14 +1,13 @@
-
 import { useState, useEffect } from 'react';
 import { Shield } from 'lucide-react';
 import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
-import { AdminClinicDetails } from './AdminClinicDetails';
 import { AdminConfigSetup } from './AdminConfigSetup';
 import { AdminDashboard } from './AdminDashboard';
 import { AdminClinicsTable } from './AdminClinicsTable';
 import { AdminPagination } from './AdminPagination';
 import { TimeRangeFilter } from './TimeRangeFilter';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Componente principal do Painel Administrativo
@@ -22,7 +21,7 @@ import { useToast } from '@/hooks/use-toast';
  * - Dashboard com KPIs globais do sistema
  * - Filtro de tempo global para análises
  * - Tabela de clínicas com busca e paginação
- * - Navegação para detalhes de clínicas específicas
+ * - A navegação para detalhes da clínica agora é feita por rota.
  */
 
 export const AdminPanel = () => {
@@ -37,10 +36,12 @@ export const AdminPanel = () => {
   } = useSupabaseAdmin();
 
   const { toast } = useToast();
+  // Hook do React Router para permitir a navegação entre páginas.
+  const navigate = useNavigate();
   
   // Estados de controle principal
   const [isAdmin, setIsAdmin] = useState(false);
-  const [selectedClinicId, setSelectedClinicId] = useState<string | null>(null);
+  // O estado 'selectedClinicId' foi removido, pois a navegação agora é controlada por rotas.
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [configuringAdmin, setConfiguringAdmin] = useState(false);
   
@@ -134,6 +135,12 @@ export const AdminPanel = () => {
     }
   };
 
+  // Função para navegar para a página de detalhes da clínica.
+  // É passada como prop para a tabela de clínicas.
+  const handleSelectClinica = (clinicaId: string) => {
+    navigate(`/admin/clinicas/${clinicaId}`);
+  };
+
   // Lógica de busca e paginação
   const clinicasFiltradas = clinicas.filter(clinica =>
     clinica.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -161,15 +168,7 @@ export const AdminPanel = () => {
     );
   }
 
-  // Se uma clínica específica foi selecionada, mostrar os detalhes
-  if (selectedClinicId) {
-    return (
-      <AdminClinicDetails 
-        clinicaId={selectedClinicId}
-        onBack={() => setSelectedClinicId(null)}
-      />
-    );
-  }
+  // O bloco que exibia AdminClinicDetails aqui foi removido, pois agora é uma página separada.
 
   // Tela principal do painel administrativo
   return (
@@ -204,7 +203,7 @@ export const AdminPanel = () => {
           searchTerm={searchTerm}
           loading={loading}
           onSearchChange={handleSearchChange}
-          onSelectClinica={setSelectedClinicId}
+          onSelectClinica={handleSelectClinica}
         />
 
         {/* Paginação */}

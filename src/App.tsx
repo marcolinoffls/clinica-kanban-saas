@@ -16,6 +16,7 @@ import ChatPageWrapper from "./pages/ChatPageWrapper";
 import AgendaPage from "./pages/AgendaPage";
 import ConfiguracoesPage from "./pages/ConfiguracoesPage";
 import AdminPage from "./pages/AdminPage";
+import AdminClinicDetailsPage from "./pages/AdminClinicDetailsPage";
 import SignInPage from "./pages/SignInPage";
 import SignUpPage from "./pages/SignUpPage";
 import WelcomePage from "./pages/WelcomePage";
@@ -74,6 +75,18 @@ const App = () => (
                 <ProtectedRoute>
                   <ClinicaProvider>
                     <AdminPage />
+                  </ClinicaProvider>
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Nova rota para a página de detalhes da clínica */}
+            <Route 
+              path="/admin/clinicas/:clinicaId" 
+              element={
+                <ProtectedRoute>
+                  <ClinicaProvider>
+                    <AdminClinicDetailsPage />
                   </ClinicaProvider>
                 </ProtectedRoute>
               } 
