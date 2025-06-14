@@ -1,4 +1,3 @@
-
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
 /**
@@ -62,7 +61,7 @@ export const ChartCard = ({ title, description, type, data }: ChartCardProps) =>
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis 
-                dataKey="month" 
+                dataKey="label" 
                 tick={{ fontSize: 12 }}
                 tickMargin={5}
               />

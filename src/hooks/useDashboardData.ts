@@ -1,17 +1,14 @@
+
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useClinica } from '@/contexts/ClinicaContext';
-import { format, isWithinInterval } from 'date-fns';
+// Adicionando as funções 'differenceInDays', 'eachDayOfInterval' e 'eachMonthOfInterval' do date-fns
+import { format, isWithinInterval, differenceInDays, eachDayOfInterval, eachMonthOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 /**
  * Hook para buscar dados dinâmicos do dashboard.
- * A assinatura da função foi alterada para aceitar `Date | null` para
- * as datas de início e fim, permitindo que o filtro "Máximo" funcione.
- * 
- * @param startDate Data de início do período (ou null)
- * @param endDate Data de fim do período (ou null)
- * @returns Dados processados e estado de carregamento
+ * ... keep existing code
  */
 
 interface DashboardMetrics {
@@ -19,8 +16,10 @@ interface DashboardMetrics {
   consultasAgendadas: number;
   taxaConversao: number;
   faturamentoRealizado: number;
-  leadsPorMes: Array<{ month: string; leads: number }>;
-  conversoesPorCategoria: Array<{ category: string; conversions: number }>;
+  // O tipo de dado do gráfico foi alterado para ter um 'label' genérico,
+  // que pode representar um dia ('dd/MM') ou um mês ('MMM/yy').
+  leadsParaGrafico: Array<{ label: string; leads: number }>;
+  conversoesPorCategoria: Array<{ category:string; conversions: number }>;
   // Dados para calcular variações (comparar com período anterior)
   variacaoContatos: number;
   variacaoConsultas: number;
@@ -107,9 +106,13 @@ export const useDashboardData = (startDate: Date | null, endDate: Date | null) =
           ?.filter(ag => ag.status === 'realizado' || ag.status === 'pago')
           .reduce((total, ag) => total + (Number(ag.valor) || 0), 0) || 0;
 
-        // 4. Dados para gráfico de linha - Leads por mês
-        // A função `processarLeadsPorMes` agora recebe os leads já filtrados pela data.
-        const leadsPorMes = processarLeadsPorMes(leadsData || []);
+        // 4. Dados para gráfico de linha - Leads por período
+        // A função de processamento agora recebe as datas para ser dinâmica
+        const leadsParaGrafico = processarLeadsParaGrafico(
+          leadsData || [],
+          startDate,
+          endDate
+        );
 
         // 5. Dados para gráfico de barras - Conversões por categoria/serviço
         const conversoesPorCategoria = processarConversoesPorCategoria(
@@ -129,7 +132,7 @@ export const useDashboardData = (startDate: Date | null, endDate: Date | null) =
           consultasAgendadas,
           taxaConversao: Math.round(taxaConversao),
           faturamentoRealizado,
-          leadsPorMes,
+          leadsParaGrafico, // Retorna os dados do gráfico com o novo nome e formato
           conversoesPorCategoria,
           variacaoContatos,
           variacaoConsultas,
@@ -155,23 +158,96 @@ export const useDashboardData = (startDate: Date | null, endDate: Date | null) =
 };
 
 /**
- * Processa dados de leads para o gráfico de linha (leads por mês).
- * A função foi simplificada. Como os dados já vêm pré-filtrados pela data
- * da consulta ao Supabase, não é mais necessário verificar o intervalo aqui.
+ * Processa dados de leads para o gráfico de linha, adaptando-se ao período.
+ * - Para períodos de até 31 dias, agrupa os leads por dia.
+ * - Para períodos maiores, agrupa por mês.
+ * Isso torna o gráfico mais relevante para o filtro de data selecionado.
+ * @param leads Array de leads buscados do Supabase.
+ * @param startDate Data de início do filtro.
+ * @param endDate Data de fim do filtro.
+ * @returns Array de dados formatados para o gráfico.
  */
-function processarLeadsPorMes(leads: any[]) {
-  const monthsMap = new Map<string, number>();
+function processarLeadsParaGrafico(leads: any[], startDate: Date | null, endDate: Date | null) {
+  // Se não houver leads, retorna um array vazio para evitar erros.
+  if (!leads || leads.length === 0) {
+    return [];
+  }
   
-  leads.forEach(lead => {
-    const leadDate = new Date(lead.created_at);
-    const monthKey = format(leadDate, 'MMM', { locale: ptBR });
-    monthsMap.set(monthKey, (monthsMap.get(monthKey) || 0) + 1);
+  // Função interna para agrupar por mês, usada no filtro "Máximo" ou em falhas.
+  const agruparPorMesPadrao = (dados: any[]) => {
+    const contagemMensal = new Map<string, number>();
+    
+    // Contabiliza os leads por mês usando a chave 'yyyy-MM'
+    dados.forEach(lead => {
+      const mesChave = format(new Date(lead.created_at), 'yyyy-MM');
+      contagemMensal.set(mesChave, (contagemMensal.get(mesChave) || 0) + 1);
+    });
+    
+    // Ordena as chaves (ex: '2023-11', '2023-12') para garantir a ordem cronológica.
+    const chavesOrdenadas = Array.from(contagemMensal.keys()).sort();
+    
+    // Mapeia para o formato final, criando um label legível (ex: 'Nov/23').
+    return chavesOrdenadas.map(chave => ({
+      label: format(new Date(`${chave}-02`), 'MMM/yy', { locale: ptBR }),
+      leads: contagemMensal.get(chave) || 0,
+    }));
+  };
+
+  // Se não houver intervalo de datas, aplica o agrupamento padrão por mês.
+  if (!startDate || !endDate) {
+    return agruparPorMesPadrao(leads);
+  }
+
+  const duracaoEmDias = differenceInDays(endDate, startDate);
+
+  // Agrupamento por dia (para intervalos curtos, até 31 dias).
+  if (duracaoEmDias <= 31) {
+    const contagemDiaria = new Map<string, number>();
+    const diasDoIntervalo = eachDayOfInterval({ start: startDate, end: endDate });
+
+    // Inicializa todos os dias do intervalo com 0 leads para garantir um gráfico contínuo.
+    diasDoIntervalo.forEach(dia => {
+      const diaChave = format(dia, 'yyyy-MM-dd');
+      contagemDiaria.set(diaChave, 0);
+    });
+
+    // Preenche o mapa com a contagem de leads de cada dia.
+    leads.forEach(lead => {
+      const diaChave = format(new Date(lead.created_at), 'yyyy-MM-dd');
+      if (contagemDiaria.has(diaChave)) {
+        contagemDiaria.set(diaChave, contagemDiaria.get(diaChave)! + 1);
+      }
+    });
+
+    // Mapeia para o formato final, com labels ordenadas por data (ex: '25/12').
+    return Array.from(contagemDiaria.entries()).sort().map(([chave, contagem]) => ({
+      label: format(new Date(chave), 'dd/MM', { locale: ptBR }),
+      leads: contagem,
+    }));
+  }
+  
+  // Agrupamento por mês (para intervalos longos, maiores que 31 dias).
+  const contagemMensal = new Map<string, number>();
+  const mesesDoIntervalo = eachMonthOfInterval({ start: startDate, end: endDate });
+
+  // Inicializa todos os meses do intervalo com 0 leads.
+  mesesDoIntervalo.forEach(mes => {
+    const mesChave = format(mes, 'yyyy-MM');
+    contagemMensal.set(mesChave, 0);
   });
 
-  // Converter para array no formato esperado pelo recharts
-  return Array.from(monthsMap.entries()).map(([month, leads]) => ({
-    month,
-    leads
+  // Preenche o mapa com a contagem de leads de cada mês.
+  leads.forEach(lead => {
+    const mesChave = format(new Date(lead.created_at), 'yyyy-MM');
+    if (contagemMensal.has(mesChave)) {
+      contagemMensal.set(mesChave, contagemMensal.get(mesChave)! + 1);
+    }
+  });
+
+  // Mapeia para o formato final, com labels ordenadas por data (ex: 'Dez/23').
+  return Array.from(contagemMensal.entries()).sort().map(([chave, contagem]) => ({
+    label: format(new Date(`${chave}-02`), 'MMM/yy', { locale: ptBR }),
+    leads: contagem,
   }));
 }
 

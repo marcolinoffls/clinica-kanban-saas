@@ -145,7 +145,7 @@ export const Dashboard = () => {
           title="Leads por Período"
           description="Evolução dos leads recebidos no período selecionado"
           type="line"
-          data={dashboardData?.leadsPorMes || []}
+          data={dashboardData?.leadsParaGrafico || []}
         />
         <ChartCard
           title="Conversões por Categoria"
