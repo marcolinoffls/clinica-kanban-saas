@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TimelineDayView } from '@/components/calendar/TimelineDayView';
+import { generateTimeSlots, calculateCardPosition, SLOT_HEIGHT_PX, START_HOUR } from '@/utils/timelineUtils';
 
 /**
  * Página de Agenda/Calendário
@@ -39,11 +41,13 @@ import { Label } from "@/components/ui/label";
  */
 
 type MonthViewMode = 'calendar' | 'list' | 'grid';
+type DisplayMode = 'list' | 'timeline';
 
 export const CalendarPage = () => {
   const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('list');
   const [monthViewMode, setMonthViewMode] = useState<MonthViewMode>('calendar');
   const [isAgendamentoModalOpen, setIsAgendamentoModalOpen] = useState(false);
   const [agendamentoParaEditar, setAgendamentoParaEditar] = useState<AgendamentoFromDatabase | null>(null);
@@ -420,6 +424,61 @@ export const CalendarPage = () => {
     );
   };
 
+  // NOVO: Função para renderizar a visualização de timeline para a semana inteira.
+  const renderWeekTimeline = () => {
+    const start = startOfWeek(currentDate, { locale: ptBR });
+    const end = endOfWeek(currentDate, { locale: ptBR });
+    const weekDays = eachDayOfInterval({ start, end });
+    const timeSlots = generateTimeSlots(START_HOUR);
+
+    return (
+      <div className="flex h-full">
+        {/* Coluna de horários fixa à esquerda, que não rola horizontalmente */}
+        <div className="w-16 flex-shrink-0 sticky left-0 bg-white z-20 border-r border-gray-200">
+          {/* Espaço em branco para alinhar com os cabeçalhos dos dias */}
+          <div className="h-16 border-b border-gray-200" />
+          {/* Renderiza as marcações de hora */}
+          {timeSlots.map((slot) => {
+            if (slot.endsWith(':00')) {
+              return (
+                <div
+                  key={`time-${slot}`}
+                  className="relative text-xs text-gray-500 text-right pr-2"
+                  style={{ height: `${SLOT_HEIGHT_PX * 2}px` }}
+                >
+                  <span className="absolute -top-1.5">{slot}</span>
+                </div>
+              );
+            }
+            return null;
+          })}
+        </div>
+
+        {/* Container rolável para os dias da semana */}
+        <div className="grid grid-cols-7 flex-1">
+          {weekDays.map((day) => (
+            <div key={day.toISOString()} className="border-r border-gray-200 min-w-[200px]">
+              {/* Cabeçalho do dia, fixo no topo ao rolar */}
+              <div className="text-center p-2 border-b border-gray-200 sticky top-0 bg-white z-10 h-16 flex flex-col justify-center">
+                <p className="font-semibold text-sm capitalize">{format(day, 'EEE', { locale: ptBR })}</p>
+                <p className="text-2xl font-bold">{format(day, 'd')}</p>
+              </div>
+              
+              {/* Renderiza a timeline para este dia, mas sem a coluna de tempo (pois já existe a fixa) */}
+              <TimelineDayView
+                agendamentosDoDia={agendamentos.filter(ag => isSameDay(new Date(ag.data_inicio), day))}
+                getClienteNome={getClienteNome}
+                getStatusClasses={getStatusClasses}
+                onEditAgendamento={handleEditAgendamento}
+                showTimeColumn={false}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="h-screen flex flex-col">
       {/* Header da página */}
@@ -470,21 +529,47 @@ export const CalendarPage = () => {
             </button>
           </div>
 
-          {/* Seletor de visualização */}
-          <div className="flex bg-gray-100 rounded-lg p-1">
-            {['day', 'week', 'month'].map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setViewMode(mode as any)}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === mode
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {mode === 'day' ? 'Dia' : mode === 'week' ? 'Semana' : 'Mês'}
-              </button>
-            ))}
+          {/* Controles de Visualização */}
+          <div className="flex items-center gap-4">
+            {/* NOVO: Seletor de modo de exibição (Lista/Timeline) para Dia e Semana */}
+            {(viewMode === 'day' || viewMode === 'week') && (
+              <div className="flex bg-gray-100 rounded-lg p-1">
+                {(['list', 'timeline'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setDisplayMode(mode)}
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                      displayMode === mode
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {mode === 'list' ? 'Lista' : 'Timeline'}
+                  </button>
+                ))}
+              </div>
+            )}
+            
+            {/* Seletor de visualização (Dia/Semana/Mês) */}
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              {['day', 'week', 'month'].map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => {
+                    setViewMode(mode as any);
+                    // Reseta para 'list' se mudar para mês, onde timeline não está disponível
+                    if (mode === 'month') setDisplayMode('list');
+                  }}
+                  className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === mode
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {mode === 'day' ? 'Dia' : mode === 'week' ? 'Semana' : 'Mês'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -511,18 +596,35 @@ export const CalendarPage = () => {
 
       {/* Área principal - com padding bottom para as métricas fixas */}
       <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden relative">
-        <div className="h-full pb-24 overflow-hidden">
+        <div className="h-full pb-24 overflow-auto">
           {loadingAgendamentos ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-gray-500">Carregando agendamentos...</div>
             </div>
           ) : (
-            <div className="h-full overflow-auto p-6">
+            <div className="h-full">
               {/* Renderização baseada no modo de visualização */}
               {viewMode === 'month' && monthViewMode === 'calendar' ? (
-                renderCalendarGrid()
+                <div className="p-6">{renderCalendarGrid()}</div>
+              
+              // NOVO: Renderiza a timeline de dia
+              ) : viewMode === 'day' && displayMode === 'timeline' ? (
+                <div className="p-4 h-full">
+                  <TimelineDayView
+                    agendamentosDoDia={agendamentosFiltrados}
+                    getClienteNome={getClienteNome}
+                    getStatusClasses={getStatusClasses}
+                    onEditAgendamento={handleEditAgendamento}
+                  />
+                </div>
+              
+              // NOVO: Renderiza a timeline de semana
+              ) : viewMode === 'week' && displayMode === 'timeline' ? (
+                renderWeekTimeline()
+              
+              // Renderização padrão (lista/grade)
               ) : (
-                <div>
+                <div className="p-6">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold">
                       Agendamentos {viewMode === 'day' ? 'do dia' : viewMode === 'week' ? 'da semana' : 'do mês'}
@@ -547,8 +649,6 @@ export const CalendarPage = () => {
                       </button>
                     </div>
                   ) : (
-                    // MELHORIA: Alterado de `space-y-2` para uma grade responsiva
-                    // para usar melhor o espaço horizontal da tela.
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                       {agendamentosFiltrados.map(renderAgendamentoCard)}
                     </div>
