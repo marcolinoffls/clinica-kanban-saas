@@ -1,9 +1,11 @@
+
 import { useState } from 'react';
 import { MetricCard } from './MetricCard';
 import { ChartCard } from './ChartCard';
 import { TimeRangeFilter } from '@/components/admin/TimeRangeFilter';
 import { useDashboardData } from '@/hooks/useDashboardData';
-import { Users, Calendar, TrendingUp, DollarSign } from 'lucide-react';
+// ÍCONES ADICIONADOS: CheckCircle para "Consultas Realizadas" e Megaphone para "Leads de Anúncios".
+import { Users, Calendar, TrendingUp, DollarSign, CheckCircle, Megaphone } from 'lucide-react';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 
 /**
@@ -77,12 +79,28 @@ export const Dashboard = () => {
       changeType: 'positive' as const,
       icon: Users
     },
+    // NOVO CARD: Exibe o total de leads provenientes de anúncios.
+    {
+      title: 'Leads de Anúncios',
+      value: dashboardData.leadsAnuncios.toString(),
+      change: `+${dashboardData.variacaoLeadsAnuncios}%`,
+      changeType: 'positive' as const,
+      icon: Megaphone
+    },
     {
       title: 'Consultas Agendadas',
       value: dashboardData.consultasAgendadas.toString(),
       change: `+${dashboardData.variacaoConsultas}%`,
       changeType: 'positive' as const,
       icon: Calendar
+    },
+    // NOVO CARD: Exibe o total de consultas que foram efetivamente realizadas ou pagas.
+    {
+      title: 'Consultas Realizadas',
+      value: dashboardData.consultasRealizadas.toString(),
+      change: `+${dashboardData.variacaoConsultasRealizadas}%`,
+      changeType: 'positive' as const,
+      icon: CheckCircle
     },
     {
       title: 'Taxa de Conversão',
@@ -111,29 +129,11 @@ export const Dashboard = () => {
       </div>
 
       {/* 
-        Filtro de período
-        O componente `DashboardTimeRangeFilter` foi substituído pelo `TimeRangeFilter`.
-        Adicionei um `div` ao redor para manter o layout do dashboard, incluindo
-        o título "Período de Análise" e a exibição do filtro ativo.
+        Grid de cartões de métricas
+        ALTERAÇÃO DE LAYOUT: A grade foi ajustada para `lg:grid-cols-3` para
+        acomodar os 6 cards de forma harmoniosa em telas maiores (2 linhas de 3).
       */}
-      <div className="bg-white rounded-lg p-4 border border-gray-200">
-        <div className="flex items-center gap-2 mb-4">
-          <Calendar className="w-4 h-4 text-blue-600" />
-          <h3 className="font-medium text-gray-900">Período de Análise</h3>
-        </div>
-        
-        <TimeRangeFilter
-          onFilterChange={handleFilterChange}
-          currentFilter={currentFilter}
-        />
-        
-        <div className="text-xs text-gray-500 mt-4">
-          Período ativo: <span className="font-medium text-blue-600">{currentFilter}</span>
-        </div>
-      </div>
-
-      {/* Grid de cartões de métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {metrics.map((metric, index) => (
           <MetricCard key={index} {...metric} />
         ))}

@@ -48,11 +48,13 @@ export const fetchDashboardData = async (
       .select('id, status, valor, data_inicio, titulo, created_at')
       .eq('clinica_id', clinicaId);
 
+    // ALTERAÇÃO: A busca de agendamentos agora usa a data de início da consulta (data_inicio)
+    // ao invés da data de criação (created_at), para refletir o período de análise corretamente.
     if (startDate) {
-      agendamentosQuery = agendamentosQuery.gte('created_at', startDate.toISOString());
+      agendamentosQuery = agendamentosQuery.gte('data_inicio', startDate.toISOString());
     }
     if (endDate) {
-      agendamentosQuery = agendamentosQuery.lte('created_at', endDate.toISOString());
+      agendamentosQuery = agendamentosQuery.lte('data_inicio', endDate.toISOString());
     }
     
     const { data: agendamentosData, error: agendamentosError } = await agendamentosQuery;
@@ -65,10 +67,14 @@ export const fetchDashboardData = async (
     // 3. Processar dados para métricas
     const totalContatos = leadsData?.length || 0;
     
+    // NOVO CÁLCULO: Conta os leads que possuem o campo 'anuncio' preenchido.
+    const leadsAnuncios = leadsData?.filter(lead => lead.anuncio).length || 0;
+
     const consultasAgendadas = agendamentosData?.filter(ag => 
       ag.status === 'agendado' || ag.status === 'confirmado'
     ).length || 0;
 
+    // O cálculo de agendamentos realizados já existia, agora será retornado.
     const agendamentosRealizados = agendamentosData?.filter(ag => 
       ag.status === 'realizado' || ag.status === 'pago'
     ).length || 0;
@@ -97,20 +103,26 @@ export const fetchDashboardData = async (
     // 6. Cálculo de variações (placeholder)
     const variacaoContatos = 5;
     const variacaoConsultas = 8;
+    const variacaoConsultasRealizadas = 4; // Placeholder para nova métrica
     const variacaoConversao = 3;
     const variacaoFaturamento = 12;
+    const variacaoLeadsAnuncios = 9; // Placeholder para nova métrica
 
     return {
       totalContatos,
+      leadsAnuncios, // Nova métrica retornada
       consultasAgendadas,
+      consultasRealizadas: agendamentosRealizados, // Nova métrica retornada
       taxaConversao: Math.round(taxaConversao),
       faturamentoRealizado,
       leadsParaGrafico,
       conversoesPorCategoria,
       variacaoContatos,
       variacaoConsultas,
+      variacaoConsultasRealizadas, // Nova variação retornada
       variacaoConversao,
-      variacaoFaturamento
+      variacaoFaturamento,
+      variacaoLeadsAnuncios // Nova variação retornada
     };
 
   } catch (error: any) {

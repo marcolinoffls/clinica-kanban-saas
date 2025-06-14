@@ -7,12 +7,30 @@
 export interface DashboardMetrics {
   totalContatos: number;
   consultasAgendadas: number;
+  /**
+   * NOVO CAMPO: Contagem de consultas com status 'realizado' ou 'pago'.
+   * Usado para exibir o novo card de "Consultas Realizadas".
+   */
+  consultasRealizadas: number;
   taxaConversao: number;
   faturamentoRealizado: number;
+  /**
+   * NOVO CAMPO: Contagem de leads que vieram de anúncios.
+   * Usado para exibir o novo card de "Leads de Anúncios".
+   */
+  leadsAnuncios: number;
   leadsParaGrafico: Array<{ label: string; leads: number }>;
   conversoesPorCategoria: Array<{ category: string; conversions: number }>;
   variacaoContatos: number;
   variacaoConsultas: number;
+  /**
+   * NOVO CAMPO: Variação percentual para as consultas realizadas.
+   */
+  variacaoConsultasRealizadas: number;
   variacaoConversao: number;
   variacaoFaturamento: number;
+  /**
+   * NOVO CAMPO: Variação percentual para os leads de anúncios.
+   */
+  variacaoLeadsAnuncios: number;
 }
