@@ -1,5 +1,3 @@
-
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import * as djwt from "https://deno.land/x/djwt@v2.7/mod.ts"
@@ -67,9 +65,14 @@ serve(async (req) => {
     console.log('- Method:', req.method);
     console.log('- Headers:', Object.fromEntries(req.headers.entries()));
 
+    // CORREÇÃO: Usa a Service Role Key para criar um cliente Supabase com privilégios de administrador.
+    // Isso é necessário para que a Edge Function possa ler dados de qualquer tabela (como 'clinicas'),
+    // ignorando as políticas de Row Level Security (RLS). O cliente anterior usava a chave anônima,
+    // que não tinha permissão para ler os dados da clínica, causando o erro "Clínica não encontrada".
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      { auth: { persistSession: false } } // Boa prática para clientes server-side
     )
 
     const requestBody = await req.json()
