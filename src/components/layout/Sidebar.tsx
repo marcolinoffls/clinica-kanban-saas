@@ -1,4 +1,3 @@
-
 import { 
   LayoutDashboard, 
   Users, 
@@ -32,6 +31,7 @@ import { LogoutButton } from '@/components/auth/LogoutButton';
  */
 
 // Array com todas as opções de navegação disponíveis
+// O item 'Leads' foi removido para centralizar o Kanban no 'Funil'.
 const navigationItems = [
   {
     id: 'dashboard',
@@ -39,13 +39,6 @@ const navigationItems = [
     icon: LayoutDashboard,
     description: 'Métricas e indicadores',
     path: '/dashboard'
-  },
-  {
-    id: 'leads',
-    label: 'Leads',
-    icon: Kanban,
-    description: 'Gerenciamento de leads',
-    path: '/leads'
   },
   {
     id: 'pipeline',

@@ -149,20 +149,13 @@ const ClientsPage = () => {
     }
   };
 
-  const handleClearFilters = () => {
-    setFilters({
-      tag: '',
-      origem: '',
-      servico: '',
-      dataInicio: undefined,
-      dataFim: undefined,
-    });
-    setSearchQuery('');
-    setIsFilterOpen(false);
-  };
-
+  /**
+   * Handler para o botão "Adicionar Lead".
+   * Redireciona o usuário para a página do Funil (/pipeline),
+   * que agora é a página principal para gerenciar e criar leads.
+   */
   const handleAddLead = () => {
-    navigate('/leads');
+    navigate('/pipeline');
   };
 
   const handleEditLead = (lead: Lead) => {
