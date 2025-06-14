@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
@@ -80,9 +81,9 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   }, [selectedConversation, mensagensNaoLidas, marcarMensagensComoLidas]);
 
   const leadsComMensagens = leads.filter(lead =>
-    lead.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (lead.nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     lead.telefone?.includes(searchTerm) ||
-    lead.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    (lead.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const validarClinicaId = (clinicaId: string | null | undefined): clinicaId is string => {
@@ -108,21 +109,21 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       return;
     }
   
-    // Use o clinicaId obtido do hook useClinicaData
-    // (supondo que você o chamou de clinicaIdFromHook no escopo do ChatPage)
-    if (!clinicaIdFromHook) {
+    // CORREÇÃO: Usar a variável 'clinicaId' obtida do hook useClinicaData.
+    // A variável 'clinicaIdFromHook' não existia e causava um erro.
+    if (!clinicaId) {
       alert('ID da clínica não está disponível. Não é possível fazer upload.');
-      console.error('[ChatPage] clinicaIdFromHook não disponível para upload.');
+      console.error('[ChatPage] clinicaId não disponível para upload.');
       return;
     }
   
     setIsUploadingMedia(true);
     setUploadError(null);
-    console.log(`[ChatPage] Iniciando upload do CRM para: leadId=${selectedConversation}, clinicaId=${clinicaIdFromHook}, arquivo=${file.name}`);
+    console.log(`[ChatPage] Iniciando upload do CRM para: leadId=${selectedConversation}, clinicaId=${clinicaId}, arquivo=${file.name}`);
   
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('clinicaId', clinicaIdFromHook);
+    formData.append('clinicaId', clinicaId);
     formData.append('leadId', selectedConversation);
   
     try {
@@ -301,9 +302,10 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                 >
                   <div className="flex items-center gap-3">
                     <Avatar className="w-12 h-12">
-                      <AvatarImage src={lead.avatar_url || undefined} alt={`Avatar de ${lead.nome}`} />
+                      {/* AJUSTE: Adicionado fallback para o caso de o nome do lead ser nulo */}
+                      <AvatarImage src={lead.avatar_url || undefined} alt={`Avatar de ${lead.nome || 'Lead'}`} />
                       <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
-                        {lead.nome.charAt(0).toUpperCase()}
+                        {lead.nome ? lead.nome.charAt(0).toUpperCase() : '?'}
                       </AvatarFallback>
                     </Avatar>
 
@@ -318,7 +320,8 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                         <h4 className={`font-medium truncate ${
                           mensagensNaoLidasCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-900'
                         }`}>
-                          {lead.nome}
+                          {/* AJUSTE: Adicionado fallback para o caso de o nome do lead ser nulo */}
+                          {lead.nome || 'Lead sem nome'}
                         </h4>
                         <span className="text-xs text-gray-500 flex-shrink-0">
                           {formatTime(lead.data_ultimo_contato || lead.updated_at)}
@@ -356,14 +359,16 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
             <div className="bg-white border-b border-gray-200 p-4 flex justify-between items-center flex-shrink-0">
               <div className="flex items-center gap-3 min-w-0">
                 <Avatar className="w-10 h-10">
-                  <AvatarImage src={selectedLead.avatar_url || undefined} alt={`Avatar de ${selectedLead.nome}`} />
+                  {/* AJUSTE: Adicionado fallback para o caso de o nome do lead ser nulo */}
+                  <AvatarImage src={selectedLead.avatar_url || undefined} alt={`Avatar de ${selectedLead.nome || 'Lead'}`} />
                   <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
-                    {selectedLead.nome.charAt(0).toUpperCase()}
+                    {selectedLead.nome ? selectedLead.nome.charAt(0).toUpperCase() : '?'}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
                   <h3 className="font-semibold text-gray-900 truncate">
-                    {selectedLead.nome}
+                    {/* AJUSTE: Adicionado fallback para o caso de o nome do lead ser nulo */}
+                    {selectedLead.nome || 'Lead sem nome'}
                   </h3>
                   <p className="text-sm text-gray-500 truncate">
                     {selectedLead.telefone}

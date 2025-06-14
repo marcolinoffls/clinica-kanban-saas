@@ -427,9 +427,10 @@ export type Database = {
           email: string | null
           etapa_kanban_id: string | null
           id: string
+          id_direct: string | null
           ltv: number | null
           name: string | null
-          nome: string
+          nome: string | null
           nome_clinica: string | null
           notes: string | null
           origem_lead: string | null
@@ -453,9 +454,10 @@ export type Database = {
           email?: string | null
           etapa_kanban_id?: string | null
           id?: string
+          id_direct?: string | null
           ltv?: number | null
           name?: string | null
-          nome: string
+          nome?: string | null
           nome_clinica?: string | null
           notes?: string | null
           origem_lead?: string | null
@@ -479,9 +481,10 @@ export type Database = {
           email?: string | null
           etapa_kanban_id?: string | null
           id?: string
+          id_direct?: string | null
           ltv?: number | null
           name?: string | null
-          nome?: string
+          nome?: string | null
           nome_clinica?: string | null
           notes?: string | null
           origem_lead?: string | null

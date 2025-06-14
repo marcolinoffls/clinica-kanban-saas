@@ -1,4 +1,5 @@
 
+
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthUser } from './useAuthUser';
@@ -19,7 +20,8 @@ import { useToast } from '@/hooks/use-toast';
 
 // Interface para criação de leads
 interface CreateLeadData {
-  nome: string;
+  // AJUSTE: O nome do lead agora é opcional para acomodar leads de fontes como o Instagram.
+  nome?: string;
   telefone?: string;
   email?: string;
   etapa_kanban_id?: string;
