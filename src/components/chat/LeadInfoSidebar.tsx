@@ -1,23 +1,26 @@
 
-import { useState } from 'react';
-import { User, Phone, Mail, Calendar as CalendarIconLucide, FileText, ChevronDown, ChevronRight, History } from 'lucide-react'; // Renomeado Calendar para evitar conflito
+import { useState, useEffect } from 'react';
+import { User, Phone, Mail, Calendar as CalendarIconLucide, FileText, ChevronDown, ChevronRight, History, Edit, Check, X } from 'lucide-react'; // Renomeado Calendar para evitar conflito
 // import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Não usado diretamente aqui
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 // Importar componentes de Avatar do shadcn/ui
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Lead } from '@/hooks/useLeadsData'; // Importar a interface Lead completa
+import { Lead, useUpdateLead } from '@/hooks/useLeadsData'; // Importar a interface Lead completa
+import { Input } from '../ui/input';
+import { toast } from 'sonner';
 
 /**
  * Barra lateral com informações detalhadas do lead
  *
  * Funcionalidades:
  * - Exibe imagem do contato (avatar_url)
- * - Informações básicas do lead (nome, telefone, email)
+ * - Edição inline do nome do lead
+ * - Informações básicas do lead (telefone, email)
  * - Histórico de interações
  * - Tags associadas
- * - Ações rápidas (ligar, agendar, etc.)
+ * - Ações rápidas (ligar, agendar, ver histórico)
  * - Seções expansíveis para melhor organização
  * - Timeline de atividades
  */
@@ -38,7 +41,7 @@ interface LeadInfoSidebarProps {
   }>;
   onCallLead?: () => void;
   onScheduleAppointment?: () => void;
-  onEditLead?: () => void;
+  onViewHistory?: () => void; // Nova prop para ver histórico
 }
 
 export const LeadInfoSidebar = ({
@@ -47,7 +50,7 @@ export const LeadInfoSidebar = ({
   historico = [],
   onCallLead,
   onScheduleAppointment,
-  onEditLead
+  onViewHistory
 }: LeadInfoSidebarProps) => {
   const [expandedSections, setExpandedSections] = useState({
     info: true,
@@ -55,6 +58,44 @@ export const LeadInfoSidebar = ({
     historico: true,
     anotacoes: true
   });
+
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(lead.nome);
+  const updateLeadMutation = useUpdateLead();
+
+  // Efeito para resetar o estado de edição quando o lead selecionado mudar
+  useEffect(() => {
+    setIsEditingName(false);
+    setEditedName(lead.nome);
+  }, [lead.id, lead.nome]);
+
+
+  // Função para salvar o novo nome do lead
+  const handleSaveName = () => {
+    if (!editedName || editedName.trim() === '') {
+      toast.error('O nome do lead não pode ficar em branco.');
+      return;
+    }
+    if (editedName.trim() === lead.nome) {
+      setIsEditingName(false); // Nenhuma mudança, apenas fecha o editor
+      return;
+    }
+
+    updateLeadMutation.mutate(
+      { id: lead.id, data: { nome: editedName.trim() } },
+      {
+        onSuccess: (updatedLead) => {
+          toast.success(`Nome do lead atualizado para "${updatedLead.nome}"!`);
+          setIsEditingName(false);
+        },
+        onError: () => {
+          // O hook useUpdateLead já mostra um toast de erro genérico.
+          // Poderíamos adicionar um mais específico aqui se necessário.
+        }
+      }
+    );
+  };
+
 
   // Função para toggle de seções
   const toggleSection = (section: keyof typeof expandedSections) => {
@@ -83,7 +124,7 @@ export const LeadInfoSidebar = ({
 
   return (
     <div className="w-80 bg-white border-l border-gray-200 flex flex-col h-full">
-      {/* Header com foto/avatar do lead */}
+      {/* Header com foto/avatar e nome editável do lead */}
       <div className="p-4 border-b border-gray-200 bg-gray-50">
         <div className="flex items-center gap-3">
           {/* Usar o componente Avatar para exibir a imagem do contato */}
@@ -95,9 +136,47 @@ export const LeadInfoSidebar = ({
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            {/* CORREÇÃO: Adicionado fallback para quando o nome for nulo */}
-            <h3 className="font-semibold text-gray-900 truncate">{lead.nome || 'Lead sem nome'}</h3>
-            <p className="text-sm text-gray-500">Lead ativo</p> {/* Considerar tornar isso dinâmico se houver status */}
+            {isEditingName ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1">
+                  <Input
+                    value={editedName || ''}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    className="h-8 text-base"
+                    placeholder="Nome do Lead"
+                    disabled={updateLeadMutation.isPending}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveName();
+                      if (e.key === 'Escape') setIsEditingName(false);
+                    }}
+                  />
+                  <Button size="icon" variant="ghost" className="h-8 w-8 flex-shrink-0" onClick={handleSaveName} disabled={updateLeadMutation.isPending}>
+                    <Check size={16} className="text-green-600" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 flex-shrink-0" onClick={() => setIsEditingName(false)} disabled={updateLeadMutation.isPending}>
+                    <X size={16} className="text-red-600" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-gray-900 truncate" title={lead.nome || 'Lead sem nome'}>
+                  {lead.nome || 'Lead sem nome'}
+                </h3>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 rounded-full"
+                  onClick={() => {
+                    setEditedName(lead.nome);
+                    setIsEditingName(true);
+                  }}
+                >
+                  <Edit size={14} className="text-gray-500 hover:text-gray-800" />
+                </Button>
+              </div>
+            )}
+            <p className="text-sm text-gray-500">Lead ativo</p>
           </div>
         </div>
       </div>
@@ -127,11 +206,11 @@ export const LeadInfoSidebar = ({
         <Button
           variant="ghost"
           size="sm"
-          onClick={onEditLead}
+          onClick={onViewHistory}
           className="w-full mt-2 flex items-center gap-2"
         >
-          <User size={14} />
-          Editar Lead
+          <History size={14} />
+          Ver Histórico
         </Button>
       </div>
 

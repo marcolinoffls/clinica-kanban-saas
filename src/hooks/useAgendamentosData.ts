@@ -1,4 +1,3 @@
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -90,6 +89,36 @@ export const useFetchAgendamentos = () => {
     },
     enabled: !!clinicaAtiva?.id, // Só executa se tiver clinica_id
     staleTime: 2 * 60 * 1000, // Dados ficam "frescos" por 2 minutos
+  });
+};
+
+// Hook para buscar agendamentos de um cliente específico (lead)
+export const useFetchAgendamentosByLeadId = (leadId: string | undefined) => {
+  return useQuery({
+    queryKey: ['agendamentos', 'by-lead', leadId],
+    queryFn: async (): Promise<AgendamentoFromDatabase[]> => {
+      if (!leadId) {
+        console.warn('🚫 Tentativa de buscar agendamentos sem leadId');
+        return [];
+      }
+
+      console.log('🔄 Buscando agendamentos do lead:', leadId);
+
+      const { data, error } = await supabase
+        .from('agendamentos')
+        .select('*')
+        .eq('cliente_id', leadId)
+        .order('data_inicio', { ascending: false });
+
+      if (error) {
+        console.error('❌ Erro ao buscar agendamentos do lead:', error);
+        throw new Error('Falha ao carregar o histórico de agendamentos');
+      }
+
+      console.log('✅ Agendamentos do lead encontrados:', data?.length || 0);
+      return data || [];
+    },
+    enabled: !!leadId, // Só executa se tiver leadId
   });
 };
 

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
@@ -12,6 +11,8 @@ import { useUpdateLeadAiConversationStatus } from '@/hooks/useLeadsData';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Lead } from '@/hooks/useLeadsData';
 import { supabase } from '@/integrations/supabase/client';
+import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
+import { HistoricoConsultasModal } from './HistoricoConsultasModal';
 
 /**
  * Página principal do chat com funcionalidades de mídia
@@ -61,6 +62,10 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  // Novos estados para os modais
+  const [isAgendamentoModalOpen, setIsAgendamentoModalOpen] = useState(false);
+  const [isHistoricoModalOpen, setIsHistoricoModalOpen] = useState(false);
+  
   const selectedLead = leads.find(l => l.id === selectedConversation) || null;
 
   const { aiEnabled, toggleAI, isInitializing, isUpdating } = useAIConversationControl({
@@ -439,9 +444,26 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           tags={tags.filter(tag => tag.id === selectedLead.tag_id)}
           historico={[]}
           onCallLead={() => console.log('Ligar para lead:', selectedLead.id)}
-          onScheduleAppointment={() => console.log('Agendar para lead:', selectedLead.id)}
-          onEditLead={() => console.log('Editar lead:', selectedLead.id)}
+          onScheduleAppointment={() => setIsAgendamentoModalOpen(true)}
+          onViewHistory={() => setIsHistoricoModalOpen(true)}
         />
+      )}
+      
+      {/* Modais centralizados */}
+      {selectedLead && (
+        <>
+          <RegistroAgendamentoModal
+            isOpen={isAgendamentoModalOpen}
+            onClose={() => setIsAgendamentoModalOpen(false)}
+            lead={selectedLead}
+          />
+          <HistoricoConsultasModal
+            isOpen={isHistoricoModalOpen}
+            onClose={() => setIsHistoricoModalOpen(false)}
+            leadId={selectedLead.id}
+            leadName={selectedLead.nome}
+          />
+        </>
       )}
     </div>
   );
