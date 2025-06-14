@@ -404,6 +404,62 @@ export const useSupabaseAdmin = () => {
     }
   };
 
+  // Função para buscar estatísticas de leads de uma clínica por período
+  const buscarEstatisticasDeLeadsDaClinica = async (
+    clinicaId: string,
+    startDate?: Date,
+    endDate?: Date
+  ) => {
+    try {
+      console.log('📊 Buscando estatísticas de leads da clínica por período:', clinicaId, startDate, endDate);
+
+      // Leads de anúncios (onde o campo 'anuncio' não é nulo)
+      let adsQuery = supabase
+        .from('leads')
+        .select('id', { count: 'exact' })
+        .eq('clinica_id', clinicaId)
+        .not('anuncio', 'is', null);
+
+      if (startDate && endDate) {
+        adsQuery = adsQuery
+          .gte('created_at', startDate.toISOString())
+          .lte('created_at', endDate.toISOString());
+      }
+      const { count: leadsDeAnuncios, error: adsError } = await adsQuery;
+      if (adsError) throw adsError;
+
+      // Outros leads (onde o campo 'anuncio' é nulo)
+      let otherQuery = supabase
+        .from('leads')
+        .select('id', { count: 'exact' })
+        .eq('clinica_id', clinicaId)
+        .is('anuncio', null);
+
+      if (startDate && endDate) {
+        otherQuery = otherQuery
+          .gte('created_at', startDate.toISOString())
+          .lte('created_at', endDate.toISOString());
+      }
+      const { count: outrosLeads, error: otherError } = await otherQuery;
+      if (otherError) throw otherError;
+
+      const stats = {
+        leadsDeAnuncios: leadsDeAnuncios || 0,
+        outrosLeads: outrosLeads || 0,
+      };
+
+      console.log('📈 Estatísticas de leads da clínica carregadas:', stats);
+      return stats;
+
+    } catch (error) {
+      console.error('Erro ao buscar estatísticas de leads da clínica:', error);
+      return {
+        leadsDeAnuncios: 0,
+        outrosLeads: 0,
+      };
+    }
+  };
+
   return {
     loading,
     clinicas,
@@ -418,6 +474,7 @@ export const useSupabaseAdmin = () => {
     atualizarPromptClinica,
     atualizarNomeInstanciaEvolution,
     atualizarApiKeyEvolution,
-    atualizarInstagramUserHandle, // Exporta a nova função
+    atualizarInstagramUserHandle,
+    buscarEstatisticasDeLeadsDaClinica,
   };
 };

@@ -8,6 +8,8 @@ import { ClinicBasicInfo } from './clinic-details/ClinicBasicInfo';
 import { AdminPromptSection } from './clinic-details/AdminPromptSection';
 import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
 import { InstagramSettings } from './clinic-details/InstagramSettings';
+import { TimeRangeFilter } from './TimeRangeFilter';
+import { endOfDay, startOfDay, subDays } from 'date-fns';
 
 /**
  * Componente principal de detalhes da clínica no painel administrativo
@@ -34,7 +36,8 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
     atualizarPromptClinica,
     atualizarNomeInstanciaEvolution,
     atualizarApiKeyEvolution,
-    atualizarInstagramUserHandle
+    atualizarInstagramUserHandle,
+    buscarEstatisticasDeLeadsDaClinica,
   } = useSupabaseAdmin();
 
   const { toast } = useToast();
@@ -44,6 +47,13 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
   const [saving, setSaving] = useState(false);
   const [savingApiKey, setSavingApiKey] = useState(false);
   const [savingInstagram, setSavingInstagram] = useState(false);
+
+  // Estados para o filtro de tempo e estatísticas de leads
+  const [currentFilter, setCurrentFilter] = useState('Últimos 30 Dias');
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [leadStats, setLeadStats] = useState({ leadsDeAnuncios: 0, outrosLeads: 0 });
+  const [loadingStats, setLoadingStats] = useState(true);
 
   // Carregar dados da clínica ao inicializar
   useEffect(() => {
@@ -65,7 +75,34 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
     };
 
     carregarDetalhes();
+
+    // Define o filtro de tempo inicial para "Últimos 30 dias"
+    const today = new Date();
+    const start = startOfDay(subDays(today, 29));
+    const end = endOfDay(today);
+    setStartDate(start);
+    setEndDate(end);
   }, [clinicaId]);
+
+  // Carrega as estatísticas de leads sempre que a data ou a clínica mudar
+  useEffect(() => {
+    if (clinicaId && startDate && endDate) {
+      const carregarStats = async () => {
+        setLoadingStats(true);
+        const stats = await buscarEstatisticasDeLeadsDaClinica(clinicaId, startDate, endDate);
+        setLeadStats(stats);
+        setLoadingStats(false);
+      };
+      carregarStats();
+    }
+  }, [clinicaId, startDate, endDate]);
+
+  // Função para lidar com a mudança do filtro de tempo
+  const handleFilterChange = (start: Date, end: Date, filterName: string) => {
+    setStartDate(start);
+    setEndDate(end);
+    setCurrentFilter(filterName);
+  };
 
   // Função para salvar o prompt administrativo
   const salvarPrompt = async (prompt: string) => {
@@ -206,9 +243,14 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
           </div>
         </div>
 
+        {/* Filtro de Tempo */}
+        <div className="my-8">
+            <TimeRangeFilter onFilterChange={handleFilterChange} currentFilter={currentFilter} />
+        </div>
+
         {/* Cards com estatísticas da clínica */}
         <div className="mb-8">
-          <ClinicStatsCards clinica={clinica} />
+          <ClinicStatsCards clinica={clinica} leadsStats={leadStats} loadingStats={loadingStats}/>
         </div>
 
         {/* Informações básicas da clínica */}
