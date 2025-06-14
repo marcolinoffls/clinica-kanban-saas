@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -25,7 +26,7 @@ import { AlertCircle } from 'lucide-react';
 import { useCreateAgendamento, useUpdateAgendamento, type AgendamentoFromDatabase } from '@/hooks/useAgendamentosData';
 import { useClinica } from '@/contexts/ClinicaContext';
 import { useAuthUser } from '@/hooks/useAuthUser';
-import { useLeadsData, type Lead } from '@/hooks/useLeadsData';
+import { useLeads, type Lead } from '@/hooks/useLeadsData';
 import { useClinicServices } from '@/hooks/useClinicServices';
 import { ClienteSelector } from './ClienteSelector';
 import { NovoClienteFields } from './NovoClienteFields';
@@ -71,7 +72,7 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
 
   // Hooks para buscar dados para os seletores
   const { services: servicos, isLoading: loadingServices } = useClinicServices();
-  const { leads, isLoading: loadingLeads } = useLeadsData();
+  const { data: leads, isLoading: loadingLeads } = useLeads();
 
   const [isNovoCliente, setIsNovoCliente] = useState(false);
   const [clienteBuscaInput, setClienteBuscaInput] = useState('');
