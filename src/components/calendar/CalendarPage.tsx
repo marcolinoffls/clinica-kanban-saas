@@ -111,22 +111,51 @@ export const CalendarPage = () => {
 
   // CORREÇÃO e MELHORIA: A função foi atualizada para usar os valores de status
   // em minúsculas do enum `AgendamentoStatus` e cobrir todos os casos.
-  const getStatusColor = (status: string) => {
+  // NOVO: A função agora retorna um objeto com todas as classes de cor necessárias.
+  const getStatusClasses = (status: string) => {
     switch (status) {
       case AgendamentoStatus.CONFIRMADO:
-        return 'border-green-500';
+        return {
+          border: 'border-green-500',
+          tagBg: 'bg-green-100',
+          tagText: 'text-green-700',
+        };
       case AgendamentoStatus.AGENDADO:
-        return 'border-blue-500';
+        return {
+          border: 'border-blue-500',
+          tagBg: 'bg-blue-100',
+          tagText: 'text-blue-700',
+        };
       case AgendamentoStatus.REALIZADO:
-        return 'border-purple-500';
+        return {
+          border: 'border-purple-500',
+          tagBg: 'bg-purple-100',
+          tagText: 'text-purple-700',
+        };
       case AgendamentoStatus.PAGO:
-        return 'border-emerald-500';
+        return {
+          border: 'border-emerald-500',
+          tagBg: 'bg-emerald-100',
+          tagText: 'text-emerald-700',
+        };
       case AgendamentoStatus.CANCELADO:
-        return 'border-red-500';
+        return {
+          border: 'border-red-500',
+          tagBg: 'bg-red-100',
+          tagText: 'text-red-700',
+        };
       case AgendamentoStatus.NAO_COMPARECEU:
-        return 'border-yellow-500';
+        return {
+          border: 'border-yellow-500',
+          tagBg: 'bg-yellow-100',
+          tagText: 'text-yellow-700',
+        };
       default:
-        return 'border-gray-300';
+        return {
+          border: 'border-gray-300',
+          tagBg: 'bg-gray-100',
+          tagText: 'text-gray-700',
+        };
     }
   };
 
@@ -243,91 +272,97 @@ export const CalendarPage = () => {
   });
 
   // MELHORIA: O card do agendamento foi reestruturado para acomodar as ações de status.
-  const renderAgendamentoCard = (agendamento: AgendamentoFromDatabase) => (
-    <div
-      key={agendamento.id}
-      className={`bg-white p-3 rounded-lg border-l-4 shadow-sm flex flex-col justify-between ${getStatusColor(agendamento.status)}`}
-    >
-      {/* O conteúdo principal do card ainda abre a edição ao ser clicado */}
+  const renderAgendamentoCard = (agendamento: AgendamentoFromDatabase) => {
+    // Busca as classes de cor com base no status atual
+    const statusClasses = getStatusClasses(agendamento.status);
+    
+    return (
       <div
-        className="cursor-pointer"
-        onClick={() => handleEditAgendamento(agendamento)}
+        key={agendamento.id}
+        className={`bg-white p-3 rounded-lg border-l-4 shadow-sm flex flex-col justify-between ${statusClasses.border}`}
       >
-        <div className="flex justify-between items-start">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <User size={14} className="text-gray-600 flex-shrink-0" />
-              <h4 className="font-semibold text-gray-800 truncate text-sm">
-                {getClienteNome(agendamento.cliente_id)}
-              </h4>
+        {/* O conteúdo principal do card ainda abre a edição ao ser clicado */}
+        <div
+          className="cursor-pointer"
+          onClick={() => handleEditAgendamento(agendamento)}
+        >
+          <div className="flex justify-between items-start">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <User size={14} className="text-gray-600 flex-shrink-0" />
+                <h4 className="font-semibold text-gray-800 truncate text-sm">
+                  {getClienteNome(agendamento.cliente_id)}
+                </h4>
+              </div>
+              
+              <p className="text-xs text-gray-600 mb-2 truncate">
+                {agendamento.titulo}
+              </p>
+              
+              <div className="flex items-center gap-3 text-xs text-gray-500">
+                <span className="flex items-center gap-1">
+                  <Clock size={12} />
+                  {format(new Date(agendamento.data_inicio), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                </span>
+                {agendamento.valor && agendamento.valor > 0 && (
+                  <span className="font-medium">R$ {agendamento.valor.toFixed(2)}</span>
+                )}
+              </div>
             </div>
             
-            <p className="text-xs text-gray-600 mb-2 truncate">
-              {agendamento.titulo}
-            </p>
-            
-            <div className="flex items-center gap-3 text-xs text-gray-500">
-              <span className="flex items-center gap-1">
-                <Clock size={12} />
-                {format(new Date(agendamento.data_inicio), "dd/MM 'às' HH:mm", { locale: ptBR })}
+            <div className="flex flex-col items-end justify-between h-full gap-2 ml-2">
+              {/* ATUALIZADO: As classes de cor da tag agora são dinâmicas */}
+              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusClasses.tagBg} ${statusClasses.tagText}`}>
+                {getStatusText(agendamento.status)}
               </span>
-              {agendamento.valor && agendamento.valor > 0 && (
-                <span className="font-medium">R$ {agendamento.valor.toFixed(2)}</span>
-              )}
-            </div>
-          </div>
-          
-          <div className="flex flex-col items-end justify-between h-full gap-2 ml-2">
-            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700`}>
-              {getStatusText(agendamento.status)}
-            </span>
-            
-            <div className="flex gap-1">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation(); // Evita abrir o modal de edição
-                  handleOpenChat(agendamento.cliente_id);
-                }}
-                className="p-1.5 hover:bg-blue-100 rounded-full text-blue-600 hover:text-blue-700 transition-colors"
-                title="Enviar mensagem"
-              >
-                <MessageSquare size={14} />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation(); // Evita abrir o modal de edição
-                  handleEditAgendamento(agendamento);
-                }}
-                className="p-1.5 hover:bg-gray-200 rounded-full text-gray-500 hover:text-gray-700 transition-colors"
-                title="Editar agendamento"
-              >
-                <Edit size={14} />
-              </button>
-              {/* Botão de exclusão */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation(); // Evita abrir o modal de edição
-                  handleOpenDeleteDialog(agendamento.id);
-                }}
-                className="p-1.5 hover:bg-red-100 rounded-full text-red-600 hover:text-red-700 transition-colors"
-                title="Excluir agendamento"
-              >
-                <Trash2 size={14} />
-              </button>
+              
+              <div className="flex gap-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation(); // Evita abrir o modal de edição
+                    handleOpenChat(agendamento.cliente_id);
+                  }}
+                  className="p-1.5 hover:bg-blue-100 rounded-full text-blue-600 hover:text-blue-700 transition-colors"
+                  title="Enviar mensagem"
+                >
+                  <MessageSquare size={14} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation(); // Evita abrir o modal de edição
+                    handleEditAgendamento(agendamento);
+                  }}
+                  className="p-1.5 hover:bg-gray-200 rounded-full text-gray-500 hover:text-gray-700 transition-colors"
+                  title="Editar agendamento"
+                >
+                  <Edit size={14} />
+                </button>
+                {/* Botão de exclusão */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation(); // Evita abrir o modal de edição
+                    handleOpenDeleteDialog(agendamento.id);
+                  }}
+                  className="p-1.5 hover:bg-red-100 rounded-full text-red-600 hover:text-red-700 transition-colors"
+                  title="Excluir agendamento"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
+        
+        {/* NOVO: Seção separada para as ações de status, com uma linha divisória. */}
+        <div className="mt-3 pt-3 border-t border-gray-200">
+          <AgendamentoStatusActions
+            agendamento={agendamento}
+            onStatusChange={(newStatus) => handleStatusChange(agendamento, newStatus)}
+          />
+        </div>
       </div>
-      
-      {/* NOVO: Seção separada para as ações de status, com uma linha divisória. */}
-      <div className="mt-3 pt-3 border-t border-gray-200">
-        <AgendamentoStatusActions
-          agendamento={agendamento}
-          onStatusChange={(newStatus) => handleStatusChange(agendamento, newStatus)}
-        />
-      </div>
-    </div>
-  );
+    );
+  };
 
   // Renderizar visualização de calendário em grid para o mês
   const renderCalendarGrid = () => {
@@ -366,7 +401,7 @@ export const CalendarPage = () => {
                 {dayAgendamentos.slice(0, 2).map(agendamento => (
                   <div 
                     key={agendamento.id}
-                    className={`text-xs p-1 rounded cursor-pointer ${getStatusColor(agendamento.status)}`}
+                    className={`text-xs p-1 rounded cursor-pointer ${getStatusClasses(agendamento.status).border}`}
                     onClick={() => handleEditAgendamento(agendamento)}
                   >
                     {format(new Date(agendamento.data_inicio), 'HH:mm')} - {getClienteNome(agendamento.cliente_id)}
