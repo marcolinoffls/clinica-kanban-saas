@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,6 +7,7 @@ import { ClinicStatsCards } from './clinic-details/ClinicStatsCards';
 import { ClinicBasicInfo } from './clinic-details/ClinicBasicInfo';
 import { AdminPromptSection } from './clinic-details/AdminPromptSection';
 import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
+import { InstagramSettings } from './clinic-details/InstagramSettings';
 
 /**
  * Componente principal de detalhes da clínica no painel administrativo
@@ -17,6 +17,7 @@ import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
  * - Informações básicas de contato
  * - Configuração do prompt administrativo
  * - Configurações da Evolution API
+ * - Configurações do Instagram
  * 
  * Este componente foi refatorado em componentes menores para
  * melhor organização e manutenibilidade do código.
@@ -32,7 +33,8 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
     buscarDetalhesClinica,
     atualizarPromptClinica,
     atualizarNomeInstanciaEvolution,
-    atualizarApiKeyEvolution
+    atualizarApiKeyEvolution,
+    atualizarInstagramUserHandle
   } = useSupabaseAdmin();
 
   const { toast } = useToast();
@@ -41,6 +43,7 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingApiKey, setSavingApiKey] = useState(false);
+  const [savingInstagram, setSavingInstagram] = useState(false);
 
   // Carregar dados da clínica ao inicializar
   useEffect(() => {
@@ -130,6 +133,32 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
     }
   };
 
+  // Função para salvar o user handle do Instagram
+  const salvarInstagramUserHandle = async (userHandle: string) => {
+    try {
+      setSavingInstagram(true);
+      await atualizarInstagramUserHandle(clinicaId, userHandle);
+      
+      // Atualiza o estado local 'clinica' para refletir a mudança imediatamente na UI,
+      // sem precisar recarregar os dados do banco.
+      setClinica((prev: any) => ({ ...prev, instagram_user_handle: userHandle }));
+      
+      toast({
+        title: "Sucesso",
+        description: "Usuário do Instagram salvo com sucesso.",
+      });
+    } catch (error) {
+      console.error('Erro ao salvar usuário do Instagram:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar o usuário do Instagram.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingInstagram(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -204,6 +233,15 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
           saving={saving}
           savingApiKey={savingApiKey}
         />
+
+        {/* Configurações do Instagram */}
+        <div className="mt-6">
+          <InstagramSettings
+            clinica={clinica}
+            onSave={salvarInstagramUserHandle}
+            saving={savingInstagram}
+          />
+        </div>
       </div>
     </div>
   );

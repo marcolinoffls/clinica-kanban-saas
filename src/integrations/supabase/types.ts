@@ -293,6 +293,7 @@ export type Database = {
           evolution_api_key: string | null
           evolution_instance_name: string | null
           id: string
+          instagram_user_handle: string | null
           integracao_instance_id: string | null
           nome: string
           plano_contratado: string | null
@@ -327,6 +328,7 @@ export type Database = {
           evolution_api_key?: string | null
           evolution_instance_name?: string | null
           id?: string
+          instagram_user_handle?: string | null
           integracao_instance_id?: string | null
           nome: string
           plano_contratado?: string | null
@@ -361,6 +363,7 @@ export type Database = {
           evolution_api_key?: string | null
           evolution_instance_name?: string | null
           id?: string
+          instagram_user_handle?: string | null
           integracao_instance_id?: string | null
           nome?: string
           plano_contratado?: string | null

@@ -177,18 +177,39 @@ export const useSupabaseAdmin = () => {
   // Função para buscar dados detalhados de uma clínica específica
   const buscarDetalhesClinica = async (clinicaId: string) => {
     try {
-      console.log('🔍 Buscando detalhes da clínica:', clinicaId);
+      console.log('🔍 Buscando detalhes da clínica (stats e dados):', clinicaId);
 
-      const { data, error } = await supabase
+      // Busca os dados da view de estatísticas, que contém dados agregados.
+      const { data: statsData, error: statsError } = await supabase
         .from('clinicas_stats')
         .select('*')
         .eq('id', clinicaId)
         .single();
 
-      if (error) throw error;
+      if (statsError) throw statsError;
+      
+      // Busca dados adicionais direto da tabela 'clinicas' que podem não estar na view, como o novo campo.
+      // Isso evita a necessidade de recriar a view a cada novo campo de configuração.
+      const { data: clinicaData, error: clinicaError } = await supabase
+        .from('clinicas')
+        .select('instagram_user_handle') // Apenas o campo novo.
+        .eq('id', clinicaId)
+        .single();
 
-      console.log('📋 Detalhes da clínica carregados:', data);
-      return data;
+      if (clinicaError) {
+        // Não é um erro fatal, apenas um aviso, pois o campo pode estar vazio.
+        console.warn('Não foi possível buscar dados adicionais da clínica (ex: instagram):', clinicaError.message);
+      }
+      
+      // Mescla os dois resultados. Os dados da tabela principal (clinicaData)
+      // irão adicionar ou sobrescrever as propriedades dos dados da view (statsData).
+      const mergedData = {
+        ...statsData,
+        ...clinicaData,
+      };
+
+      console.log('📋 Detalhes da clínica carregados e mesclados:', mergedData);
+      return mergedData;
     } catch (error) {
       console.error('Erro ao buscar detalhes da clínica:', error);
       throw error;
@@ -356,6 +377,33 @@ export const useSupabaseAdmin = () => {
     }
   };
 
+  // Função para atualizar o user handle do Instagram de uma clínica
+  // Ela atualiza o campo `instagram_user_handle` na tabela `clinicas`.
+  const atualizarInstagramUserHandle = async (clinicaId: string, userHandle: string) => {
+    try {
+      console.log('📷 Atualizando user handle do Instagram da clínica:', clinicaId);
+
+      const { error } = await supabase
+        .from('clinicas')
+        .update({ instagram_user_handle: userHandle })
+        .eq('id', clinicaId);
+
+      if (error) throw error;
+
+      // Atualiza o estado local da lista de clínicas para refletir a mudança.
+      setClinicas(prev => prev.map(clinica =>
+        clinica.id === clinicaId
+          ? { ...clinica, instagram_user_handle: userHandle }
+          : clinica
+      ));
+
+      console.log('✅ User handle do Instagram atualizado com sucesso');
+    } catch (error) {
+      console.error('Erro ao atualizar user handle do Instagram:', error);
+      throw error;
+    }
+  };
+
   return {
     loading,
     clinicas,
@@ -369,6 +417,7 @@ export const useSupabaseAdmin = () => {
     buscarUsuariosClinica,
     atualizarPromptClinica,
     atualizarNomeInstanciaEvolution,
-    atualizarApiKeyEvolution
+    atualizarApiKeyEvolution,
+    atualizarInstagramUserHandle, // Exporta a nova função
   };
 };
