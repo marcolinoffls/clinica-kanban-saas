@@ -435,6 +435,7 @@ export type Database = {
           id: string
           id_direct: string | null
           ltv: number | null
+          meu_id_direct: string | null
           name: string | null
           nome: string | null
           nome_clinica: string | null
@@ -462,6 +463,7 @@ export type Database = {
           id?: string
           id_direct?: string | null
           ltv?: number | null
+          meu_id_direct?: string | null
           name?: string | null
           nome?: string | null
           nome_clinica?: string | null
@@ -489,6 +491,7 @@ export type Database = {
           id?: string
           id_direct?: string | null
           ltv?: number | null
+          meu_id_direct?: string | null
           name?: string | null
           nome?: string | null
           nome_clinica?: string | null

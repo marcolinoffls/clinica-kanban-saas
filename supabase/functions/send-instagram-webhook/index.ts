@@ -1,4 +1,3 @@
-
 /**
  * Edge Function para envio de webhooks do Instagram Direct
  * 
@@ -12,9 +11,10 @@
  *     - `instagram_webhook_type`: 'padrao' ou 'personalizado'.
  *     - `instagram_webhook_url`: A URL, se o tipo for 'padrao'.
  *     - `instagram_user_handle`: O nome de usuário, se o tipo for 'personalizado'.
- * 3.  Constrói a URL do webhook de destino com base no tipo selecionado.
- * 4.  Monta um payload específico para o Instagram.
- * 5.  Envia o payload para o n8n de forma segura, usando um token JWT.
+ * 3.  Busca os dados do lead, incluindo `id_direct` (destinatário) e `meu_id_direct` (remetente).
+ * 4.  Constrói a URL do webhook de destino com base no tipo selecionado.
+ * 5.  Monta um payload específico para o Instagram, incluindo `meu_id_direct` nos metadados.
+ * 6.  Envia o payload para o n8n de forma segura, usando um token JWT.
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -33,11 +33,11 @@ interface WebhookMessageContent {
 
 interface WebhookPayload {
   event: string;
-  platform: string; // Adicionado para diferenciar a origem
-  instance: string; // Nome da instância (ex: evolution_instance_name)
+  platform: string; 
+  instance: string; 
   data: {
     key: {
-      remoteJid: string; // ID do usuário do Instagram
+      remoteJid: string; // ID do usuário do Instagram (destinatário)
       fromMe: boolean;
       id: string;
     };
@@ -50,6 +50,7 @@ interface WebhookPayload {
     clinica_id: string;
     lead_id: string;
     ai_enabled: boolean;
+    meu_id_direct: string | null; // ID da conta do Instagram que está enviando (remetente)
   };
   timestamp_sp: string;
 }
@@ -116,10 +117,10 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Configuração do webhook do Instagram incompleta para esta clínica' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Busca dados do lead (incluindo o id_direct para o Instagram)
+    // Busca dados do lead (incluindo o id_direct e meu_id_direct para o Instagram)
     const { data: lead } = await supabaseClient
       .from('leads')
-      .select('nome, id_direct') // Usa 'id_direct' para o Instagram
+      .select('nome, id_direct, meu_id_direct') // Adicionado 'meu_id_direct'
       .eq('id', lead_id)
       .single();
 
@@ -147,13 +148,14 @@ serve(async (req) => {
         },
         pushName: lead?.nome || null,
         message: messagePayload,
-        messageType: tipo === 'text' ? 'conversation' : tipo,
+        messageType: tipo === 'text' ? 'conversation' : 'text', // Corrigido para ser sempre 'text' ou o tipo do anexo
         messageTimestamp: Math.floor(dataUTC.getTime() / 1000)
       },
       origin: {
         clinica_id: clinica_id,
         lead_id: lead_id,
-        ai_enabled: evento_boolean
+        ai_enabled: evento_boolean,
+        meu_id_direct: lead?.meu_id_direct || null, // Campo adicionado aqui
       },
       timestamp_sp: timestampSP
     };
