@@ -1,15 +1,20 @@
-
 import { useState, useEffect } from 'react';
-import { User, Phone, Mail, Calendar as CalendarIconLucide, FileText, ChevronDown, ChevronRight, History, Edit, Check, X } from 'lucide-react'; // Renomeado Calendar para evitar conflito
-// import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Não usado diretamente aqui
+import { User, Phone, Mail, Calendar as CalendarIconLucide, FileText, ChevronDown, ChevronRight, History, Edit, Check, X, MoveHorizontal } from 'lucide-react'; // Ícone para a etapa
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-// Importar componentes de Avatar do shadcn/ui
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Lead, useUpdateLead } from '@/hooks/useLeadsData'; // Importar a interface Lead completa
+import { Lead, useUpdateLead, useMoveLeadToStage } from '@/hooks/useLeadsData'; // Importar o hook para mover o lead
+import { useEtapas } from '@/hooks/useEtapasData'; // Importar o hook para buscar as etapas
 import { Input } from '../ui/input';
 import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"; // Componentes para o seletor
 
 /**
  * Barra lateral com informações detalhadas do lead
@@ -18,6 +23,7 @@ import { toast } from 'sonner';
  * - Exibe imagem do contato (avatar_url)
  * - Edição inline do nome do lead
  * - Informações básicas do lead (telefone, email)
+ * - Edição da etapa do funil de vendas (NOVO)
  * - Histórico de interações
  * - Tags associadas
  * - Ações rápidas (ligar, agendar, ver histórico)
@@ -63,6 +69,10 @@ export const LeadInfoSidebar = ({
   const [editedName, setEditedName] = useState(lead.nome);
   const updateLeadMutation = useUpdateLead();
 
+  // Hooks para buscar as etapas e mover o lead entre elas
+  const { data: etapas, isLoading: etapasLoading } = useEtapas();
+  const moveLeadMutation = useMoveLeadToStage();
+
   // Efeito para resetar o estado de edição quando o lead selecionado mudar
   useEffect(() => {
     setIsEditingName(false);
@@ -96,6 +106,14 @@ export const LeadInfoSidebar = ({
     );
   };
 
+  // Função para lidar com a mudança de etapa do lead
+  const handleStageChange = (newStageId: string) => {
+    // Verifica se a etapa selecionada é diferente da atual para evitar chamadas desnecessárias
+    if (newStageId && newStageId !== lead.etapa_kanban_id) {
+      // Chama a mutação para mover o lead para a nova etapa
+      moveLeadMutation.mutate({ leadId: lead.id, etapaId: newStageId });
+    }
+  };
 
   // Função para toggle de seções
   const toggleSection = (section: keyof typeof expandedSections) => {
@@ -242,6 +260,35 @@ export const LeadInfoSidebar = ({
               <div className="text-sm text-gray-700">
                 <div>Criado: {formatarData(lead.created_at)}</div>
                 {lead.updated_at && <div>Atualizado: {formatarData(lead.updated_at)}</div>}
+              </div>
+            </div>
+
+            {/* NOVO: Seletor de Etapa do Funil */}
+            <div className="flex items-start gap-3 pt-2">
+              <MoveHorizontal size={16} className="text-gray-400 flex-shrink-0 mt-2.5" />
+              <div className="w-full">
+                <label className="text-sm text-gray-700">Etapa do Funil</label>
+                <Select
+                  value={lead.etapa_kanban_id || ''}
+                  onValueChange={handleStageChange}
+                  disabled={etapasLoading || moveLeadMutation.isPending}
+                >
+                  <SelectTrigger className="w-full mt-1 h-9">
+                    <SelectValue placeholder="Selecione uma etapa..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {etapasLoading ? (
+                      <SelectItem value="loading" disabled>Carregando etapas...</SelectItem>
+                    ) : (
+                      etapas && [...etapas].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)).map((etapa) => (
+                        <SelectItem key={etapa.id} value={etapa.id}>
+                          {etapa.nome}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {moveLeadMutation.isPending && <p className="text-xs text-gray-500 mt-1">Movendo lead...</p>}
               </div>
             </div>
 
