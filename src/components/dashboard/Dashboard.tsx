@@ -120,12 +120,22 @@ export const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header da página */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
-        <p className="text-gray-600 mt-1">
-          Visão geral das métricas da sua clínica
-        </p>
+      {/* 
+        Header da página com o filtro de período.
+        O filtro foi adicionado de volta e posicionado ao lado do título.
+        O layout é responsivo, ajustando-se para telas menores.
+      */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
+          <p className="text-gray-600 mt-1">
+            Visão geral das métricas da sua clínica
+          </p>
+        </div>
+        <TimeRangeFilter 
+          onFilterChange={handleFilterChange} 
+          currentFilter={currentFilter} 
+        />
       </div>
 
       {/* 

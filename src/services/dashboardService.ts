@@ -1,4 +1,3 @@
-
 /**
  * O que aquilo faz: Centraliza a lógica de busca e processamento dos dados do dashboard.
  * Onde ele é usado no app: É chamado pelo hook `useDashboardData` para obter todas as métricas necessárias para a página do dashboard.
@@ -8,9 +7,9 @@
  * - Retorna um objeto `DashboardMetrics` que é usado para popular a UI do dashboard.
  * 
  * Se o código interage com o Supabase, explique também o que ele busca ou grava na tabela e quais campos são afetados.
- * - Busca na tabela `leads`: id, created_at, convertido, servico_interesse.
+ * - Busca na tabela `leads`: id, created_at, convertido, servico_interesse, anuncio.
  * - Busca na tabela `agendamentos`: id, status, valor, data_inicio, titulo, created_at.
- * - Os filtros de data (`startDate`, `endDate`) são aplicados na coluna `created_at` de ambas as tabelas.
+ * - Os filtros de data (`startDate`, `endDate`) são aplicados na coluna `created_at` de `leads` e `data_inicio` de `agendamentos`.
  */
 import { supabase } from '@/integrations/supabase/client';
 import { DashboardMetrics } from '@/hooks/dashboard/types';
@@ -25,7 +24,7 @@ export const fetchDashboardData = async (
     // 1. Buscar total de contatos/leads no período
     let leadsQuery = supabase
       .from('leads')
-      .select('id, created_at, convertido, servico_interesse')
+      .select('id, created_at, convertido, servico_interesse, anuncio')
       .eq('clinica_id', clinicaId);
 
     if (startDate) {
@@ -68,6 +67,7 @@ export const fetchDashboardData = async (
     const totalContatos = leadsData?.length || 0;
     
     // NOVO CÁLCULO: Conta os leads que possuem o campo 'anuncio' preenchido.
+    // Este cálculo agora funciona pois o campo 'anuncio' foi incluído na busca.
     const leadsAnuncios = leadsData?.filter(lead => lead.anuncio).length || 0;
 
     const consultasAgendadas = agendamentosData?.filter(ag => 
