@@ -1,4 +1,3 @@
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -163,7 +162,8 @@ export const useUpdateLead = () => {
     onSuccess: (updatedLead) => {
       // console.log(`✅ [useUpdateLead] onSuccess - Invalidando queries para lead ID ${updatedLead.id}`);
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast.success(`Lead "${updatedLead.nome}" atualizado com sucesso!`);
+      // A notificação de sucesso agora é gerenciada no local da chamada (se necessário) ou pode ser mantida aqui.
+      // toast.success(`Lead "${updatedLead.nome}" atualizado com sucesso!`);
     },
 
     onError: (error) => {
@@ -244,7 +244,7 @@ export const useDeleteLead = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (leadId: string): Promise<void> => {
+    mutationFn: async (leadId: string): Promise<string> => {
       // console.log(`🗑️ [useDeleteLead] Deletando lead ID: ${leadId}`);
 
       const { error } = await supabase
@@ -258,9 +258,10 @@ export const useDeleteLead = () => {
       }
 
       // console.log(`✅ [useDeleteLead] Lead ID ${leadId} deletado com sucesso.`);
+      return leadId;
     },
 
-    onSuccess: (data, variables) => { // variables aqui será o leadId
+    onSuccess: (deletedLeadId) => {
       // console.log(`✅ [useDeleteLead] onSuccess - Invalidando queries após deletar lead.`);
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('Lead deletado com sucesso!');
