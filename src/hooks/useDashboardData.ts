@@ -1,4 +1,3 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useClinica } from '@/contexts/ClinicaContext';
@@ -6,17 +5,12 @@ import { format, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 /**
- * Hook para buscar dados dinâmicos do dashboard
+ * Hook para buscar dados dinâmicos do dashboard.
+ * A assinatura da função foi alterada para aceitar `Date | null` para
+ * as datas de início e fim, permitindo que o filtro "Máximo" funcione.
  * 
- * Busca dados agregados do Supabase para exibir métricas da clínica:
- * - Total de contatos/leads no período
- * - Consultas agendadas
- * - Taxa de conversão
- * - Faturamento estimado/realizado
- * - Dados para gráficos (leads por mês, conversões por categoria)
- * 
- * @param startDate Data de início do período
- * @param endDate Data de fim do período
+ * @param startDate Data de início do período (ou null)
+ * @param endDate Data de fim do período (ou null)
  * @returns Dados processados e estado de carregamento
  */
 
@@ -34,11 +28,13 @@ interface DashboardMetrics {
   variacaoFaturamento: number;
 }
 
-export const useDashboardData = (startDate: Date, endDate: Date) => {
+export const useDashboardData = (startDate: Date | null, endDate: Date | null) => {
   const { clinicaId } = useClinica();
 
+  // A queryKey foi ajustada para lidar com datas nulas, garantindo que a busca
+  // seja refeita corretamente quando o filtro de data é alterado.
   const { data, isLoading, error } = useQuery<DashboardMetrics>({
-    queryKey: ['dashboardData', clinicaId, startDate.toISOString(), endDate.toISOString()],
+    queryKey: ['dashboardData', clinicaId, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async (): Promise<DashboardMetrics> => {
       if (!clinicaId) {
         throw new Error('ID da clínica não encontrado');
@@ -46,25 +42,42 @@ export const useDashboardData = (startDate: Date, endDate: Date) => {
 
       try {
         // 1. Buscar total de contatos/leads no período
-        const { data: leadsData, error: leadsError } = await supabase
+        // A consulta ao Supabase agora é construída de forma condicional.
+        // O filtro de data só é adicionado se startDate e endDate forem fornecidos.
+        let leadsQuery = supabase
           .from('leads')
           .select('id, created_at, convertido, servico_interesse')
-          .eq('clinica_id', clinicaId)
-          .gte('created_at', startDate.toISOString())
-          .lte('created_at', endDate.toISOString());
+          .eq('clinica_id', clinicaId);
+
+        if (startDate) {
+          leadsQuery = leadsQuery.gte('created_at', startDate.toISOString());
+        }
+        if (endDate) {
+          leadsQuery = leadsQuery.lte('created_at', endDate.toISOString());
+        }
+
+        const { data: leadsData, error: leadsError } = await leadsQuery;
 
         if (leadsError) {
           console.error('Erro ao buscar leads:', leadsError.message);
           throw new Error('Falha ao carregar dados de leads');
         }
 
-        // 2. Buscar consultas agendadas no período
-        const { data: agendamentosData, error: agendamentosError } = await supabase
+        // 2. Buscar agendamentos no período
+        // A mesma lógica de filtro condicional é aplicada aqui.
+        let agendamentosQuery = supabase
           .from('agendamentos')
           .select('id, status, valor, data_inicio, titulo, created_at')
-          .eq('clinica_id', clinicaId)
-          .gte('created_at', startDate.toISOString())
-          .lte('created_at', endDate.toISOString());
+          .eq('clinica_id', clinicaId);
+
+        if (startDate) {
+          agendamentosQuery = agendamentosQuery.gte('created_at', startDate.toISOString());
+        }
+        if (endDate) {
+          agendamentosQuery = agendamentosQuery.lte('created_at', endDate.toISOString());
+        }
+        
+        const { data: agendamentosData, error: agendamentosError } = await agendamentosQuery;
 
         if (agendamentosError) {
           console.error('Erro ao buscar agendamentos:', agendamentosError.message);
@@ -95,7 +108,8 @@ export const useDashboardData = (startDate: Date, endDate: Date) => {
           .reduce((total, ag) => total + (Number(ag.valor) || 0), 0) || 0;
 
         // 4. Dados para gráfico de linha - Leads por mês
-        const leadsPorMes = processarLeadsPorMes(leadsData || [], startDate, endDate);
+        // A função `processarLeadsPorMes` agora recebe os leads já filtrados pela data.
+        const leadsPorMes = processarLeadsPorMes(leadsData || []);
 
         // 5. Dados para gráfico de barras - Conversões por categoria/serviço
         const conversoesPorCategoria = processarConversoesPorCategoria(
@@ -141,17 +155,17 @@ export const useDashboardData = (startDate: Date, endDate: Date) => {
 };
 
 /**
- * Processa dados de leads para o gráfico de linha (leads por mês)
+ * Processa dados de leads para o gráfico de linha (leads por mês).
+ * A função foi simplificada. Como os dados já vêm pré-filtrados pela data
+ * da consulta ao Supabase, não é mais necessário verificar o intervalo aqui.
  */
-function processarLeadsPorMes(leads: any[], startDate: Date, endDate: Date) {
+function processarLeadsPorMes(leads: any[]) {
   const monthsMap = new Map<string, number>();
   
   leads.forEach(lead => {
     const leadDate = new Date(lead.created_at);
-    if (isWithinInterval(leadDate, { start: startDate, end: endDate })) {
-      const monthKey = format(leadDate, 'MMM', { locale: ptBR });
-      monthsMap.set(monthKey, (monthsMap.get(monthKey) || 0) + 1);
-    }
+    const monthKey = format(leadDate, 'MMM', { locale: ptBR });
+    monthsMap.set(monthKey, (monthsMap.get(monthKey) || 0) + 1);
   });
 
   // Converter para array no formato esperado pelo recharts

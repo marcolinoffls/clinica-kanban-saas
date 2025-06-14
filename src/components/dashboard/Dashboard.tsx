@@ -1,11 +1,10 @@
-
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { MetricCard } from './MetricCard';
 import { ChartCard } from './ChartCard';
-import { DashboardTimeRangeFilter } from './DashboardTimeRangeFilter';
+import { TimeRangeFilter } from '@/components/admin/TimeRangeFilter';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { Users, Calendar, TrendingUp, DollarSign } from 'lucide-react';
-import { startOfMonth, endOfMonth } from 'date-fns';
+import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 
 /**
  * Componente principal do Dashboard
@@ -21,16 +20,17 @@ import { startOfMonth, endOfMonth } from 'date-fns';
  */
 
 export const Dashboard = () => {
-  // Estado do filtro de período (padrão: este mês)
-  const [startDate, setStartDate] = useState(() => startOfMonth(new Date()));
-  const [endDate, setEndDate] = useState(() => endOfMonth(new Date()));
+  // O estado do filtro de período foi atualizado para permitir valores nulos,
+  // o que é necessário para a opção "Máximo" do novo filtro.
+  const [startDate, setStartDate] = useState<Date | null>(() => startOfDay(startOfMonth(new Date())));
+  const [endDate, setEndDate] = useState<Date | null>(() => endOfDay(endOfMonth(new Date())));
   const [currentFilter, setCurrentFilter] = useState('Este Mês');
 
-  // Buscar dados do dashboard baseados no período selecionado
+  // O hook `useDashboardData` agora é chamado com os estados que podem ser nulos.
   const { data: dashboardData, isLoading, error } = useDashboardData(startDate, endDate);
 
-  // Função para atualizar o período selecionado
-  const handleFilterChange = (newStartDate: Date, newEndDate: Date, filterName: string) => {
+  // A função de callback para o filtro foi atualizada para aceitar datas nulas.
+  const handleFilterChange = (newStartDate: Date | null, newEndDate: Date | null, filterName: string) => {
     setStartDate(newStartDate);
     setEndDate(newEndDate);
     setCurrentFilter(filterName);
@@ -110,11 +110,27 @@ export const Dashboard = () => {
         </p>
       </div>
 
-      {/* Filtro de período */}
-      <DashboardTimeRangeFilter
-        onFilterChange={handleFilterChange}
-        currentFilter={currentFilter}
-      />
+      {/* 
+        Filtro de período
+        O componente `DashboardTimeRangeFilter` foi substituído pelo `TimeRangeFilter`.
+        Adicionei um `div` ao redor para manter o layout do dashboard, incluindo
+        o título "Período de Análise" e a exibição do filtro ativo.
+      */}
+      <div className="bg-white rounded-lg p-4 border border-gray-200">
+        <div className="flex items-center gap-2 mb-4">
+          <Calendar className="w-4 h-4 text-blue-600" />
+          <h3 className="font-medium text-gray-900">Período de Análise</h3>
+        </div>
+        
+        <TimeRangeFilter
+          onFilterChange={handleFilterChange}
+          currentFilter={currentFilter}
+        />
+        
+        <div className="text-xs text-gray-500 mt-4">
+          Período ativo: <span className="font-medium text-blue-600">{currentFilter}</span>
+        </div>
+      </div>
 
       {/* Grid de cartões de métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
