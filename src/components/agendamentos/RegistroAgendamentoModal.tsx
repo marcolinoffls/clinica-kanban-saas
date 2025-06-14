@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -99,11 +100,16 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
     },
   });
 
+  // EFEITO 1: Reseta o estado geral do formulário ao abrir o modal ou mudar o contexto (edição/criação).
+  // Este hook cuida da inicialização dos campos, mas não do serviço, que depende de uma chamada assíncrona.
   useEffect(() => {
-    // Lógica para resetar o formulário com base nos dados recebidos
+    // Só executa a lógica se o modal estiver aberto.
+    if (!isOpen) return;
+
+    // Função interna para resetar o formulário com base no contexto.
     const resetForm = () => {
       if (agendamento) {
-        // Modo de edição de um agendamento existente
+        // MODO EDIÇÃO: Preenche o formulário com os dados do agendamento existente.
         form.reset({
           titulo: agendamento.titulo || '',
           descricao: agendamento.descricao || '',
@@ -113,7 +119,6 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
           cliente_id: agendamento.cliente_id || '',
           valor: agendamento.valor || 0,
           clinica_id: clinicaAtiva?.id || '',
-          // CORREÇÃO: Garantir que o ID do usuário correto é usado na edição.
           usuario_id: user?.id || '',
         });
         const clienteExistente = leads?.find(l => l.id === agendamento.cliente_id);
@@ -122,9 +127,9 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
         }
         setIsNovoCliente(false);
       } else if (lead) {
-        // Modo de criação a partir do chat com um lead pré-selecionado
+        // MODO CRIAÇÃO (via Lead): Preenche o cliente e prepara para um novo agendamento.
         form.reset({
-          titulo: '',
+          titulo: '', // O título será definido no outro useEffect.
           descricao: '',
           data_inicio: selectedDate || new Date(),
           data_fim: selectedDate || new Date(),
@@ -132,15 +137,14 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
           cliente_id: lead.id,
           valor: 0,
           clinica_id: clinicaAtiva?.id || '',
-          // CORREÇÃO: Usar o ID do usuário de autenticação.
           usuario_id: user?.id || '',
         });
         setClienteBuscaInput(lead.nome || "");
         setIsNovoCliente(false);
       } else {
-        // Modo de criação de um novo agendamento
+        // MODO CRIAÇÃO (padrão): Limpa o formulário para um novo agendamento.
         form.reset({
-          titulo: '',
+          titulo: '', // O título será definido no outro useEffect.
           descricao: '',
           data_inicio: selectedDate || new Date(),
           data_fim: selectedDate || new Date(),
@@ -148,20 +152,53 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
           cliente_id: '',
           valor: 0,
           clinica_id: clinicaAtiva?.id || '',
-          // CORREÇÃO: Usar o ID do usuário de autenticação.
           usuario_id: user?.id || '',
         });
         setClienteBuscaInput('');
         setIsNovoCliente(false);
       }
+      // Reseta o estado do seletor de serviço sempre que o contexto muda.
+      setServicoSelecionadoIdHook(null);
+      setModoServico('selecionar');
     };
 
-    if (isOpen) {
-      resetForm();
-    }
-    // CORREÇÃO: A dependência foi trocada de 'userProfile' para 'user',
-    // pois agora usamos 'user.id' para definir o 'usuario_id' do agendamento.
+    resetForm();
+    // Dependências que disparam o reset: mudança de contexto ou abertura do modal.
   }, [agendamento, lead, selectedDate, clinicaAtiva, user, form, leads, isOpen]);
+
+
+  // EFEITO 2: Gerencia a lógica do seletor de serviço de forma isolada.
+  // Reage ao carregamento da lista de serviços para definir um padrão ou encontrar um existente.
+  useEffect(() => {
+    // Não faz nada se o modal estiver fechado ou se os serviços ainda não foram carregados.
+    if (!isOpen || !servicos) return;
+
+    if (agendamento) {
+      // MODO EDIÇÃO: Procura o serviço que corresponde ao título salvo.
+      const servicoCorrespondente = servicos.find(s => s.nome_servico === agendamento.titulo);
+      if (servicoCorrespondente) {
+        // Se encontrou, define o ID para o <Select> e mantém o modo de seleção.
+        setServicoSelecionadoIdHook(servicoCorrespondente.id);
+        setModoServico('selecionar');
+      } else {
+        // Se não encontrou, significa que era um título digitado manualmente.
+        setServicoSelecionadoIdHook(null);
+        setModoServico('manual');
+      }
+    } else {
+      // MODO CRIAÇÃO: Define um serviço padrão para melhorar a experiência do usuário.
+      // A condição `!form.getValues('titulo')` evita sobreescrever um valor já existente.
+      if (servicos.length > 0 && !form.getValues('titulo')) {
+        const primeiroServico = servicos[0];
+        // Define o ID para o <Select> funcionar corretamente.
+        setServicoSelecionadoIdHook(primeiroServico.id);
+        // CORREÇÃO PRINCIPAL: Define o valor do campo 'titulo' no formulário.
+        form.setValue('titulo', primeiroServico.nome_servico, { shouldValidate: true });
+        console.log(`[EFFECT SERVIÇO] Serviço padrão definido: ${primeiroServico.nome_servico}`);
+      }
+    }
+  // Depende da lista de serviços e do contexto (aberto, edição/criação).
+  }, [isOpen, servicos, agendamento, form]);
 
   const onSubmit = async (data: AgendamentoFormData) => {
     try {
