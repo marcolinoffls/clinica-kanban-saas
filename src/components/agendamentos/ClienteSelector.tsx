@@ -67,11 +67,11 @@ export const ClienteSelector = ({
   // Garantir que leads seja sempre um array
   const leadsSeguro = Array.isArray(leads) ? leads : [];
 
-  // Filtrar leads para o Combobox
+  // Filtrar leads para o Combobox de forma segura, verificando se 'nome' existe
   const leadsFiltradosParaCombobox = clienteBuscaInput
     ? leadsSeguro.filter(lead =>
-        lead.nome.toLowerCase().includes(clienteBuscaInput.toLowerCase()) ||
-        lead.telefone?.includes(clienteBuscaInput)
+        (lead.nome && lead.nome.toLowerCase().includes(clienteBuscaInput.toLowerCase())) ||
+        (lead.telefone && lead.telefone.includes(clienteBuscaInput))
       )
     : leadsSeguro;
 
@@ -82,11 +82,12 @@ export const ClienteSelector = ({
     if (leadSelecionado) {
       form.setValue('cliente_id', leadSelecionado.id, { shouldValidate: true });
       form.clearErrors('cliente_id');
-      setClienteBuscaInput(leadSelecionado.nome);
+      // Define o input de busca com o nome do cliente ou uma string vazia se não houver nome
+      setClienteBuscaInput(leadSelecionado.nome || '');
       setRegistrandoNovoCliente(false);
       form.setValue('novo_cliente_nome', '');
       form.setValue('novo_cliente_telefone', '');
-      console.log(`[ClienteSelector] Cliente existente selecionado: ${leadSelecionado.nome}, ID: ${leadSelecionado.id}`);
+      console.log(`[ClienteSelector] Cliente existente selecionado: ${leadSelecionado.nome || 'Sem nome'}, ID: ${leadSelecionado.id}`);
     } else if (value.startsWith('criar_novo_cliente:')) {
       const nomeDigitado = value.substring('criar_novo_cliente:'.length);
       setRegistrandoNovoCliente(true);
@@ -158,7 +159,8 @@ export const ClienteSelector = ({
                       {leadsFiltradosParaCombobox.map((lead) => (
                         <CommandItem
                           key={lead.id}
-                          value={`${lead.nome} ${lead.telefone || ''} ${lead.id}`}
+                          // Garante que o valor usado para a busca interna do Command seja sempre uma string
+                          value={`${lead.nome || ''} ${lead.telefone || ''} ${lead.id}`}
                           onSelect={() => handleClienteSelect(lead.id)}
                         >
                           <Check 
@@ -167,7 +169,8 @@ export const ClienteSelector = ({
                               field.value === lead.id ? "opacity-100" : "opacity-0"
                             )}
                           />
-                          {lead.nome} {lead.telefone && `- ${lead.telefone}`}
+                          {/* Exibe um texto padrão caso o lead não tenha nome */}
+                          {lead.nome || 'Cliente sem nome'} {lead.telefone && `- ${lead.telefone}`}
                         </CommandItem>
                       ))}
                     </CommandGroup>

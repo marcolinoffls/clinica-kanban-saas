@@ -1,3 +1,4 @@
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -5,7 +6,7 @@ import { toast } from 'sonner';
 // Interface para representar um Lead, incluindo o novo campo ai_conversation_enabled
 export interface Lead {
   id: string; // ID único do lead no sistema
-  nome: string; // Nome completo do lead
+  nome?: string; // Nome completo do lead (agora opcional)
   telefone?: string; // Número de telefone para contato
   email?: string; // Email para contato
   clinica_id: string; // ID da clínica à qual o lead pertence
