@@ -88,7 +88,8 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
 
   // Carrega as estatísticas de leads sempre que a data ou a clínica mudar
   useEffect(() => {
-    if (clinicaId && startDate && endDate) {
+    // A condição foi ajustada para carregar os dados mesmo quando as datas são nulas (filtro "Máximo")
+    if (clinicaId) {
       const carregarStats = async () => {
         setLoadingStats(true);
         const stats = await buscarEstatisticasDeLeadsDaClinica(clinicaId, startDate, endDate);
@@ -101,7 +102,8 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
   }, [clinicaId, startDate, endDate]);
 
   // Função para lidar com a mudança do filtro de tempo
-  const handleFilterChange = (start: Date, end: Date, filterName: string) => {
+  // A assinatura da função foi alterada para aceitar datas nulas.
+  const handleFilterChange = (start: Date | null, end: Date | null, filterName:string) => {
     setStartDate(start);
     setEndDate(end);
     setCurrentFilter(filterName);
