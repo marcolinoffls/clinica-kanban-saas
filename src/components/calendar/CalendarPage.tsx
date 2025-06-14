@@ -1,11 +1,22 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Edit, Clock, User, MessageSquare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Edit, Clock, User, MessageSquare, Trash2 } from 'lucide-react';
 import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
-import { useFetchAgendamentos, AgendamentoFromDatabase } from '@/hooks/useAgendamentosData';
+import { useFetchAgendamentos, useDeleteAgendamento, AgendamentoFromDatabase } from '@/hooks/useAgendamentosData';
 import { useLeads } from '@/hooks/useLeadsData';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, isSameMonth, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
+import { AgendamentoStatus, AGENDAMENTO_STATUS_OPTIONS } from '@/constants/agendamentos';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 /**
  * Página de Agenda/Calendário
@@ -34,9 +45,13 @@ export const CalendarPage = () => {
   const [isAgendamentoModalOpen, setIsAgendamentoModalOpen] = useState(false);
   const [agendamentoParaEditar, setAgendamentoParaEditar] = useState<AgendamentoFromDatabase | null>(null);
 
-  // Buscar agendamentos reais do Supabase
+  // NOVO: Estado para controlar o diálogo de confirmação de exclusão
+  const [agendamentoParaDeletarId, setAgendamentoParaDeletarId] = useState<string | null>(null);
+
+  // Buscar agendamentos e instanciar a mutação de exclusão
   const { data: agendamentos = [], isLoading: loadingAgendamentos } = useFetchAgendamentos();
   const { data: leads = [] } = useLeads();
+  const deleteAgendamentoMutation = useDeleteAgendamento();
 
   // Função para navegar entre datas
   const navigateDate = (direction: 'prev' | 'next') => {
@@ -81,36 +96,32 @@ export const CalendarPage = () => {
     return currentDate.toLocaleDateString('pt-BR', options);
   };
 
-  // Função para obter cor do status
+  // CORREÇÃO e MELHORIA: A função foi atualizada para usar os valores de status
+  // em minúsculas do enum `AgendamentoStatus` e cobrir todos os casos.
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'CONFIRMADO':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'AGENDADO':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'REALIZADO':
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-      case 'CANCELADO':
-        return 'bg-red-100 text-red-800 border-red-200';
+      case AgendamentoStatus.CONFIRMADO:
+        return 'border-green-500';
+      case AgendamentoStatus.AGENDADO:
+        return 'border-blue-500';
+      case AgendamentoStatus.REALIZADO:
+        return 'border-purple-500';
+      case AgendamentoStatus.PAGO:
+        return 'border-emerald-500';
+      case AgendamentoStatus.CANCELADO:
+        return 'border-red-500';
+      case AgendamentoStatus.NAO_COMPARECEU:
+        return 'border-yellow-500';
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'border-gray-300';
     }
   };
 
-  // Função para obter texto do status
+  // CORREÇÃO e MELHORIA: A função agora busca o texto correspondente na lista
+  // de opções, tornando-a mais robusta e centralizada.
   const getStatusText = (status: string) => {
-    switch (status) {
-      case 'CONFIRMADO':
-        return 'Confirmado';
-      case 'AGENDADO':
-        return 'Agendado';
-      case 'REALIZADO':
-        return 'Realizado';
-      case 'CANCELADO':
-        return 'Cancelado';
-      default:
-        return status;
-    }
+    const statusOption = AGENDAMENTO_STATUS_OPTIONS.find(opt => opt.value === status);
+    return statusOption?.label || status;
   };
 
   // Função para obter nome do cliente pelo ID
@@ -143,6 +154,18 @@ export const CalendarPage = () => {
     setIsAgendamentoModalOpen(false);
   };
 
+  // NOVO: Funções para controlar o diálogo de exclusão
+  const handleOpenDeleteDialog = (id: string) => {
+    setAgendamentoParaDeletarId(id);
+  };
+
+  const handleConfirmDelete = () => {
+    if (agendamentoParaDeletarId) {
+      deleteAgendamentoMutation.mutate(agendamentoParaDeletarId);
+      setAgendamentoParaDeletarId(null); // Fecha o diálogo após a exclusão
+    }
+  };
+
   // Função para abrir chat do cliente
   const handleOpenChat = (clienteId: string) => {
     navigate(`/chat?leadId=${clienteId}`);
@@ -167,24 +190,25 @@ export const CalendarPage = () => {
     }
   });
 
-  // Renderizar card de agendamento compacto
+  // MELHORIA: O card do agendamento foi redesenhado para ser mais compacto.
+  // NOVO: Adicionado botão de exclusão com ícone de lixeira.
   const renderAgendamentoCard = (agendamento: AgendamentoFromDatabase) => (
     <div
       key={agendamento.id}
-      className={`p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-md transition-shadow ${getStatusColor(agendamento.status)}`}
+      className={`bg-white p-3 rounded-lg border-l-4 shadow-sm cursor-pointer hover:shadow-lg transition-shadow ${getStatusColor(agendamento.status)}`}
       onClick={() => handleEditAgendamento(agendamento)}
     >
       <div className="flex justify-between items-start">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <User size={14} className="text-gray-600 flex-shrink-0" />
-            <h4 className="font-medium text-gray-900 truncate text-sm">
+            <h4 className="font-semibold text-gray-800 truncate text-sm">
               {getClienteNome(agendamento.cliente_id)}
             </h4>
           </div>
           
-          <p className="text-xs text-gray-600 mb-1 truncate">
-            <strong>Serviço:</strong> {agendamento.titulo}
+          <p className="text-xs text-gray-600 mb-2 truncate">
+            {agendamento.titulo}
           </p>
           
           <div className="flex items-center gap-3 text-xs text-gray-500">
@@ -193,36 +217,47 @@ export const CalendarPage = () => {
               {format(new Date(agendamento.data_inicio), "dd/MM 'às' HH:mm", { locale: ptBR })}
             </span>
             {agendamento.valor && agendamento.valor > 0 && (
-              <span>R$ {agendamento.valor.toFixed(2)}</span>
+              <span className="font-medium">R$ {agendamento.valor.toFixed(2)}</span>
             )}
           </div>
         </div>
         
-        <div className="flex flex-col items-end gap-1 ml-2">
-          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(agendamento.status)}`}>
+        <div className="flex flex-col items-end justify-between h-full gap-2 ml-2">
+          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700`}>
             {getStatusText(agendamento.status)}
           </span>
           
           <div className="flex gap-1">
             <button
               onClick={(e) => {
-                e.stopPropagation();
+                e.stopPropagation(); // Evita abrir o modal de edição
                 handleOpenChat(agendamento.cliente_id);
               }}
-              className="p-1 hover:bg-blue-100 rounded text-blue-600 hover:text-blue-700"
+              className="p-1.5 hover:bg-blue-100 rounded-full text-blue-600 hover:text-blue-700 transition-colors"
               title="Enviar mensagem"
             >
-              <MessageSquare size={12} />
+              <MessageSquare size={14} />
             </button>
             <button
               onClick={(e) => {
-                e.stopPropagation();
+                e.stopPropagation(); // Evita abrir o modal de edição
                 handleEditAgendamento(agendamento);
               }}
-              className="p-1 hover:bg-gray-200 rounded text-gray-500 hover:text-gray-700"
+              className="p-1.5 hover:bg-gray-200 rounded-full text-gray-500 hover:text-gray-700 transition-colors"
               title="Editar agendamento"
             >
-              <Edit size={12} />
+              <Edit size={14} />
+            </button>
+            {/* NOVO: Botão de exclusão */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // Evita abrir o modal de edição
+                handleOpenDeleteDialog(agendamento.id);
+              }}
+              className="p-1.5 hover:bg-red-100 rounded-full text-red-600 hover:text-red-700 transition-colors"
+              title="Excluir agendamento"
+            >
+              <Trash2 size={14} />
             </button>
           </div>
         </div>
@@ -413,7 +448,9 @@ export const CalendarPage = () => {
                       </button>
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    // MELHORIA: Alterado de `space-y-2` para uma grade responsiva
+                    // para usar melhor o espaço horizontal da tela.
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                       {agendamentosFiltrados.map(renderAgendamentoCard)}
                     </div>
                   )}
@@ -430,22 +467,23 @@ export const CalendarPage = () => {
               <h4 className="text-sm font-medium text-gray-600">Total</h4>
               <p className="text-xl font-bold text-blue-600">{agendamentos.length}</p>
             </div>
+            {/* CORREÇÃO: Os status foram atualizados para minúsculas */}
             <div className="bg-gray-50 rounded-lg p-3 text-center">
               <h4 className="text-sm font-medium text-gray-600">Agendados</h4>
               <p className="text-xl font-bold text-yellow-600">
-                {agendamentos.filter(a => a.status === 'AGENDADO').length}
+                {agendamentos.filter(a => a.status === AgendamentoStatus.AGENDADO).length}
               </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-3 text-center">
               <h4 className="text-sm font-medium text-gray-600">Confirmados</h4>
               <p className="text-xl font-bold text-green-600">
-                {agendamentos.filter(a => a.status === 'CONFIRMADO').length}
+                {agendamentos.filter(a => a.status === AgendamentoStatus.CONFIRMADO).length}
               </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-3 text-center">
               <h4 className="text-sm font-medium text-gray-600">Realizados</h4>
               <p className="text-xl font-bold text-purple-600">
-                {agendamentos.filter(a => a.status === 'REALIZADO').length}
+                {agendamentos.filter(a => a.status === AgendamentoStatus.REALIZADO).length}
               </p>
             </div>
           </div>
@@ -458,6 +496,28 @@ export const CalendarPage = () => {
         onClose={handleCloseModal}
         agendamento={agendamentoParaEditar}
       />
+
+      {/* NOVO: Diálogo de confirmação para exclusão de agendamento */}
+      <AlertDialog open={!!agendamentoParaDeletarId} onOpenChange={(open) => !open && setAgendamentoParaDeletarId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Isso excluirá permanentemente o agendamento do sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setAgendamentoParaDeletarId(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteAgendamentoMutation.isPending}
+            >
+              {deleteAgendamentoMutation.isPending ? 'Excluindo...' : 'Confirmar Exclusão'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
