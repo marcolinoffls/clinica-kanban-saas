@@ -1,4 +1,3 @@
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -18,7 +17,8 @@ import { toast } from 'sonner';
 
 export interface Lead {
   id: string;
-  nome: string;
+  // CORREÇÃO: O nome agora pode ser nulo para acomodar leads de fontes como o Instagram
+  nome: string | null;
   telefone: string | null;
   email: string | null;
   etapa_kanban_id: string | null;
@@ -36,7 +36,8 @@ export interface Lead {
 }
 
 export interface CreateLeadData {
-  nome: string;
+  // CORREÇÃO: O nome agora é opcional na criação do lead
+  nome?: string;
   telefone?: string;
   email?: string;
   etapa_kanban_id?: string;

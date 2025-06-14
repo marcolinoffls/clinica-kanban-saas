@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { User, Phone, Mail, Calendar as CalendarIconLucide, FileText, ChevronDown, ChevronRight, History } from 'lucide-react'; // Renomeado Calendar para evitar conflito
 // import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Não usado diretamente aqui
@@ -87,13 +88,15 @@ export const LeadInfoSidebar = ({
         <div className="flex items-center gap-3">
           {/* Usar o componente Avatar para exibir a imagem do contato */}
           <Avatar className="w-12 h-12">
-            <AvatarImage src={lead.avatar_url || undefined} alt={`Avatar de ${lead.nome}`} />
+            <AvatarImage src={lead.avatar_url || undefined} alt={`Avatar de ${lead.nome || 'Lead'}`} />
             <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold text-lg">
-              {lead.nome.charAt(0).toUpperCase()}
+              {/* CORREÇÃO: Adicionado fallback para quando o nome for nulo */}
+              {lead.nome ? lead.nome.charAt(0).toUpperCase() : '?'}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-gray-900 truncate">{lead.nome}</h3>
+            {/* CORREÇÃO: Adicionado fallback para quando o nome for nulo */}
+            <h3 className="font-semibold text-gray-900 truncate">{lead.nome || 'Lead sem nome'}</h3>
             <p className="text-sm text-gray-500">Lead ativo</p> {/* Considerar tornar isso dinâmico se houver status */}
           </div>
         </div>
