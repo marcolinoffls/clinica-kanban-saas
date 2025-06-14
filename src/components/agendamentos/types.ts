@@ -1,22 +1,15 @@
-
 import * as z from 'zod';
+import { AgendamentoStatus } from '@/constants/agendamentos';
 
 /**
  * Tipos e schemas relacionados aos agendamentos
  * 
  * Este arquivo centraliza as definições de tipos para agendamentos,
  * incluindo validações com Zod e enums de status.
+ * 
+ * O enum `AgendamentoStatus` é importado de `@/constants/agendamentos`
+ * para manter uma única fonte da verdade no sistema.
  */
-
-// Enum para status de agendamento
-export enum AgendamentoStatus {
-  AGENDADO = 'AGENDADO',
-  CONFIRMADO = 'CONFIRMADO',
-  REALIZADO = 'REALIZADO',
-  PAGO = 'PAGO',
-  CANCELADO = 'CANCELADO',
-  NAO_COMPARECEU = 'NAO_COMPARECEU',
-}
 
 // Schema de validação com Zod para formulário de agendamento
 export const agendamentoFormSchema = z.object({

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -41,7 +40,9 @@ const agendamentoSchema = z.object({
   descricao: z.string().optional(),
   data_inicio: z.date({ required_error: 'Data de início é obrigatória' }),
   data_fim: z.date({ required_error: 'Data de fim é obrigatória' }),
-  status: z.enum(['agendado', 'confirmado', 'realizado', 'cancelado']),
+  // CORREÇÃO: O enum de status foi atualizado para incluir todos os valores
+  // possíveis e usar o formato em minúsculas, alinhado com o banco de dados.
+  status: z.enum(['agendado', 'confirmado', 'realizado', 'cancelado', 'pago', 'nao_compareceu']),
   cliente_id: z.string().min(1, 'Cliente é obrigatório'),
   valor: z.number().optional(),
   clinica_id: z.string().min(1, 'Clínica é obrigatória'),
@@ -115,7 +116,8 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
           descricao: agendamento.descricao || '',
           data_inicio: agendamento.data_inicio ? new Date(agendamento.data_inicio) : selectedDate || new Date(),
           data_fim: agendamento.data_fim ? new Date(agendamento.data_fim) : selectedDate || new Date(),
-          status: agendamento.status as 'agendado' | 'confirmado' | 'realizado' | 'cancelado',
+          // CORREÇÃO: A tipagem foi expandida para incluir todos os status possíveis.
+          status: agendamento.status as 'agendado' | 'confirmado' | 'realizado' | 'cancelado' | 'pago' | 'nao_compareceu',
           cliente_id: agendamento.cliente_id || '',
           valor: agendamento.valor || 0,
           clinica_id: clinicaAtiva?.id || '',

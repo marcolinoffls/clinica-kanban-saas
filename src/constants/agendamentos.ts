@@ -1,10 +1,26 @@
+
+/**
+ * src/constants/agendamentos.ts
+ * 
+ * Centraliza as constantes relacionadas a agendamentos.
+ * 
+ * O que faz:
+ * - Define o enum `AgendamentoStatus` com os possíveis status de um agendamento.
+ *   - OS VALORES FORAM PADRONIZADOS PARA MINÚSCULAS para consistência com o banco de dados e validações.
+ * - Fornece `AGENDAMENTO_STATUS_OPTIONS`, uma lista de objetos para popular seletores de status na UI.
+ * 
+ * Onde é usado:
+ * - `RegistroAgendamentoModal.tsx` para o seletor de status.
+ * - `types.ts` para validação de formulário.
+ * - `useAgendamentosData.ts` para tipagem de dados.
+ */
 export enum AgendamentoStatus {
-  AGENDADO = 'AGENDADO',
-  CONFIRMADO = 'CONFIRMADO',
-  REALIZADO = 'REALIZADO',
-  PAGO = 'PAGO',
-  CANCELADO = 'CANCELADO',
-  NAO_COMPARECEU = 'NAO_COMPARECEU',
+  AGENDADO = 'agendado',
+  CONFIRMADO = 'confirmado',
+  REALIZADO = 'realizado',
+  PAGO = 'pago',
+  CANCELADO = 'cancelado',
+  NAO_COMPARECEU = 'nao_compareceu',
 }
 
 export const AGENDAMENTO_STATUS_OPTIONS = [
