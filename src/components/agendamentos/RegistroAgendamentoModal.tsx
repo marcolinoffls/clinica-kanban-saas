@@ -33,6 +33,7 @@ import { ServicoSelector } from './ServicoSelector';
 import { AGENDAMENTO_STATUS_OPTIONS } from '@/constants/agendamentos';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { DateTimePicker } from '@/components/ui/DateTimePicker';
+import { addMinutes } from 'date-fns';
 
 // Esquema de validação
 const agendamentoSchema = z.object({
@@ -351,7 +352,25 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
                     <FormItem>
                       <FormLabel>Data de Início *</FormLabel>
                       <FormControl>
-                        <DateTimePicker value={field.value} onChange={field.onChange} />
+                        {/*
+                         * LÓGICA DE ATUALIZAÇÃO AUTOMÁTICA DA DATA DE FIM
+                         * O `onChange` do DateTimePicker foi customizado.
+                         * 1. Ele chama o `field.onChange(date)` original para atualizar o estado do formulário para `data_inicio`.
+                         * 2. Se a data for válida, ele calcula uma nova data de fim (30 minutos após o início)
+                         *    e atualiza o campo `data_fim` usando `form.setValue`.
+                         *
+                         * Isso facilita o preenchimento, mas o usuário ainda pode alterar a data de fim manualmente.
+                         */}
+                        <DateTimePicker
+                          value={field.value}
+                          onChange={(date) => {
+                            field.onChange(date); // Atualiza o campo de início
+                            if (date) {
+                              const novaDataFim = addMinutes(date, 30);
+                              form.setValue('data_fim', novaDataFim, { shouldValidate: true });
+                            }
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
