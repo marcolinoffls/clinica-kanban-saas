@@ -294,6 +294,8 @@ export type Database = {
           evolution_instance_name: string | null
           id: string
           instagram_user_handle: string | null
+          instagram_webhook_type: string | null
+          instagram_webhook_url: string | null
           integracao_instance_id: string | null
           nome: string
           plano_contratado: string | null
@@ -329,6 +331,8 @@ export type Database = {
           evolution_instance_name?: string | null
           id?: string
           instagram_user_handle?: string | null
+          instagram_webhook_type?: string | null
+          instagram_webhook_url?: string | null
           integracao_instance_id?: string | null
           nome: string
           plano_contratado?: string | null
@@ -364,6 +368,8 @@ export type Database = {
           evolution_instance_name?: string | null
           id?: string
           instagram_user_handle?: string | null
+          instagram_webhook_type?: string | null
+          instagram_webhook_url?: string | null
           integracao_instance_id?: string | null
           nome?: string
           plano_contratado?: string | null
