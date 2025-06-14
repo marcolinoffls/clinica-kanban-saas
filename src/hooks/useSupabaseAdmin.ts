@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -428,24 +429,24 @@ export const useSupabaseAdmin = () => {
       const { count: leadsDeAnuncios, error: adsError } = await adsQuery;
       if (adsError) throw adsError;
 
-      // Outros leads (onde o campo 'anuncio' é nulo)
-      let otherQuery = supabase
+      // Total de leads no período (incluindo de anúncios)
+      let totalQuery = supabase
         .from('leads')
         .select('id', { count: 'exact' })
-        .eq('clinica_id', clinicaId)
-        .is('anuncio', null);
+        .eq('clinica_id', clinicaId);
 
       if (startDate && endDate) {
-        otherQuery = otherQuery
+        totalQuery = totalQuery
           .gte('created_at', startDate.toISOString())
           .lte('created_at', endDate.toISOString());
       }
-      const { count: outrosLeads, error: otherError } = await otherQuery;
-      if (otherError) throw otherError;
+      const { count: totalLeads, error: totalError } = await totalQuery;
+      if (totalError) throw totalError;
 
       const stats = {
         leadsDeAnuncios: leadsDeAnuncios || 0,
-        outrosLeads: outrosLeads || 0,
+        // A métrica de 'outrosLeads' foi substituída por 'totalLeads' para englobar todos os leads.
+        totalLeads: totalLeads || 0,
       };
 
       console.log('📈 Estatísticas de leads da clínica carregadas:', stats);
@@ -455,7 +456,8 @@ export const useSupabaseAdmin = () => {
       console.error('Erro ao buscar estatísticas de leads da clínica:', error);
       return {
         leadsDeAnuncios: 0,
-        outrosLeads: 0,
+        // O retorno em caso de erro também foi atualizado.
+        totalLeads: 0,
       };
     }
   };

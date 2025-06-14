@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
  * Componente que exibe cartões de estatísticas da clínica
  * 
  * Mostra métricas importantes como:
- * - Número de leads de anúncios e outros leads (com filtro de tempo)
+ * - Número de leads de anúncios e total de leads (com filtro de tempo)
  * - Tempo médio de resposta
  * - Status da integração Evolution
  */
@@ -16,7 +16,8 @@ interface ClinicStatsCardsProps {
   clinica: any;
   leadsStats: {
     leadsDeAnuncios: number;
-    outrosLeads: number;
+    // A propriedade foi alterada de 'outrosLeads' para 'totalLeads' para refletir a nova métrica.
+    totalLeads: number;
   };
   loadingStats: boolean;
 }
@@ -56,14 +57,16 @@ export const ClinicStatsCards = ({ clinica, leadsStats, loadingStats }: ClinicSt
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Outros Leads</CardTitle>
+          {/* O título do card foi alterado de "Outros Leads" para "Total de Leads". */}
+          <CardTitle className="text-sm font-medium">Total de Leads</CardTitle>
           <Users className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           {loadingStats ? (
              <div className="h-7 w-12 bg-gray-200 rounded animate-pulse"></div>
           ) : (
-            <div className="text-2xl font-bold">{leadsStats.outrosLeads}</div>
+            // O valor exibido agora é 'totalLeads' em vez de 'outrosLeads'.
+            <div className="text-2xl font-bold">{leadsStats.totalLeads}</div>
           )}
           <p className="text-xs text-muted-foreground">
             No período selecionado

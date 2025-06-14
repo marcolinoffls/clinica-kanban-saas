@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -52,7 +53,8 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
   const [currentFilter, setCurrentFilter] = useState('Últimos 30 Dias');
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
-  const [leadStats, setLeadStats] = useState({ leadsDeAnuncios: 0, outrosLeads: 0 });
+  // O estado foi atualizado para usar 'totalLeads' em vez de 'outrosLeads' para corresponder à nova lógica.
+  const [leadStats, setLeadStats] = useState({ leadsDeAnuncios: 0, totalLeads: 0 });
   const [loadingStats, setLoadingStats] = useState(true);
 
   // Carregar dados da clínica ao inicializar
@@ -90,6 +92,7 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
       const carregarStats = async () => {
         setLoadingStats(true);
         const stats = await buscarEstatisticasDeLeadsDaClinica(clinicaId, startDate, endDate);
+        // O estado é preenchido com a resposta do hook, que agora contém 'totalLeads'.
         setLeadStats(stats);
         setLoadingStats(false);
       };
