@@ -67,13 +67,17 @@ export const ContactsFilters: React.FC<ContactsFiltersProps> = ({
             <label className="text-sm font-medium">Tag</label>
             <Select 
               value={filters.tag} 
-              onValueChange={(value) => setFilters(prev => ({ ...prev, tag: value }))}
+              onValueChange={(value) => setFilters(prev => ({ ...prev, tag: value === 'all-tags' ? '' : value }))}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione uma tag" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas as tags</SelectItem>
+                {/* 
+                  * O item para limpar o filtro não pode ter um valor vazio.
+                  * Usamos 'all-tags' e o onValueChange trata isso para limpar o estado.
+                  */}
+                <SelectItem value="all-tags">Todas as tags</SelectItem>
                 {tags.map((tag) => (
                   <SelectItem key={tag.id} value={tag.id}>
                     <div className="flex items-center gap-2">
@@ -94,14 +98,15 @@ export const ContactsFilters: React.FC<ContactsFiltersProps> = ({
             <label className="text-sm font-medium">Origem</label>
             <Select 
               value={filters.origem} 
-              onValueChange={(value) => setFilters(prev => ({ ...prev, origem: value }))}
+              onValueChange={(value) => setFilters(prev => ({ ...prev, origem: value === 'all-origens' ? '' : value }))}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione uma origem" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas as origens</SelectItem>
-                {uniqueOrigens.map((origem) => (
+                <SelectItem value="all-origens">Todas as origens</SelectItem>
+                {/* Filtramos com .filter(Boolean) para garantir que não haja valores vazios que quebrem o componente SelectItem */}
+                {uniqueOrigens.filter(Boolean).map((origem) => (
                   <SelectItem key={origem} value={origem}>
                     {origem}
                   </SelectItem>
@@ -115,14 +120,15 @@ export const ContactsFilters: React.FC<ContactsFiltersProps> = ({
             <label className="text-sm font-medium">Serviço de Interesse</label>
             <Select 
               value={filters.servico} 
-              onValueChange={(value) => setFilters(prev => ({ ...prev, servico: value }))}
+              onValueChange={(value) => setFilters(prev => ({ ...prev, servico: value === 'all-servicos' ? '' : value }))}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione um serviço" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os serviços</SelectItem>
-                {uniqueServicos.map((servico) => (
+                <SelectItem value="all-servicos">Todos os serviços</SelectItem>
+                {/* Filtramos com .filter(Boolean) para garantir que não haja valores vazios que quebrem o componente SelectItem */}
+                {uniqueServicos.filter(Boolean).map((servico) => (
                   <SelectItem key={servico} value={servico}>
                     {servico}
                   </SelectItem>
