@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Edit, Clock, User, MessageSquare, Trash2 } from 'lucide-react';
 import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
-import { useFetchAgendamentos, useDeleteAgendamento, AgendamentoFromDatabase } from '@/hooks/useAgendamentosData';
+import { useFetchAgendamentos, useDeleteAgendamento, useUpdateAgendamento, AgendamentoFromDatabase } from '@/hooks/useAgendamentosData';
+import { AgendamentoStatusActions } from '@/components/agendamentos/AgendamentoStatusActions';
 import { useLeads } from '@/hooks/useLeadsData';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, isSameMonth, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -48,10 +49,17 @@ export const CalendarPage = () => {
   // NOVO: Estado para controlar o diálogo de confirmação de exclusão
   const [agendamentoParaDeletarId, setAgendamentoParaDeletarId] = useState<string | null>(null);
 
-  // Buscar agendamentos e instanciar a mutação de exclusão
+  // NOVO: Estado para controlar o diálogo de confirmação de MUDANÇA DE STATUS
+  const [statusUpdateConfirmation, setStatusUpdateConfirmation] = useState<{
+    agendamento: AgendamentoFromDatabase;
+    newStatus: AgendamentoStatus;
+  } | null>(null);
+
+  // Buscar agendamentos e instanciar as mutações de delete e update
   const { data: agendamentos = [], isLoading: loadingAgendamentos } = useFetchAgendamentos();
   const { data: leads = [] } = useLeads();
   const deleteAgendamentoMutation = useDeleteAgendamento();
+  const updateAgendamentoMutation = useUpdateAgendamento(); // NOVO
 
   // Função para navegar entre datas
   const navigateDate = (direction: 'prev' | 'next') => {
@@ -166,6 +174,29 @@ export const CalendarPage = () => {
     }
   };
 
+  // NOVO: Funções para controlar a mudança de status e seu diálogo de confirmação
+  const handleStatusChange = (agendamento: AgendamentoFromDatabase, newStatus: AgendamentoStatus) => {
+    setStatusUpdateConfirmation({ agendamento, newStatus });
+  };
+
+  const handleConfirmStatusUpdate = () => {
+    if (statusUpdateConfirmation) {
+      updateAgendamentoMutation.mutate({
+        id: statusUpdateConfirmation.agendamento.id,
+        status: statusUpdateConfirmation.newStatus,
+      });
+      setStatusUpdateConfirmation(null); // Fecha o diálogo após a confirmação
+    }
+  };
+  
+  // NOVO: Função para gerar a descrição do diálogo de confirmação de status
+  const getStatusChangeDescription = () => {
+    if (!statusUpdateConfirmation) return '';
+    const oldStatusLabel = getStatusText(statusUpdateConfirmation.agendamento.status).toLowerCase();
+    const newStatusLabel = getStatusText(statusUpdateConfirmation.newStatus).toLowerCase();
+    return `Você tem certeza que deseja alterar o status de "${oldStatusLabel}" para "${newStatusLabel}"?`;
+  };
+
   // Função para abrir chat do cliente
   const handleOpenChat = (clienteId: string) => {
     navigate(`/chat?leadId=${clienteId}`);
@@ -190,77 +221,89 @@ export const CalendarPage = () => {
     }
   });
 
-  // MELHORIA: O card do agendamento foi redesenhado para ser mais compacto.
-  // NOVO: Adicionado botão de exclusão com ícone de lixeira.
+  // MELHORIA: O card do agendamento foi reestruturado para acomodar as ações de status.
   const renderAgendamentoCard = (agendamento: AgendamentoFromDatabase) => (
     <div
       key={agendamento.id}
-      className={`bg-white p-3 rounded-lg border-l-4 shadow-sm cursor-pointer hover:shadow-lg transition-shadow ${getStatusColor(agendamento.status)}`}
-      onClick={() => handleEditAgendamento(agendamento)}
+      className={`bg-white p-3 rounded-lg border-l-4 shadow-sm flex flex-col justify-between ${getStatusColor(agendamento.status)}`}
     >
-      <div className="flex justify-between items-start">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <User size={14} className="text-gray-600 flex-shrink-0" />
-            <h4 className="font-semibold text-gray-800 truncate text-sm">
-              {getClienteNome(agendamento.cliente_id)}
-            </h4>
+      {/* O conteúdo principal do card ainda abre a edição ao ser clicado */}
+      <div
+        className="cursor-pointer"
+        onClick={() => handleEditAgendamento(agendamento)}
+      >
+        <div className="flex justify-between items-start">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <User size={14} className="text-gray-600 flex-shrink-0" />
+              <h4 className="font-semibold text-gray-800 truncate text-sm">
+                {getClienteNome(agendamento.cliente_id)}
+              </h4>
+            </div>
+            
+            <p className="text-xs text-gray-600 mb-2 truncate">
+              {agendamento.titulo}
+            </p>
+            
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span className="flex items-center gap-1">
+                <Clock size={12} />
+                {format(new Date(agendamento.data_inicio), "dd/MM 'às' HH:mm", { locale: ptBR })}
+              </span>
+              {agendamento.valor && agendamento.valor > 0 && (
+                <span className="font-medium">R$ {agendamento.valor.toFixed(2)}</span>
+              )}
+            </div>
           </div>
           
-          <p className="text-xs text-gray-600 mb-2 truncate">
-            {agendamento.titulo}
-          </p>
-          
-          <div className="flex items-center gap-3 text-xs text-gray-500">
-            <span className="flex items-center gap-1">
-              <Clock size={12} />
-              {format(new Date(agendamento.data_inicio), "dd/MM 'às' HH:mm", { locale: ptBR })}
+          <div className="flex flex-col items-end justify-between h-full gap-2 ml-2">
+            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700`}>
+              {getStatusText(agendamento.status)}
             </span>
-            {agendamento.valor && agendamento.valor > 0 && (
-              <span className="font-medium">R$ {agendamento.valor.toFixed(2)}</span>
-            )}
+            
+            <div className="flex gap-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // Evita abrir o modal de edição
+                  handleOpenChat(agendamento.cliente_id);
+                }}
+                className="p-1.5 hover:bg-blue-100 rounded-full text-blue-600 hover:text-blue-700 transition-colors"
+                title="Enviar mensagem"
+              >
+                <MessageSquare size={14} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // Evita abrir o modal de edição
+                  handleEditAgendamento(agendamento);
+                }}
+                className="p-1.5 hover:bg-gray-200 rounded-full text-gray-500 hover:text-gray-700 transition-colors"
+                title="Editar agendamento"
+              >
+                <Edit size={14} />
+              </button>
+              {/* Botão de exclusão */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // Evita abrir o modal de edição
+                  handleOpenDeleteDialog(agendamento.id);
+                }}
+                className="p-1.5 hover:bg-red-100 rounded-full text-red-600 hover:text-red-700 transition-colors"
+                title="Excluir agendamento"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
           </div>
         </div>
-        
-        <div className="flex flex-col items-end justify-between h-full gap-2 ml-2">
-          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700`}>
-            {getStatusText(agendamento.status)}
-          </span>
-          
-          <div className="flex gap-1">
-            <button
-              onClick={(e) => {
-                e.stopPropagation(); // Evita abrir o modal de edição
-                handleOpenChat(agendamento.cliente_id);
-              }}
-              className="p-1.5 hover:bg-blue-100 rounded-full text-blue-600 hover:text-blue-700 transition-colors"
-              title="Enviar mensagem"
-            >
-              <MessageSquare size={14} />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation(); // Evita abrir o modal de edição
-                handleEditAgendamento(agendamento);
-              }}
-              className="p-1.5 hover:bg-gray-200 rounded-full text-gray-500 hover:text-gray-700 transition-colors"
-              title="Editar agendamento"
-            >
-              <Edit size={14} />
-            </button>
-            {/* NOVO: Botão de exclusão */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation(); // Evita abrir o modal de edição
-                handleOpenDeleteDialog(agendamento.id);
-              }}
-              className="p-1.5 hover:bg-red-100 rounded-full text-red-600 hover:text-red-700 transition-colors"
-              title="Excluir agendamento"
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
-        </div>
+      </div>
+      
+      {/* NOVO: Seção separada para as ações de status, com uma linha divisória. */}
+      <div className="mt-3 pt-3 border-t border-gray-200">
+        <AgendamentoStatusActions
+          agendamento={agendamento}
+          onStatusChange={(newStatus) => handleStatusChange(agendamento, newStatus)}
+        />
       </div>
     </div>
   );
@@ -514,6 +557,27 @@ export const CalendarPage = () => {
               disabled={deleteAgendamentoMutation.isPending}
             >
               {deleteAgendamentoMutation.isPending ? 'Excluindo...' : 'Confirmar Exclusão'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* NOVO: Diálogo de confirmação para MUDANÇA DE STATUS de agendamento */}
+      <AlertDialog open={!!statusUpdateConfirmation} onOpenChange={(open) => !open && setStatusUpdateConfirmation(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Mudança de Status</AlertDialogTitle>
+            <AlertDialogDescription>
+              {getStatusChangeDescription()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setStatusUpdateConfirmation(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmStatusUpdate}
+              disabled={updateAgendamentoMutation.isPending}
+            >
+              {updateAgendamentoMutation.isPending ? 'Atualizando...' : 'Confirmar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
