@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -156,6 +157,23 @@ const ClientsPage = () => {
    */
   const handleAddLead = () => {
     navigate('/pipeline');
+  };
+
+  /**
+   * Limpa todos os filtros aplicados e a busca,
+   * retornando a lista ao seu estado inicial.
+   * Também fecha o popover de filtros.
+   */
+  const handleClearFilters = () => {
+    setFilters({
+      tag: '',
+      origem: '',
+      servico: '',
+      dataInicio: undefined,
+      dataFim: undefined,
+    });
+    setSearchQuery('');
+    setIsFilterOpen(false);
   };
 
   const handleEditLead = (lead: Lead) => {
