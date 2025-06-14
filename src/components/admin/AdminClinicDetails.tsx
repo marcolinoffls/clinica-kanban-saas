@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,21 +5,20 @@ import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
 import { useToast } from '@/hooks/use-toast';
 import { ClinicStatsCards } from './clinic-details/ClinicStatsCards';
 import { ClinicBasicInfo } from './clinic-details/ClinicBasicInfo';
-import { AdminPromptSection } from './clinic-details/AdminPromptSection';
 import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
 import { InstagramSettings } from './clinic-details/InstagramSettings';
-import { TimeRangeFilter } from './TimeRangeFilter';
+import { TimeRangeFilter } from '../TimeRangeFilter';
 import { endOfDay, startOfDay, subDays } from 'date-fns';
+import { AdminAISettings } from './clinic-details/AdminAISettings';
 
 /**
  * Componente principal de detalhes da clínica no painel administrativo
  * 
  * Coordena todos os componentes de detalhes da clínica:
- * - Estatísticas e métricas da clínica
- * - Informações básicas de contato
- * - Configuração do prompt administrativo
- * - Configurações da Evolution API
- * - Configurações do Instagram
+ * - Estatísticas e métricas
+ * - Informações básicas
+ * - Configurações da Evolution API e Instagram
+ * - Configurações completas da Inteligência Artificial
  * 
  * Este componente foi refatorado em componentes menores para
  * melhor organização e manutenibilidade do código.
@@ -34,7 +32,6 @@ interface AdminClinicDetailsProps {
 export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProps) => {
   const {
     buscarDetalhesClinica,
-    atualizarPromptClinica,
     atualizarNomeInstanciaEvolution,
     atualizarApiKeyEvolution,
     atualizarInstagramUserHandle,
@@ -45,9 +42,9 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
 
   const [clinica, setClinica] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [savingApiKey, setSavingApiKey] = useState(false);
   const [savingInstagram, setSavingInstagram] = useState(false);
+  const [savingEvolutionInstance, setSavingEvolutionInstance] = useState(false);
 
   // Estados para o filtro de tempo e estatísticas de leads
   const [currentFilter, setCurrentFilter] = useState('Últimos 30 Dias');
@@ -109,32 +106,10 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
     setCurrentFilter(filterName);
   };
 
-  // Função para salvar o prompt administrativo
-  const salvarPrompt = async (prompt: string) => {
-    try {
-      setSaving(true);
-      await atualizarPromptClinica(clinicaId, prompt);
-      
-      toast({
-        title: "Sucesso",
-        description: "Prompt administrativo salvo com sucesso.",
-      });
-    } catch (error) {
-      console.error('Erro ao salvar prompt:', error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível salvar o prompt administrativo.",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   // Função para salvar o nome da instância Evolution
   const salvarEvolutionInstanceName = async (instanceName: string) => {
     try {
-      setSaving(true);
+      setSavingEvolutionInstance(true);
       await atualizarNomeInstanciaEvolution(clinicaId, instanceName);
       
       toast({
@@ -149,7 +124,7 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
         variant: "destructive",
       });
     } finally {
-      setSaving(false);
+      setSavingEvolutionInstance(false);
     }
   };
 
@@ -227,9 +202,9 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto space-y-8">
         {/* Header com botão de voltar */}
-        <div className="mb-6">
+        <div>
           <Button onClick={onBack} variant="outline" className="mb-4">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Voltar para Lista de Clínicas
@@ -249,46 +224,32 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
         </div>
 
         {/* Filtro de Tempo */}
-        <div className="my-8">
-            <TimeRangeFilter onFilterChange={handleFilterChange} currentFilter={currentFilter} />
-        </div>
+        <TimeRangeFilter onFilterChange={handleFilterChange} currentFilter={currentFilter} />
 
         {/* Cards com estatísticas da clínica */}
-        <div className="mb-8">
-          <ClinicStatsCards clinica={clinica} leadsStats={leadStats} loadingStats={loadingStats}/>
-        </div>
+        <ClinicStatsCards clinica={clinica} leadsStats={leadStats} loadingStats={loadingStats}/>
 
         {/* Informações básicas da clínica */}
-        <div className="mb-6">
-          <ClinicBasicInfo clinica={clinica} />
-        </div>
-
-        {/* Prompt Administrativo */}
-        <div className="mb-6">
-          <AdminPromptSection 
-            clinica={clinica}
-            onSave={salvarPrompt}
-            saving={saving}
-          />
-        </div>
+        <ClinicBasicInfo clinica={clinica} />
 
         {/* Configurações da Evolution API */}
         <EvolutionApiSettings 
           clinica={clinica}
           onSaveInstanceName={salvarEvolutionInstanceName}
           onSaveApiKey={salvarEvolutionApiKey}
-          saving={saving}
+          saving={savingEvolutionInstance}
           savingApiKey={savingApiKey}
         />
 
         {/* Configurações do Instagram */}
-        <div className="mt-6">
-          <InstagramSettings
-            clinica={clinica}
-            onSave={salvarInstagramUserHandle}
-            saving={savingInstagram}
-          />
-        </div>
+        <InstagramSettings
+          clinica={clinica}
+          onSave={salvarInstagramUserHandle}
+          saving={savingInstagram}
+        />
+
+        {/* Nova seção para as Configurações de Inteligência Artificial */}
+        <AdminAISettings clinicaId={clinicaId} />
       </div>
     </div>
   );

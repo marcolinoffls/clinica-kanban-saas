@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,24 +10,32 @@ import { AISettings, defaultAISettings } from '../types';
  * 
  * Centraliza toda a lógica de busca, atualização e salvamento
  * das configurações de IA da clínica no Supabase.
- * Agora integrado com dados reais da clínica autenticada.
+ * Pode operar com a clínica do contexto atual ou com um ID de clínica explícito,
+ * tornando-o reutilizável tanto na página de configurações do usuário quanto no painel de admin.
+ * 
+ * @param clinicaIdProp - (Opcional) ID da clínica para operar. Se não for fornecido, usa a clínica do AuthContext.
  */
-export const useAISettings = () => {
+export const useAISettings = (clinicaIdProp?: string) => {
   const { clinicaAtiva, isLoading: clinicaLoading, hasClinica } = useClinica();
   const queryClient = useQueryClient();
+  
+  // Determina qual ID de clínica usar: o explícito (prop) ou o do contexto.
+  // Isso permite que o hook seja usado tanto na página de configurações da clínica quanto no painel de admin.
+  const clinicaId = clinicaIdProp || clinicaAtiva?.id;
   
   // Estado local inicializado com configurações padrão para carregamento mais rápido
   const [settings, setSettings] = useState<AISettings>(defaultAISettings);
 
-  // Buscar configurações atuais da clínica (apenas se a clínica estiver carregada)
+  // Buscar configurações atuais da clínica (apenas se um ID de clínica estiver disponível)
   const { data: currentSettings, isLoading, error } = useQuery({
-    queryKey: ['clinica-ai-settings', clinicaAtiva?.id],
+    queryKey: ['clinica-ai-settings', clinicaId], // A chave de query agora depende do ID da clínica
     queryFn: async () => {
-      if (!clinicaAtiva?.id) {
+      // Validação para garantir que temos um ID antes de consultar o banco
+      if (!clinicaId) {
         throw new Error('ID da clínica não encontrado');
       }
 
-      console.log('[useAISettings] Buscando configurações da IA para clínica:', clinicaAtiva.id);
+      console.log('[useAISettings] Buscando configurações da IA para clínica:', clinicaId);
       
       const { data, error } = await supabase
         .from('clinicas')
@@ -50,7 +57,7 @@ export const useAISettings = () => {
           ai_restricted_topics_prompt,
           admin_prompt
         `)
-        .eq('id', clinicaAtiva.id)
+        .eq('id', clinicaId) // Usa o ID determinado para a busca
         .single();
 
       if (error) {
@@ -61,7 +68,8 @@ export const useAISettings = () => {
       console.log('[useAISettings] Configurações da IA carregadas:', data);
       return data;
     },
-    enabled: !!clinicaAtiva?.id && hasClinica && !clinicaLoading,
+    // A query só é executada se houver um ID de clínica
+    enabled: !!clinicaId,
     staleTime: 5 * 60 * 1000, // Cache por 5 minutos
     retry: 1
   });
@@ -95,12 +103,12 @@ export const useAISettings = () => {
   // Mutation para salvar as configurações
   const saveSettingsMutation = useMutation({
     mutationFn: async (newSettings: AISettings) => {
-      if (!clinicaAtiva?.id) {
+      if (!clinicaId) {
         throw new Error('ID da clínica não encontrado para salvamento');
       }
 
       console.log('[useAISettings] Salvando configurações da IA:', newSettings);
-      console.log('[useAISettings] ID da clínica:', clinicaAtiva.id);
+      console.log('[useAISettings] ID da clínica:', clinicaId);
 
       // Garantir que todas as propriedades da interface AISettings sejam incluídas
       const settingsToUpdate = {
@@ -128,7 +136,7 @@ export const useAISettings = () => {
       const { error } = await supabase
         .from('clinicas')
         .update(settingsToUpdate)
-        .eq('id', clinicaAtiva.id);
+        .eq('id', clinicaId); // Usa o ID determinado para a atualização
 
       if (error) {
         console.error('[useAISettings] Erro ao salvar configurações da IA:', error);
@@ -138,8 +146,8 @@ export const useAISettings = () => {
       console.log('[useAISettings] Configurações da IA salvas com sucesso');
     },
     onSuccess: () => {
-      // Invalidar cache para recarregar dados atualizados
-      queryClient.invalidateQueries({ queryKey: ['clinica-ai-settings'] });
+      // Invalidar cache para a clínica específica para recarregar dados atualizados
+      queryClient.invalidateQueries({ queryKey: ['clinica-ai-settings', clinicaId] });
       toast.success('Configurações da IA salvas com sucesso!');
     },
     onError: (error: any) => {
@@ -159,7 +167,7 @@ export const useAISettings = () => {
 
   // Função para salvar todas as configurações
   const handleSave = () => {
-    if (!clinicaAtiva?.id) {
+    if (!clinicaId) {
       toast.error('Erro: Clínica não encontrada');
       return;
     }
@@ -171,7 +179,8 @@ export const useAISettings = () => {
     settings,
     updateSetting,
     handleSave,
-    isLoading: isLoading || clinicaLoading,
+    // O estado de carregamento considera o carregamento da query e, se não for modo admin, o carregamento do contexto da clínica.
+    isLoading: isLoading || (clinicaLoading && !clinicaIdProp),
     error,
     isSaving: saveSettingsMutation.isPending,
     queryClient,

@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { Link2, Key } from 'lucide-react';
+import { Link2, Key, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -72,7 +72,11 @@ export const EvolutionApiSettings = ({
               variant="outline"
               className="flex items-center gap-2"
             >
-              <Link2 className="w-4 h-4" />
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Link2 className="w-4 h-4" />
+              )}
               {saving ? 'Salvando...' : 'Salvar'}
             </Button>
           </div>
@@ -101,7 +105,11 @@ export const EvolutionApiSettings = ({
               variant="outline"
               className="flex items-center gap-2"
             >
-              <Key className="w-4 h-4" />
+              {savingApiKey ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Key className="w-4 h-4" />
+              )}
               {savingApiKey ? 'Salvando...' : 'Salvar API Key'}
             </Button>
           </div>
