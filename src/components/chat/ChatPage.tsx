@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
 import { ChatWindow } from './ChatWindow';
@@ -13,6 +13,7 @@ import { Lead } from '@/hooks/useLeadsData';
 import { supabase } from '@/integrations/supabase/client';
 import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
 import { HistoricoConsultasModal } from './HistoricoConsultasModal';
+import { useQuery } from '@tanstack/react-query';
 
 /**
  * Página principal do chat com funcionalidades de mídia
@@ -72,6 +73,73 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     selectedLead,
     updateLeadAiConversationStatus: updateLeadAiStatusMutation.mutateAsync
   });
+
+  // CÓDIGO NOVO: Início
+  // Lógica adicionada para buscar dados para a LeadInfoSidebar, corrigindo o layout.
+  // Isso garante que a barra lateral no chat tenha as mesmas informações que na página de contatos.
+
+  // Busca agendamentos para o lead selecionado na barra lateral
+  const { data: leadAgendamentos = [] } = useQuery({
+    queryKey: ['agendamentos', selectedLead?.id],
+    queryFn: async () => {
+      if (!selectedLead?.id) return [];
+      const { data, error } = await supabase
+        .from('agendamentos')
+        .select('*')
+        .eq('cliente_id', selectedLead.id)
+        .order('data_inicio', { ascending: false });
+      if (error) {
+        console.error('Erro ao buscar agendamentos do lead no ChatPage:', error.message);
+        throw error;
+      }
+      return data;
+    },
+    enabled: !!selectedLead,
+  });
+
+  // Busca o histórico de chat para o lead selecionado
+  const { data: leadHistory = [] } = useQuery({
+    queryKey: ['chat_history', selectedLead?.id],
+    queryFn: async () => {
+        if (!selectedLead?.id) return [];
+        const { data, error } = await supabase
+            .from('chat_mensagens')
+            .select('id, conteudo, created_at, enviado_por')
+            .eq('lead_id', selectedLead.id)
+            .order('created_at', { ascending: false });
+        if (error) {
+          console.error('Erro ao buscar histórico do chat no ChatPage:', error.message);
+          throw error;
+        }
+        // Mapeia os dados para o formato esperado pelo componente da barra lateral
+        return data.map(msg => ({
+            id: msg.id,
+            tipo: msg.enviado_por === 'lead' ? 'Recebido' : 'Enviado',
+            descricao: msg.conteudo || '',
+            data: msg.created_at,
+        }));
+    },
+    enabled: !!selectedLead,
+  });
+
+  // Calcula a próxima e a última consulta com base nos agendamentos buscados
+  const { proximaConsulta, ultimaConsulta } = useMemo(() => {
+    if (!leadAgendamentos || leadAgendamentos.length === 0) {
+      return { proximaConsulta: null, ultimaConsulta: null };
+    }
+    const now = new Date();
+    const proxima = leadAgendamentos
+      .filter((a: any) => (a.status === 'agendado' || a.status === 'confirmado') && new Date(a.data_inicio) > now)
+      .sort((a: any, b: any) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime())[0];
+    
+    const ultima = leadAgendamentos
+      .filter((a: any) => (a.status === 'realizado' || a.status === 'pago') && new Date(a.data_inicio) < now)
+      .sort((a: any, b: any) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime())[0];
+
+    return { proximaConsulta: proxima, ultimaConsulta: ultima };
+  }, [leadAgendamentos]);
+
+  // CÓDIGO NOVO: Fim
 
   useEffect(() => {
     if (selectedLeadId) {
@@ -442,10 +510,14 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
         <LeadInfoSidebar
           lead={selectedLead}
           tags={tags.filter(tag => tag.id === selectedLead.tag_id)}
-          historico={[]}
+          historico={leadHistory as any}
           onCallLead={() => console.log('Ligar para lead:', selectedLead.id)}
           onScheduleAppointment={() => setIsAgendamentoModalOpen(true)}
           onViewHistory={() => setIsHistoricoModalOpen(true)}
+          // ATUALIZAÇÃO: Passando as novas propriedades necessárias para a sidebar
+          ultimaConsulta={ultimaConsulta}
+          proximaConsulta={proximaConsulta}
+          onEdit={() => alert('Para editar o lead, por favor, volte à página de Contatos.')}
         />
       )}
       
