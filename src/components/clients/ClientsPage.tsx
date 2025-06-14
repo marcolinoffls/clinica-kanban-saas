@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useClientsPage } from '@/hooks/useClientsPage';
 import { ContactsTable } from './ContactsTable';
 import { ContactsLoadingState } from './ContactsLoadingState';
@@ -7,6 +6,8 @@ import { ContactsEmptyState } from './ContactsEmptyState';
 import { LeadModal } from '@/components/kanban/LeadModal';
 import { ClientsPageHeader } from './ClientsPageHeader';
 import { ClientsActionsBar } from './ClientsActionsBar';
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { LeadInfoSidebar } from "@/components/chat/LeadInfoSidebar";
 
 /**
  * Página Principal de Clientes/Leads (Refatorada)
@@ -54,7 +55,29 @@ const ClientsPage = () => {
     handleOpenChat,
     handleDeleteLead,
     handleSaveLead,
+    viewedLead,
+    leadAgendamentos,
+    leadHistory,
+    handleViewLeadDetails,
+    handleCloseLeadDetails,
   } = useClientsPage();
+
+  // NOVO: Lógica para encontrar próxima e última consulta
+  const { proximaConsulta, ultimaConsulta } = useMemo(() => {
+    if (!leadAgendamentos || leadAgendamentos.length === 0) {
+      return { proximaConsulta: null, ultimaConsulta: null };
+    }
+    const now = new Date();
+    const proxima = leadAgendamentos
+      .filter(a => (a.status === 'agendado' || a.status === 'confirmado') && new Date(a.data_inicio) > now)
+      .sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime())[0];
+    
+    const ultima = leadAgendamentos
+      .filter(a => (a.status === 'realizado' || a.status === 'pago') && new Date(a.data_inicio) < now)
+      .sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime())[0];
+
+    return { proximaConsulta: proxima, ultimaConsulta: ultima };
+  }, [leadAgendamentos]);
 
   // Renderização condicional baseada no estado de carregamento
   if (loading) {
@@ -95,6 +118,7 @@ const ClientsPage = () => {
           onChat={handleOpenChat}
           onDelete={handleDeleteLead}
           isDeleting={isDeleting}
+          onViewDetails={handleViewLeadDetails}
         />
       ) : (
         <div className="flex items-center justify-center min-h-[400px] border rounded-lg bg-muted/10">
@@ -120,6 +144,26 @@ const ClientsPage = () => {
           onSave={handleSaveLead}
         />
       )}
+      
+      {/* NOVO: Barra lateral de detalhes do lead */}
+      <Sheet open={!!viewedLead} onOpenChange={(isOpen) => !isOpen && handleCloseLeadDetails()}>
+        <SheetContent className="p-0 w-[380px] sm:max-w-md overflow-y-auto">
+          {viewedLead && (
+            <LeadInfoSidebar
+              lead={viewedLead}
+              tags={tags.filter(t => t.id === viewedLead.tag_id)}
+              historico={leadHistory as any}
+              onEdit={() => handleEditLead(viewedLead)}
+              ultimaConsulta={ultimaConsulta}
+              proximaConsulta={proximaConsulta}
+              // Ações podem ser implementadas no futuro se necessário
+              onCallLead={() => alert('Função de ligar não implementada.')}
+              onScheduleAppointment={() => alert('Função de agendar não implementada.')}
+              onViewHistory={() => alert('Histórico já visível na barra lateral.')}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };

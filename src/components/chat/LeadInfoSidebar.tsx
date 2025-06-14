@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Phone, Mail, Calendar as CalendarIconLucide, FileText, ChevronDown, ChevronRight, History, Edit, Check, X, MoveHorizontal } from 'lucide-react'; // Ícone para a etapa
+import { User, Phone, Mail, Calendar as CalendarIconLucide, FileText, ChevronDown, ChevronRight, History, Edit, Check, X, MoveHorizontal, CheckCircle, Clock } from 'lucide-react'; // Ícones para a etapa e consultas
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -33,7 +33,7 @@ import {
 
 // Ajustar a interface para aceitar a prop Lead completa, que inclui avatar_url
 interface LeadInfoSidebarProps {
-  lead: Lead; // Usar a interface Lead importada que já deve ter avatar_url
+  lead: Lead;
   tags?: Array<{
     id: string;
     nome: string;
@@ -47,7 +47,10 @@ interface LeadInfoSidebarProps {
   }>;
   onCallLead?: () => void;
   onScheduleAppointment?: () => void;
-  onViewHistory?: () => void; // Nova prop para ver histórico
+  onViewHistory?: () => void;
+  onEdit?: (lead: Lead) => void; // NOVO: para edição
+  ultimaConsulta?: { data_inicio: string | null } | null; // NOVO
+  proximaConsulta?: { data_inicio: string | null } | null; // NOVO
 }
 
 export const LeadInfoSidebar = ({
@@ -56,7 +59,10 @@ export const LeadInfoSidebar = ({
   historico = [],
   onCallLead,
   onScheduleAppointment,
-  onViewHistory
+  onViewHistory,
+  onEdit,
+  ultimaConsulta,
+  proximaConsulta
 }: LeadInfoSidebarProps) => {
   const [expandedSections, setExpandedSections] = useState({
     info: true,
@@ -97,6 +103,11 @@ export const LeadInfoSidebar = ({
         onSuccess: (updatedLead) => {
           toast.success(`Nome do lead atualizado para "${updatedLead.nome}"!`);
           setIsEditingName(false);
+          // Fechar o modal de edição na página de contatos, se estiver aberto
+          if (onEdit) {
+            // Isso é um efeito colateral, mas pode ser útil.
+            // A melhor abordagem seria o componente pai gerenciar isso.
+          }
         },
         onError: () => {
           // O hook useUpdateLead já mostra um toast de erro genérico.
@@ -141,7 +152,7 @@ export const LeadInfoSidebar = ({
   };
 
   return (
-    <div className="w-80 bg-white border-l border-gray-200 flex flex-col h-full">
+    <div className="w-full bg-white flex flex-col h-full">
       {/* Header com foto/avatar e nome editável do lead */}
       <div className="p-4 border-b border-gray-200 bg-gray-50">
         <div className="flex items-center gap-3">
@@ -221,15 +232,28 @@ export const LeadInfoSidebar = ({
             Agendar
           </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onViewHistory}
-          className="w-full mt-2 flex items-center gap-2"
-        >
-          <History size={14} />
-          Ver Histórico
-        </Button>
+        {onEdit && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => onEdit(lead)}
+            className="w-full mt-2 flex items-center gap-2"
+          >
+            <Edit size={14} />
+            Editar Lead
+          </Button>
+        )}
+        {onViewHistory && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onViewHistory}
+            className="w-full mt-2 flex items-center gap-2"
+          >
+            <History size={14} />
+            Ver Histórico
+          </Button>
+        )}
       </div>
 
       {/* Scrollable content area */}
@@ -291,6 +315,27 @@ export const LeadInfoSidebar = ({
                 {moveLeadMutation.isPending && <p className="text-xs text-gray-500 mt-1">Movendo lead...</p>}
               </div>
             </div>
+
+            {/* NOVO: Informações de consulta */}
+            {proximaConsulta && (
+              <div className="flex items-start gap-3 pt-2">
+                <Clock size={16} className="text-blue-500 flex-shrink-0 mt-1" />
+                <div className="text-sm">
+                  <span className="font-medium text-gray-700">Próxima Consulta:</span>
+                  <p className="text-gray-600">{formatarData(proximaConsulta.data_inicio)}</p>
+                </div>
+              </div>
+            )}
+
+            {ultimaConsulta && (
+              <div className="flex items-start gap-3 pt-2">
+                <CheckCircle size={16} className="text-green-500 flex-shrink-0 mt-1" />
+                <div className="text-sm">
+                  <span className="font-medium text-gray-700">Última Consulta Realizada:</span>
+                  <p className="text-gray-600">{formatarData(ultimaConsulta.data_inicio)}</p>
+                </div>
+              </div>
+            )}
 
             {lead.ltv && typeof lead.ltv === 'number' && lead.ltv > 0 && (
               <div className="flex items-center gap-3">
@@ -358,7 +403,7 @@ export const LeadInfoSidebar = ({
                     <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0"></div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-900 break-words">{item.descricao}</p>
-                      <p className="text-xs text-gray-500">{formatarData(item.data)}</p>
+                      <p className="text-xs text-gray-500">{formatarData(item.data)} - {item.tipo}</p>
                     </div>
                   </div>
                 ))}

@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLeads, Lead, useDeleteLead, useUpdateLead } from '@/hooks/useLeadsData';
@@ -6,6 +5,8 @@ import { useTags } from '@/hooks/useTagsData';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { FilterState, SortField, SortOrder } from '@/components/clients/types';
 import { getUniqueOrigens, getUniqueServicos } from '@/components/clients/utils';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Hook para gerenciar a lógica da página de Clientes/Leads.
@@ -37,6 +38,7 @@ export const useClientsPage = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [selectedLeadForEdit, setSelectedLeadForEdit] = useState<Lead | null>(null);
+  const [viewedLead, setViewedLead] = useState<Lead | null>(null);
 
   // Estado dos filtros
   const [filters, setFilters] = useState<FilterState>({
@@ -50,6 +52,50 @@ export const useClientsPage = () => {
   // Dados únicos para filtros
   const uniqueOrigens = useMemo(() => getUniqueOrigens(leads), [leads]);
   const uniqueServicos = useMemo(() => getUniqueServicos(leads), [leads]);
+
+  // NOVO: Busca de agendamentos para o lead selecionado na barra lateral
+  const { data: leadAgendamentos = [] } = useQuery({
+    queryKey: ['agendamentos', viewedLead?.id],
+    queryFn: async () => {
+      if (!viewedLead?.id) return [];
+      const { data, error } = await supabase
+        .from('agendamentos')
+        .select('*')
+        .eq('cliente_id', viewedLead.id)
+        .order('data_inicio', { ascending: false });
+      if (error) {
+        console.error('Erro ao buscar agendamentos do lead:', error.message);
+        throw error;
+      }
+      return data;
+    },
+    enabled: !!viewedLead,
+  });
+
+  // NOVO: Busca do histórico de chat para o lead selecionado
+  const { data: leadHistory = [] } = useQuery({
+    queryKey: ['chat_history', viewedLead?.id],
+    queryFn: async () => {
+        if (!viewedLead?.id) return [];
+        const { data, error } = await supabase
+            .from('chat_mensagens')
+            .select('id, conteudo, created_at, enviado_por')
+            .eq('lead_id', viewedLead.id)
+            .order('created_at', { ascending: false });
+        if (error) {
+          console.error('Erro ao buscar histórico do chat:', error.message);
+          throw error;
+        }
+        // Mapeia os dados para o formato esperado pelo componente da barra lateral
+        return data.map(msg => ({
+            id: msg.id,
+            tipo: msg.enviado_por === 'lead' ? 'Recebido' : 'Enviado',
+            descricao: msg.conteudo || '',
+            data: msg.created_at,
+        }));
+    },
+    enabled: !!viewedLead,
+  });
 
   // Função para aplicar filtros e busca
   const filteredLeads = useMemo(() => {
@@ -135,6 +181,15 @@ export const useClientsPage = () => {
     setSelectedLeadForEdit(null);
   };
 
+  // NOVOS: Handlers para a barra lateral de detalhes
+  const handleViewLeadDetails = (lead: Lead) => {
+    setViewedLead(lead);
+  };
+
+  const handleCloseLeadDetails = () => {
+    setViewedLead(null);
+  };
+
   const hasActiveFilters = Boolean(filters.tag || filters.origem || filters.servico || filters.dataInicio || filters.dataFim || searchQuery);
 
   return {
@@ -143,5 +198,11 @@ export const useClientsPage = () => {
     selectedLeadForEdit, setSelectedLeadForEdit, filters, setFilters, uniqueOrigens,
     uniqueServicos, sortedLeads, hasActiveFilters, handleSort, handleAddLead,
     handleClearFilters, handleEditLead, handleOpenChat, handleDeleteLead, handleSaveLead,
+    // NOVO: Exportando estados e handlers da barra lateral
+    viewedLead,
+    leadAgendamentos,
+    leadHistory,
+    handleViewLeadDetails,
+    handleCloseLeadDetails,
   };
 };
