@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { ClinicStatsCards } from './clinic-details/ClinicStatsCards';
 import { ClinicBasicInfo } from './clinic-details/ClinicBasicInfo';
 import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
 import { InstagramSettings } from './clinic-details/InstagramSettings';
-import { TimeRangeFilter } from '../TimeRangeFilter';
+import { TimeRangeFilter } from './TimeRangeFilter';
 import { endOfDay, startOfDay, subDays } from 'date-fns';
 import { AdminAISettings } from './clinic-details/AdminAISettings';
 
