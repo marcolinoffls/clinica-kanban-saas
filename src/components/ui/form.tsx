@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import * as LabelPrimitive from "@radix-ui/react-label"
 import { Slot } from "@radix-ui/react-slot"
@@ -42,15 +43,33 @@ const FormField = <
 const useFormField = () => {
   const fieldContext = React.useContext(FormFieldContext)
   const itemContext = React.useContext(FormItemContext)
-  const { getFieldState, formState } = useFormContext()
-
-  const fieldState = getFieldState(fieldContext.name, formState)
+  const form = useFormContext()
 
   if (!fieldContext) {
     throw new Error("useFormField should be used within <FormField>")
   }
 
   const { id } = itemContext
+  
+  // Se o hook for usado fora de um FormProvider, o 'form' será nulo.
+  // Em vez de quebrar, nós retornamos um estado padrão para os campos.
+  // Isso evita que a aplicação inteira pare de funcionar por um erro de uso.
+  if (!form) {
+    return {
+      id,
+      name: fieldContext.name,
+      formItemId: `${id}-form-item`,
+      formDescriptionId: `${id}-form-item-description`,
+      formMessageId: `${id}-form-item-message`,
+      error: undefined,
+      invalid: false,
+      isTouched: false,
+      isDirty: false,
+    }
+  }
+
+  const { getFieldState, formState } = form
+  const fieldState = getFieldState(fieldContext.name, formState)
 
   return {
     id,
@@ -174,3 +193,4 @@ export {
   FormMessage,
   FormField,
 }
+
