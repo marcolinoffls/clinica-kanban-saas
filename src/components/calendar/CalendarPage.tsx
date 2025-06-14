@@ -18,6 +18,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 /**
  * Página de Agenda/Calendário
@@ -54,6 +56,9 @@ export const CalendarPage = () => {
     agendamento: AgendamentoFromDatabase;
     newStatus: AgendamentoStatus;
   } | null>(null);
+
+  // NOVO: Estado para armazenar o valor confirmado ao marcar como pago.
+  const [valorConfirmado, setValorConfirmado] = useState<string>('');
 
   // Buscar agendamentos e instanciar as mutações de delete e update
   const { data: agendamentos = [], isLoading: loadingAgendamentos } = useFetchAgendamentos();
@@ -176,16 +181,32 @@ export const CalendarPage = () => {
 
   // NOVO: Funções para controlar a mudança de status e seu diálogo de confirmação
   const handleStatusChange = (agendamento: AgendamentoFromDatabase, newStatus: AgendamentoStatus) => {
+    // Se o novo status for 'pago', pré-preenche o campo de valor com o valor existente do agendamento.
+    // Isso facilita a confirmação ou ajuste do valor.
+    if (newStatus === AgendamentoStatus.PAGO) {
+      setValorConfirmado(String(agendamento.valor || ''));
+    }
     setStatusUpdateConfirmation({ agendamento, newStatus });
   };
 
   const handleConfirmStatusUpdate = () => {
     if (statusUpdateConfirmation) {
-      updateAgendamentoMutation.mutate({
+      // Prepara o objeto de dados para a atualização.
+      const payload: { id: string; status: AgendamentoStatus; valor?: number } = {
         id: statusUpdateConfirmation.agendamento.id,
         status: statusUpdateConfirmation.newStatus,
-      });
-      setStatusUpdateConfirmation(null); // Fecha o diálogo após a confirmação
+      };
+
+      // Se a ação é marcar como 'pago', inclui o valor confirmado no payload.
+      // O valor é convertido para número; se estiver vazio, vira 0.
+      if (statusUpdateConfirmation.newStatus === AgendamentoStatus.PAGO) {
+        payload.valor = Number(valorConfirmado) || 0;
+      }
+
+      updateAgendamentoMutation.mutate(payload);
+      
+      setStatusUpdateConfirmation(null); // Fecha o diálogo
+      setValorConfirmado(''); // Limpa o estado do valor
     }
   };
   
@@ -563,7 +584,14 @@ export const CalendarPage = () => {
       </AlertDialog>
 
       {/* NOVO: Diálogo de confirmação para MUDANÇA DE STATUS de agendamento */}
-      <AlertDialog open={!!statusUpdateConfirmation} onOpenChange={(open) => !open && setStatusUpdateConfirmation(null)}>
+      <AlertDialog open={!!statusUpdateConfirmation} onOpenChange={(open) => {
+        // Ao fechar o diálogo (seja por clique fora ou cancelamento),
+        // reseta ambos os estados para garantir que o modal esteja limpo na próxima vez.
+        if (!open) {
+          setStatusUpdateConfirmation(null);
+          setValorConfirmado('');
+        }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Mudança de Status</AlertDialogTitle>
@@ -571,8 +599,31 @@ export const CalendarPage = () => {
               {getStatusChangeDescription()}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {/* CAMPO CONDICIONAL: Aparece apenas ao marcar um agendamento como "Pago" */}
+          {statusUpdateConfirmation?.newStatus === AgendamentoStatus.PAGO && (
+            <div className="grid gap-2 py-2">
+              <Label htmlFor="valor-pago">Confirmar Valor Pago (R$)</Label>
+              <Input
+                id="valor-pago"
+                type="number"
+                placeholder="Ex: 150.00"
+                value={valorConfirmado}
+                onChange={(e) => setValorConfirmado(e.target.value)}
+                className="mt-1"
+              />
+              <p className="text-xs text-gray-500">
+                O valor original do agendamento era R$ {statusUpdateConfirmation.agendamento.valor?.toFixed(2) || '0.00'}.
+              </p>
+            </div>
+          )}
+
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setStatusUpdateConfirmation(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => {
+              // Garante que ao clicar em "Cancelar", os estados sejam limpos.
+              setStatusUpdateConfirmation(null);
+              setValorConfirmado('');
+            }}>Cancelar</AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleConfirmStatusUpdate}
               disabled={updateAgendamentoMutation.isPending}
