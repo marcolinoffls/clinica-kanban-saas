@@ -1,5 +1,4 @@
 
-import { useState } from 'react';
 import { UseFormReturn } from 'react-hook-form';
 import { Edit3, ListPlus } from 'lucide-react';
 import {
@@ -60,41 +59,49 @@ export const ServicoSelector = ({
   // Garantir que servicos seja sempre um array
   const servicosSeguro = Array.isArray(servicos) ? servicos : [];
 
-  // Função para lidar com seleção de serviço
-  const handleServicoChange = (servicoIdValue: string) => {
-    const servico = servicosSeguro.find(s => s.id === servicoIdValue);
-    if (servico) {
-      setServicoSelecionadoId(servicoIdValue);
-      form.setValue('titulo', servico.nome_servico, { shouldValidate: true });
-      console.log(`[ServicoSelector] Serviço selecionado: ${servico.nome_servico}, ID: ${servicoIdValue}`);
-    } else {
-      setServicoSelecionadoId(null);
-      if(modoServico === 'selecionar') form.setValue('titulo', '', { shouldValidate: true });
-    }
-  };
-
+  // CORREÇÃO: As funções de alternância de modo foram ajustadas
+  // para limpar o valor do campo 'titulo' e garantir que o formulário
+  // não mantenha um estado inconsistente.
   const alternarParaManual = () => {
     setModoServico('manual');
-    form.setValue('titulo', '');
+    form.setValue('titulo', ''); // Limpa o título ao mudar para digitação manual
     setServicoSelecionadoId(null);
   };
 
   const alternarParaSelecionar = () => {
     setModoServico('selecionar');
+    form.setValue('titulo', '', { shouldValidate: true }); // Limpa e valida o título ao voltar para seleção
+    setServicoSelecionadoId(null);
   };
 
   return (
     <FormField
       control={form.control}
       name="titulo"
-      rules={{ required: "Título ou serviço é obrigatório." }}
+      // A prop 'rules' foi removida porque a validação agora é controlada
+      // exclusivamente pelo schema do Zod no componente do modal, que é a prática correta.
       render={({ field }) => (
         <FormItem>
           <FormLabel>Título/Serviço *</FormLabel>
           {modoServico === 'selecionar' ? (
             <>
               <Select
-                onValueChange={handleServicoChange}
+                // CORREÇÃO: A lógica foi movida para o `onValueChange` do Select.
+                // Agora, usamos `field.onChange` que é a função fornecida pelo react-hook-form
+                // para atualizar o valor do campo 'titulo'. Isso garante que o formulário
+                // e a validação (Zod) funcionem de forma integrada e correta.
+                onValueChange={(servicoIdValue: string) => {
+                  const servico = servicosSeguro.find(s => s.id === servicoIdValue);
+                  if (servico) {
+                    setServicoSelecionadoId(servicoIdValue);
+                    // Atualiza o campo 'titulo' do formulário com o nome do serviço
+                    field.onChange(servico.nome_servico);
+                  } else {
+                    setServicoSelecionadoId(null);
+                    // Limpa o campo 'titulo' se nenhum serviço for encontrado
+                    field.onChange('');
+                  }
+                }}
                 value={servicoSelecionadoId || ""}
                 disabled={loadingServices}
               >
@@ -125,6 +132,7 @@ export const ServicoSelector = ({
           ) : (
             <>
               <FormControl>
+                {/* Quando em modo manual, o input é conectado diretamente ao formulário via `...field` */}
                 <Input placeholder="Ex: Consulta de Retorno, Venda Produto X" {...field} />
               </FormControl>
               <Button 
