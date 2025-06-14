@@ -151,7 +151,7 @@ export const useSupabaseChat = () => {
   const enviarMensagem = async (
     leadId: string, 
     conteudo: string, 
-    tipo: string = 'text', // Novo parâmetro para tipo da mensagem
+    tipo: string = 'texto', // ATUALIZAÇÃO: Valor padrão alterado para 'texto' para consistência.
     anexoUrl?: string | null // Novo parâmetro para URL do anexo (MinIO)
   ) => {
     // Validações rigorosas antes do envio
@@ -175,13 +175,18 @@ export const useSupabaseChat = () => {
     console.log('- anexoUrl:', anexoUrl);
 
     try {
+      // CORREÇÃO: Garante que o tipo da mensagem seja compatível com o banco de dados.
+      // O banco de dados espera 'texto', mas algumas partes do código podem enviar 'text'.
+      // Esta linha converte 'text' para 'texto', garantindo que a inserção funcione.
+      const tipoCorrigido = tipo === 'text' ? 'texto' : tipo;
+
       // Preparar dados da mensagem com novos campos
       const mensagemData: any = {
         lead_id: leadId,
         clinica_id: clinicaId,
         conteudo: conteudo.trim(),
         enviado_por: 'usuario',
-        tipo: tipo, // Incluindo tipo da mensagem
+        tipo: tipoCorrigido, // CORREÇÃO: Usando o tipo corrigido.
         lida: false // Mensagens enviadas pelo usuário podem começar como não lidas
       };
 
