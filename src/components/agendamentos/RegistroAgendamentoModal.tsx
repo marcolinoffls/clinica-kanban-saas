@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -32,6 +31,8 @@ import { ClienteSelector } from './ClienteSelector';
 import { NovoClienteFields } from './NovoClienteFields';
 import { ServicoSelector } from './ServicoSelector';
 import { AGENDAMENTO_STATUS_OPTIONS } from '@/constants/agendamentos';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { DateTimePicker } from '@/components/ui/DateTimePicker';
 
 // Esquema de validação
 const agendamentoSchema = z.object({
@@ -256,122 +257,122 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
           </Alert>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-          {/* Seletor de Cliente (movido para o topo e populado com dados reais) */}
-          <ClienteSelector
-            form={form as any}
-            leads={leads || []}
-            clienteBuscaInput={clienteBuscaInput}
-            setClienteBuscaInput={setClienteBuscaInput}
-            setRegistrandoNovoCliente={setIsNovoCliente}
-            loadingLeads={loadingLeads}
-            registrandoNovoCliente={isNovoCliente}
-          />
-
-          {/* Campos para novo cliente (condicional) */}
-          {isNovoCliente && (
-            <NovoClienteFields
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+            {/* Seletor de Cliente (movido para o topo e populado com dados reais) */}
+            <ClienteSelector
               form={form as any}
-              setRegistrandoNovoCliente={setIsNovoCliente}
-              setClienteBuscaInput={setClienteBuscaInput}
               leads={leads || []}
+              clienteBuscaInput={clienteBuscaInput}
+              setClienteBuscaInput={setClienteBuscaInput}
+              setRegistrandoNovoCliente={setIsNovoCliente}
+              loadingLeads={loadingLeads}
+              registrandoNovoCliente={isNovoCliente}
             />
-          )}
 
-          {/* Seletor de Serviço/Título (movido para o topo e populado com dados reais) */}
-          <ServicoSelector
-            form={form as any}
-            servicos={servicos || []}
-            loadingServices={loadingServices}
-            modoServico={modoServico}
-            setModoServico={setModoServico}
-            servicoSelecionadoId={servicoSelecionadoIdHook}
-            setServicoSelecionadoId={setServicoSelecionadoIdHook}
-          />
+            {/* Campos para novo cliente (condicional) */}
+            {isNovoCliente && (
+              <NovoClienteFields
+                form={form as any}
+                setRegistrandoNovoCliente={setIsNovoCliente}
+                setClienteBuscaInput={setClienteBuscaInput}
+                leads={leads || []}
+              />
+            )}
 
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <Label htmlFor="descricao">Descrição (Opcional)</Label>
-              <Textarea id="descricao" {...form.register('descricao')} />
-            </div>
+            {/* Seletor de Serviço/Título (movido para o topo e populado com dados reais) */}
+            <ServicoSelector
+              form={form as any}
+              servicos={servicos || []}
+              loadingServices={loadingServices}
+              modoServico={modoServico}
+              setModoServico={setModoServico}
+              servicoSelecionadoId={servicoSelecionadoIdHook}
+              setServicoSelecionadoId={setServicoSelecionadoIdHook}
+            />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div>
-                <Label htmlFor="data_inicio">Data de Início *</Label>
-                <Input
-                  id="data_inicio"
-                  type="datetime-local"
-                  {...form.register('data_inicio', {
-                    valueAsDate: true,
-                  })}
-                  defaultValue={form.getValues('data_inicio')?.toISOString().slice(0, 16)}
+                <Label htmlFor="descricao">Descrição (Opcional)</Label>
+                <Textarea id="descricao" {...form.register('descricao')} />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="data_inicio"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data de Início *</FormLabel>
+                      <FormControl>
+                        <DateTimePicker value={field.value} onChange={field.onChange} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                {form.formState.errors.data_inicio && (
-                  <p className="text-red-500 text-sm">{form.formState.errors.data_inicio.message}</p>
-                )}
-              </div>
 
-              <div>
-                <Label htmlFor="data_fim">Data de Fim *</Label>
-                <Input
-                  id="data_fim"
-                  type="datetime-local"
-                  {...form.register('data_fim', {
-                    valueAsDate: true,
-                  })}
-                  defaultValue={form.getValues('data_fim')?.toISOString().slice(0, 16)}
-                />
-                {form.formState.errors.data_fim && (
-                  <p className="text-red-500 text-sm">{form.formState.errors.data_fim.message}</p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  onValueChange={(value) => form.setValue('status', value as any)}
-                  value={form.watch('status')}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {AGENDAMENTO_STATUS_OPTIONS.map((statusOption) => (
-                      <SelectItem key={statusOption.value} value={statusOption.value}>
-                        {statusOption.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.status && (
-                  <p className="text-red-500 text-sm">{form.formState.errors.status.message}</p>
-                )}
-              </div>
-              
-              <div>
-                <Label htmlFor="valor">Valor</Label>
-                <Input
-                  id="valor"
-                  type="number"
-                  step="0.01"
-                  {...form.register('valor', { valueAsNumber: true })}
+                <FormField
+                  control={form.control}
+                  name="data_fim"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data de Fim *</FormLabel>
+                      <FormControl>
+                        <DateTimePicker value={field.value} onChange={field.onChange} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select
+                    onValueChange={(value) => form.setValue('status', value as any)}
+                    value={form.watch('status')}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AGENDAMENTO_STATUS_OPTIONS.map((statusOption) => (
+                        <SelectItem key={statusOption.value} value={statusOption.value}>
+                          {statusOption.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {form.formState.errors.status && (
+                    <p className="text-red-500 text-sm">{form.formState.errors.status.message}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <Label htmlFor="valor">Valor</Label>
+                  <Input
+                    id="valor"
+                    type="number"
+                    step="0.01"
+                    {...form.register('valor', { valueAsNumber: true })}
+                  />
+                </div>
+              </div>
+
             </div>
 
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={createAgendamentoMutation.isPending || updateAgendamentoMutation.isPending}>
-              {agendamento ? 'Atualizar' : 'Criar'} Agendamento
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={createAgendamentoMutation.isPending || updateAgendamentoMutation.isPending}>
+                {agendamento ? 'Atualizar' : 'Criar'} Agendamento
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
