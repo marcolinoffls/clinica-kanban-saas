@@ -91,7 +91,9 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
       cliente_id: '',
       valor: 0,
       clinica_id: clinicaAtiva?.id || '',
-      usuario_id: userProfile?.id || '',
+      // CORREÇÃO: O ID do usuário deve vir do objeto 'user' (autenticação),
+      // não do 'userProfile'. O 'user.id' corresponde à chave na tabela auth.users.
+      usuario_id: user?.id || '',
       novo_cliente_nome: '',
       novo_cliente_telefone: ''
     },
@@ -111,11 +113,12 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
           cliente_id: agendamento.cliente_id || '',
           valor: agendamento.valor || 0,
           clinica_id: clinicaAtiva?.id || '',
-          usuario_id: userProfile?.id || '',
+          // CORREÇÃO: Garantir que o ID do usuário correto é usado na edição.
+          usuario_id: user?.id || '',
         });
         const clienteExistente = leads?.find(l => l.id === agendamento.cliente_id);
         if (clienteExistente) {
-          setClienteBuscaInput(clienteExistente.nome);
+          setClienteBuscaInput(clienteExistente.nome || "");
         }
         setIsNovoCliente(false);
       } else if (lead) {
@@ -129,9 +132,10 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
           cliente_id: lead.id,
           valor: 0,
           clinica_id: clinicaAtiva?.id || '',
-          usuario_id: userProfile?.id || '',
+          // CORREÇÃO: Usar o ID do usuário de autenticação.
+          usuario_id: user?.id || '',
         });
-        setClienteBuscaInput(lead.nome);
+        setClienteBuscaInput(lead.nome || "");
         setIsNovoCliente(false);
       } else {
         // Modo de criação de um novo agendamento
@@ -144,7 +148,8 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
           cliente_id: '',
           valor: 0,
           clinica_id: clinicaAtiva?.id || '',
-          usuario_id: userProfile?.id || '',
+          // CORREÇÃO: Usar o ID do usuário de autenticação.
+          usuario_id: user?.id || '',
         });
         setClienteBuscaInput('');
         setIsNovoCliente(false);
@@ -154,7 +159,9 @@ export const RegistroAgendamentoModal: React.FC<RegistroAgendamentoModalProps> =
     if (isOpen) {
       resetForm();
     }
-  }, [agendamento, lead, selectedDate, clinicaAtiva, userProfile, form, leads, isOpen]);
+    // CORREÇÃO: A dependência foi trocada de 'userProfile' para 'user',
+    // pois agora usamos 'user.id' para definir o 'usuario_id' do agendamento.
+  }, [agendamento, lead, selectedDate, clinicaAtiva, user, form, leads, isOpen]);
 
   const onSubmit = async (data: AgendamentoFormData) => {
     try {
