@@ -142,6 +142,9 @@ export const LeadInfoSidebar = ({
     });
   };
 
+  // NOVA LÓGICA: Verificar se o lead tem informações de anúncio
+  const temAnuncioEspecifico = lead.ad_name && lead.ad_name.trim() !== '';
+
   return (
     <div className="w-80 bg-white border-l border-gray-200 flex flex-col h-full">
       {/* Header com foto/avatar e nome editável do lead */}
@@ -196,9 +199,26 @@ export const LeadInfoSidebar = ({
                 </Button>
               </div>
             )}
-            <p className="text-sm text-gray-500">Lead ativo</p>
+            <p className="text-sm text-gray-500">
+              {temAnuncioEspecifico ? 'Lead de anúncio específico' : 'Lead ativo'}
+            </p>
           </div>
         </div>
+        
+        {/* NOVO: Badge de anúncio específico */}
+        {temAnuncioEspecifico && (
+          <div className="mt-3">
+            <div className="bg-purple-100 border border-purple-200 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="h-4 w-4 text-purple-600" />
+                <span className="text-sm font-medium text-purple-800">Anúncio Específico</span>
+              </div>
+              <p className="text-sm text-purple-700 break-words">
+                {lead.ad_name}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Ações rápidas */}
@@ -282,6 +302,22 @@ export const LeadInfoSidebar = ({
               </div>
             </div>
 
+            {/* NOVA SEÇÃO: Informações de anúncio */}
+            {temAnuncioEspecifico && (
+              <div className="flex items-start gap-3 pt-2 border-t border-gray-100">
+                <Target size={16} className="text-purple-500 flex-shrink-0 mt-2.5" />
+                <div className="w-full">
+                  <label className="text-sm font-medium text-gray-700">Anúncio de Origem</label>
+                  <p className="text-sm text-gray-900 mt-1 p-2 bg-purple-50 rounded border break-words">
+                    {lead.ad_name}
+                  </p>
+                  <p className="text-xs text-purple-600 mt-1">
+                    Este lead foi gerado através de um anúncio específico identificado pelo sistema.
+                  </p>
+                </div>
+              </div>
+            )}
+            
             {/* NOVO: Seletor de Etapa do Funil */}
             <div className="flex items-start gap-3 pt-2">
               <MoveHorizontal size={16} className="text-gray-400 flex-shrink-0 mt-2.5" />

@@ -1,3 +1,4 @@
+
 /**
  * O que aquilo faz: Centraliza a lógica de busca e processamento dos dados do dashboard.
  * Onde ele é usado no app: É chamado pelo hook `useDashboardData` para obter todas as métricas necessárias para a página do dashboard.
@@ -7,13 +8,13 @@
  * - Retorna um objeto `DashboardMetrics` que é usado para popular a UI do dashboard.
  * 
  * Se o código interage com o Supabase, explique também o que ele busca ou grava na tabela e quais campos são afetados.
- * - Busca na tabela `leads`: id, created_at, convertido, servico_interesse, anuncio.
+ * - Busca na tabela `leads`: id, created_at, convertido, servico_interesse, anuncio, ad_name.
  * - Busca na tabela `agendamentos`: id, status, valor, data_inicio, titulo, created_at.
  * - Os filtros de data (`startDate`, `endDate`) são aplicados na coluna `created_at` de `leads` e `data_inicio` de `agendamentos`.
  */
 import { supabase } from '@/integrations/supabase/client';
 import { DashboardMetrics } from '@/hooks/dashboard/types';
-import { processarLeadsParaGrafico, processarConversoesPorCategoria } from '@/utils/dashboardUtils';
+import { processarLeadsParaGrafico, processarConversoesPorCategoria, processarLeadsPorAnuncio } from '@/utils/dashboardUtils';
 
 export const fetchDashboardData = async (
   clinicaId: string, 
@@ -24,7 +25,7 @@ export const fetchDashboardData = async (
     // 1. Buscar total de contatos/leads no período
     let leadsQuery = supabase
       .from('leads')
-      .select('id, created_at, convertido, servico_interesse, anuncio')
+      .select('id, created_at, convertido, servico_interesse, anuncio, ad_name')
       .eq('clinica_id', clinicaId);
 
     if (startDate) {
@@ -47,8 +48,6 @@ export const fetchDashboardData = async (
       .select('id, status, valor, data_inicio, titulo, created_at')
       .eq('clinica_id', clinicaId);
 
-    // ALTERAÇÃO: A busca de agendamentos agora usa a data de início da consulta (data_inicio)
-    // ao invés da data de criação (created_at), para refletir o período de análise corretamente.
     if (startDate) {
       agendamentosQuery = agendamentosQuery.gte('data_inicio', startDate.toISOString());
     }
@@ -66,15 +65,16 @@ export const fetchDashboardData = async (
     // 3. Processar dados para métricas
     const totalContatos = leadsData?.length || 0;
     
-    // NOVO CÁLCULO: Conta os leads que possuem o campo 'anuncio' preenchido.
-    // Este cálculo agora funciona pois o campo 'anuncio' foi incluído na busca.
+    // Contabiliza leads que possuem o campo 'anuncio' preenchido (método antigo)
     const leadsAnuncios = leadsData?.filter(lead => lead.anuncio).length || 0;
+
+    // NOVA MÉTRICA: Contabiliza leads que vieram de anúncios específicos (ad_name)
+    const leadsComAdName = leadsData?.filter(lead => lead.ad_name && lead.ad_name.trim() !== '').length || 0;
 
     const consultasAgendadas = agendamentosData?.filter(ag => 
       ag.status === 'agendado' || ag.status === 'confirmado'
     ).length || 0;
 
-    // O cálculo de agendamentos realizados já existia, agora será retornado.
     const agendamentosRealizados = agendamentosData?.filter(ag => 
       ag.status === 'realizado' || ag.status === 'pago'
     ).length || 0;
@@ -94,35 +94,42 @@ export const fetchDashboardData = async (
       endDate
     );
 
-    // 5. Dados para gráfico de barras
+    // 5. Dados para gráfico de barras (conversões por categoria)
     const conversoesPorCategoria = processarConversoesPorCategoria(
       leadsData || [], 
       agendamentosData || []
     );
 
-    // 6. Cálculo de variações (placeholder)
+    // 6. NOVO: Dados para gráfico de anúncios
+    const leadsPorAnuncio = processarLeadsPorAnuncio(leadsData || []);
+
+    // 7. Cálculo de variações (placeholder)
     const variacaoContatos = 5;
     const variacaoConsultas = 8;
-    const variacaoConsultasRealizadas = 4; // Placeholder para nova métrica
+    const variacaoConsultasRealizadas = 4;
     const variacaoConversao = 3;
     const variacaoFaturamento = 12;
-    const variacaoLeadsAnuncios = 9; // Placeholder para nova métrica
+    const variacaoLeadsAnuncios = 9;
+    const variacaoLeadsAdName = 15; // NOVA variação para leads com ad_name
 
     return {
       totalContatos,
-      leadsAnuncios, // Nova métrica retornada
+      leadsAnuncios,
+      leadsComAdName, // NOVA métrica
       consultasAgendadas,
-      consultasRealizadas: agendamentosRealizados, // Nova métrica retornada
+      consultasRealizadas: agendamentosRealizados,
       taxaConversao: Math.round(taxaConversao),
       faturamentoRealizado,
       leadsParaGrafico,
       conversoesPorCategoria,
+      leadsPorAnuncio, // NOVO dados para gráfico de anúncios
       variacaoContatos,
       variacaoConsultas,
-      variacaoConsultasRealizadas, // Nova variação retornada
+      variacaoConsultasRealizadas,
       variacaoConversao,
       variacaoFaturamento,
-      variacaoLeadsAnuncios // Nova variação retornada
+      variacaoLeadsAnuncios,
+      variacaoLeadsAdName // NOVA variação
     };
 
   } catch (error: any) {

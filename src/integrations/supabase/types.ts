@@ -816,6 +816,24 @@ export type Database = {
           },
         ]
       }
+      n8n_chat_histories_crm: {
+        Row: {
+          id: number
+          message: Json
+          session_id: string
+        }
+        Insert: {
+          id?: number
+          message: Json
+          session_id: string
+        }
+        Update: {
+          id?: number
+          message?: Json
+          session_id?: string
+        }
+        Relationships: []
+      }
       respostas_prontas: {
         Row: {
           atalho: string | null

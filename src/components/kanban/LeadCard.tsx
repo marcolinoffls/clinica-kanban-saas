@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MessageCircle, History, Edit } from 'lucide-react';
+import { MessageCircle, History, Edit, Target } from 'lucide-react';
 import { Lead } from '@/hooks/useLeadsData';
 
 interface LeadCardProps {
@@ -55,9 +55,14 @@ export const LeadCard = ({
     e.stopPropagation();
   };
 
+  // NOVA LÓGICA: Determinar se o lead veio de um anúncio específico
+  const temAnuncioEspecifico = lead.ad_name && lead.ad_name.trim() !== '';
+
   return (
     <div
-      className="bg-white rounded-lg border shadow-sm p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-all duration-200 border-l-4 border-l-blue-500"
+      className={`bg-white rounded-lg border shadow-sm p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-all duration-200 border-l-4 ${
+        temAnuncioEspecifico ? 'border-l-purple-500' : 'border-l-blue-500'
+      }`}
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
@@ -65,11 +70,28 @@ export const LeadCard = ({
       data-lead-id={lead.id}
       data-drag-type="lead"
     >
-      {/* Header com nome do lead */}
+      {/* Header com nome do lead e indicador de anúncio */}
       <div className="mb-3">
-        <h4 className="font-semibold text-gray-900 text-sm leading-tight">
-          {lead.nome}
-        </h4>
+        <div className="flex items-center justify-between">
+          <h4 className="font-semibold text-gray-900 text-sm leading-tight">
+            {lead.nome}
+          </h4>
+          {/* NOVO: Indicador visual para leads de anúncios específicos */}
+          {temAnuncioEspecifico && (
+            <div className="flex-shrink-0">
+              <Target className="h-4 w-4 text-purple-600" title="Lead de anúncio específico" />
+            </div>
+          )}
+        </div>
+        
+        {/* NOVO: Mostrar nome do anúncio se disponível */}
+        {temAnuncioEspecifico && (
+          <div className="mt-1">
+            <p className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full inline-block truncate max-w-full" title={lead.ad_name}>
+              📢 {lead.ad_name}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Informações de contato */}

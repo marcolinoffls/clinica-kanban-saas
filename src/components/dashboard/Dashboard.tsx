@@ -1,11 +1,11 @@
-
 import { useState } from 'react';
 import { MetricCard } from './MetricCard';
 import { ChartCard } from './ChartCard';
+import { AdPerformanceCard } from './AdPerformanceCard';
 import { TimeRangeFilter } from '@/components/admin/TimeRangeFilter';
 import { useDashboardData } from '@/hooks/useDashboardData';
 // ÍCONES ADICIONADOS: CheckCircle para "Consultas Realizadas" e Megaphone para "Leads de Anúncios".
-import { Users, Calendar, TrendingUp, DollarSign, CheckCircle, Megaphone } from 'lucide-react';
+import { Users, Calendar, TrendingUp, DollarSign, CheckCircle, Megaphone, Target } from 'lucide-react';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 
 /**
@@ -15,6 +15,7 @@ import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
  * - Filtro de período configurável
  * - Cartões com métricas baseadas em dados reais do Supabase
  * - Gráficos de performance e conversão
+ * - NOVO: Performance de anúncios específicos por ad_name
  * - Insights automáticos baseados nos dados
  * 
  * Os dados são buscados do Supabase através do hook useDashboardData
@@ -87,6 +88,14 @@ export const Dashboard = () => {
       changeType: 'positive' as const,
       icon: Megaphone
     },
+    // NOVO CARD: Leads com identificação específica do anúncio (ad_name)
+    {
+      title: 'Leads de Anúncios Específicos',
+      value: dashboardData.leadsComAdName.toString(),
+      change: `+${dashboardData.variacaoLeadsAdName}%`,
+      changeType: 'positive' as const,
+      icon: Target
+    },
     {
       title: 'Consultas Agendadas',
       value: dashboardData.consultasAgendadas.toString(),
@@ -143,14 +152,14 @@ export const Dashboard = () => {
         ALTERAÇÃO DE LAYOUT: A grade foi ajustada para `lg:grid-cols-3` para
         acomodar os 6 cards de forma harmoniosa em telas maiores (2 linhas de 3).
       */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-6">
         {metrics.map((metric, index) => (
           <MetricCard key={index} {...metric} />
         ))}
       </div>
 
       {/* Grid de gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         <ChartCard
           title="Leads por Período"
           description="Evolução dos leads recebidos no período selecionado"
@@ -162,6 +171,10 @@ export const Dashboard = () => {
           description="Conversões por tipo de procedimento no período"
           type="bar"
           data={dashboardData?.conversoesPorCategoria || []}
+        />
+        {/* NOVO: Card de performance de anúncios */}
+        <AdPerformanceCard
+          data={dashboardData?.leadsPorAnuncio || []}
         />
       </div>
 
@@ -185,6 +198,21 @@ export const Dashboard = () => {
                   </p>
                 </div>
               </div>
+              
+              {/* NOVO: Insight sobre anúncios */}
+              {dashboardData.leadsComAdName > 0 && (
+                <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
+                  <div>
+                    <p className="text-sm font-medium text-purple-800">
+                      Performance de anúncios
+                    </p>
+                    <p className="text-sm text-purple-700">
+                      {dashboardData.leadsComAdName} leads vieram de anúncios específicos ({((dashboardData.leadsComAdName / dashboardData.totalContatos) * 100).toFixed(1)}% do total).
+                    </p>
+                  </div>
+                </div>
+              )}
               
               {dashboardData.taxaConversao > 0 && (
                 <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
