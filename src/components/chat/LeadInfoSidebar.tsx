@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Phone, Mail, User, MessageSquare, Tag, Briefcase, DollarSign, Check, X } from 'lucide-react';
+import { Calendar, MapPin, Phone, Mail, User, MessageSquare, Tag, Briefcase, DollarSign, Check, X, Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Lead } from '@/hooks/useLeadsData';
 import { useUpdateLead } from '@/hooks/useSupabaseLeads';
 import { useEtapas } from '@/hooks/useEtapasData';
 import { useTags } from '@/hooks/useTagsData';
+import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
 
 /**
  * Componente lateral com informações detalhadas do lead
@@ -59,6 +60,9 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
   // Estados específicos para anotações
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState('');
+
+  // Estado para controlar o modal de agendamento
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
 
   // Hooks para buscar dados relacionados
   const { data: etapas = [] } = useEtapas();
@@ -180,6 +184,17 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         <h2 className="text-xl font-semibold text-gray-900">Informações do Lead</h2>
         <Button variant="ghost" size="sm" onClick={onClose}>
           ✕
+        </Button>
+      </div>
+
+      {/* Botão para Novo Agendamento */}
+      <div className="mb-4">
+        <Button 
+          onClick={() => setIsScheduleModalOpen(true)}
+          className="w-full bg-green-600 hover:bg-green-700 text-white"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Novo Agendamento
         </Button>
       </div>
 
@@ -327,84 +342,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         </CardContent>
       </Card>
 
-      {/* Informações de valor */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
-            <DollarSign className="w-4 h-4" />
-            Valor
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div>
-            <p className="text-xs text-gray-500 mb-1">LTV (Lifetime Value)</p>
-            {isEditing ? (
-              <Input
-                value={editedLead.ltv || ''}
-                onChange={(e) => setEditedLead(prev => ({ ...prev, ltv: parseFloat(e.target.value) || 0 }))}
-                placeholder="Valor em R$"
-                type="number"
-                step="0.01"
-                className="text-lg font-semibold"
-              />
-            ) : (
-              <p className="text-lg font-semibold text-green-600">
-                {formatCurrency(lead.ltv || 0)}
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Origem e interesse */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
-            <MapPin className="w-4 h-4" />
-            Origem e Interesse
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Origem do lead</p>
-            {isEditing ? (
-              <Input
-                value={editedLead.origem_lead || ''}
-                onChange={(e) => setEditedLead(prev => ({ ...prev, origem_lead: e.target.value }))}
-                placeholder="Origem do lead"
-                className="text-sm"
-              />
-            ) : (
-              <p className="text-sm">{lead.origem_lead || 'Não informado'}</p>
-            )}
-          </div>
-          
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Serviço de interesse</p>
-            {isEditing ? (
-              <Input
-                value={editedLead.servico_interesse || ''}
-                onChange={(e) => setEditedLead(prev => ({ ...prev, servico_interesse: e.target.value }))}
-                placeholder="Serviço de interesse"
-                className="text-sm"
-              />
-            ) : (
-              <p className="text-sm">{lead.servico_interesse || 'Não informado'}</p>
-            )}
-          </div>
-
-          {lead.ad_name && (
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Anúncio específico</p>
-              <Badge variant="outline" className="text-purple-600 border-purple-300">
-                📢 {lead.ad_name}
-              </Badge>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Anotações */}
+      {/* Anotações - movido para onde estava o LTV */}
       <Card className="mb-4">
         <CardHeader>
           <CardTitle className="text-sm">Anotações</CardTitle>
@@ -457,6 +395,83 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         </CardContent>
       </Card>
 
+      {/* Origem e interesse */}
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <MapPin className="w-4 h-4" />
+            Origem e Interesse
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Origem do lead</p>
+            {isEditing ? (
+              <Input
+                value={editedLead.origem_lead || ''}
+                onChange={(e) => setEditedLead(prev => ({ ...prev, origem_lead: e.target.value }))}
+                placeholder="Origem do lead"
+                className="text-sm"
+              />
+            ) : (
+              <p className="text-sm">{lead.origem_lead || 'Não informado'}</p>
+            )}
+          </div>
+          
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Serviço de interesse</p>
+            {isEditing ? (
+              <Input
+                value={editedLead.servico_interesse || ''}
+                onChange={(e) => setEditedLead(prev => ({ ...prev, servico_interesse: e.target.value }))}
+                placeholder="Serviço de interesse"
+                className="text-sm"
+              />
+            ) : (
+              <p className="text-sm">{lead.servico_interesse || 'Não informado'}</p>
+            )}
+          </div>
+
+          {lead.ad_name && (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Anúncio específico</p>
+              <Badge variant="outline" className="text-purple-600 border-purple-300">
+                📢 {lead.ad_name}
+              </Badge>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Informações de valor - movido para baixo */}
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <DollarSign className="w-4 h-4" />
+            Valor
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">LTV (Lifetime Value)</p>
+            {isEditing ? (
+              <Input
+                value={editedLead.ltv || ''}
+                onChange={(e) => setEditedLead(prev => ({ ...prev, ltv: parseFloat(e.target.value) || 0 }))}
+                placeholder="Valor em R$"
+                type="number"
+                step="0.01"
+                className="text-lg font-semibold"
+              />
+            ) : (
+              <p className="text-lg font-semibold text-green-600">
+                {formatCurrency(lead.ltv || 0)}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Última atividade */}
       <Card>
         <CardHeader>
@@ -476,6 +491,15 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal de Agendamento */}
+      <RegistroAgendamentoModal
+        isOpen={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
+        selectedClientId={lead.id}
+        clientName={lead.nome || ''}
+        clientPhone={lead.telefone || ''}
+      />
     </div>
   );
 };
