@@ -1,4 +1,3 @@
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -26,7 +25,12 @@ export interface Lead {
 
 // Interface para dados de criação de Lead
 export interface CreateLeadData {
-  nome: string;
+  /**
+   * O nome do lead.
+   * Tornou-se opcional para permitir a criação de leads de fontes
+   * como o Instagram, que podem não fornecer um nome de usuário imediatamente.
+   */
+  nome?: string;
   telefone?: string;
   email?: string;
   origem_lead?: string;
