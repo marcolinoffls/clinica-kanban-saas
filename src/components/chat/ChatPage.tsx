@@ -268,6 +268,56 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     return lead.telefone || 'Clique para ver a conversa...';
   };
 
+  /**
+   * NOVO: Abre o modal para adicionar um novo contato a partir de um lead do Instagram.
+   * @param sourceLead O lead do Instagram que servirá de base.
+   */
+  const handleAddContact = (sourceLead: Lead) => {
+    setLeadSourceForModal(sourceLead);
+    setIsAddContactModalOpen(true);
+  };
+
+  /**
+   * NOVO: Salva o novo contato criado no modal.
+   * É chamado pelo onSave do LeadModal.
+   * @param newLeadData Dados do formulário do novo lead.
+   */
+  const handleSaveContact = (newLeadData: Partial<Lead>) => {
+    // Usa o clinicaId do hook, que é mais confiável.
+    if (!clinicaId) {
+      toast.error("ID da clínica não encontrado. Não é possível criar o lead.");
+      console.error("Tentativa de criar lead sem clinica_id");
+      return;
+    }
+
+    // Combina os dados do formulário com o clinica_id e anotações de rastreabilidade.
+    const finalLeadData = {
+      ...newLeadData,
+      clinica_id: clinicaId,
+      anotacoes: `Contato criado a partir de um lead do Instagram (${leadSourceForModal?.nome}).\n${newLeadData.anotacoes || ''}`.trim()
+    };
+    
+    createLeadMutation.mutate(finalLeadData, {
+      onSuccess: (createdLead) => {
+        toast.success(`Contato "${createdLead.nome}" criado com sucesso!`);
+        setIsAddContactModalOpen(false);
+        setLeadSourceForModal(null);
+      },
+      onError: (error) => {
+        // O hook useCreateLead já pode mostrar um toast, mas um extra aqui pode ser mais específico.
+        toast.error(`Erro ao criar contato: ${error.message}`);
+      }
+    });
+  };
+
+  /**
+   * NOVO: Fecha o modal de adicionar contato e limpa o estado.
+   */
+  const handleCloseContactModal = () => {
+    setIsAddContactModalOpen(false);
+    setLeadSourceForModal(null);
+  };
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -494,54 +544,4 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       )}
     </div>
   );
-};
-
-/**
- * NOVO: Abre o modal para adicionar um novo contato a partir de um lead do Instagram.
- * @param sourceLead O lead do Instagram que servirá de base.
- */
-const handleAddContact = (sourceLead: Lead) => {
-  setLeadSourceForModal(sourceLead);
-  setIsAddContactModalOpen(true);
-};
-
-/**
- * NOVO: Salva o novo contato criado no modal.
- * É chamado pelo onSave do LeadModal.
- * @param newLeadData Dados do formulário do novo lead.
- */
-const handleSaveContact = (newLeadData: Partial<Lead>) => {
-  // Usa o clinicaId do hook, que é mais confiável.
-  if (!clinicaId) {
-    toast.error("ID da clínica não encontrado. Não é possível criar o lead.");
-    console.error("Tentativa de criar lead sem clinica_id");
-    return;
-  }
-
-  // Combina os dados do formulário com o clinica_id e anotações de rastreabilidade.
-  const finalLeadData = {
-    ...newLeadData,
-    clinica_id: clinicaId,
-    anotacoes: `Contato criado a partir de um lead do Instagram (${leadSourceForModal?.nome}).\n${newLeadData.anotacoes || ''}`.trim()
-  };
-  
-  createLeadMutation.mutate(finalLeadData, {
-    onSuccess: (createdLead) => {
-      toast.success(`Contato "${createdLead.nome}" criado com sucesso!`);
-      setIsAddContactModalOpen(false);
-      setLeadSourceForModal(null);
-    },
-    onError: (error) => {
-      // O hook useCreateLead já pode mostrar um toast, mas um extra aqui pode ser mais específico.
-      toast.error(`Erro ao criar contato: ${error.message}`);
-    }
-  });
-};
-
-/**
- * NOVO: Fecha o modal de adicionar contato e limpa o estado.
- */
-const handleCloseContactModal = () => {
-  setIsAddContactModalOpen(false);
-  setLeadSourceForModal(null);
 };
