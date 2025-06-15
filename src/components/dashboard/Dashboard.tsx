@@ -5,6 +5,7 @@ import { ChartCard } from './ChartCard';
 import { AdPerformanceCard } from './AdPerformanceCard';
 import { TimeRangeFilter } from '@/components/admin/TimeRangeFilter';
 import { useDashboardData } from '@/hooks/useDashboardData';
+import { useLeads } from '@/hooks/useSupabaseLeads'; // NOVO: Importar para obter dados brutos
 // Ícones atualizados: removido Target, mantidos os outros
 import { Users, Calendar, TrendingUp, DollarSign, CheckCircle, Megaphone } from 'lucide-react';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
@@ -29,12 +30,26 @@ export const Dashboard = () => {
   const [currentFilter, setCurrentFilter] = useState('Este Mês');
 
   const { data: dashboardData, isLoading, error } = useDashboardData(startDate, endDate);
+  // NOVO: Buscar dados brutos dos leads para filtros avançados
+  const { data: rawLeads = [] } = useLeads();
 
   const handleFilterChange = (newStartDate: Date | null, newEndDate: Date | null, filterName: string) => {
     setStartDate(newStartDate);
     setEndDate(newEndDate);
     setCurrentFilter(filterName);
   };
+
+  // Filtrar leads brutos pelo período selecionado
+  const filteredRawLeads = rawLeads.filter(lead => {
+    if (!lead.created_at) return false;
+    const leadDate = new Date(lead.created_at);
+    
+    let withinRange = true;
+    if (startDate) withinRange = withinRange && leadDate >= startDate;
+    if (endDate) withinRange = withinRange && leadDate <= endDate;
+    
+    return withinRange;
+  });
 
   // Mostrar loading se ainda estiver carregando
   if (isLoading) {
@@ -135,6 +150,7 @@ export const Dashboard = () => {
             type="line"
             data={dashboardData?.leadsParaGrafico || []}
             showFilter={true}
+            rawLeadsData={filteredRawLeads} // NOVO: Passar dados brutos filtrados
           />
         </div>
         

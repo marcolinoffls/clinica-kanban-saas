@@ -1,88 +1,48 @@
 
-import { Lead } from '@/hooks/useLeadsData';
-import { useUpdateLead, useCreateLead, useMoveLeadToStage } from './useLeadsData';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useUpdateLead, useDeleteLead } from './useSupabaseLeads';
 import { toast } from 'sonner';
 
 /**
- * Hook para gerenciar ações relacionadas aos leads no Kanban
+ * Hook para gerenciar ações de leads no Kanban
+ * 
+ * Este hook centraliza as operações que podem ser realizadas nos leads
+ * dentro do contexto do board Kanban, como editar e excluir leads.
  */
-export const useKanbanLeadActions = (
-  onNavigateToChat?: (leadId: string) => void
-) => {
+
+export const useKanbanLeadActions = () => {
+  const queryClient = useQueryClient();
   const updateLeadMutation = useUpdateLead();
-  const createLeadMutation = useCreateLead();
-  const moveLeadMutation = useMoveLeadToStage();
+  const deleteLeadMutation = useDeleteLead();
 
-  const handleSaveLead = async (leadData: any, selectedLead: Lead | null) => {
+  const handleEditLead = async (leadData: any) => {
     try {
-      if (selectedLead) {
-        console.log('🔄 [useKanbanLeadActions] Atualizando lead existente:', selectedLead.id);
-        await updateLeadMutation.mutateAsync({
-          id: selectedLead.id,
-          data: leadData,
-        });
-        toast.success('Lead atualizado com sucesso!');
-      } else {
-        console.log('➕ [useKanbanLeadActions] Criando novo lead');
-        await createLeadMutation.mutateAsync(leadData);
-        toast.success('Lead criado com sucesso!');
-      }
-    } catch (error) {
-      console.error('❌ [useKanbanLeadActions] Erro ao salvar lead:', error);
-      toast.error('Erro ao salvar lead');
-      throw error;
-    }
-  };
-
-  /**
-   * Handler principal para quando um LeadCard é solto em uma coluna.
-   * Gerencia a movimentação de leads entre etapas no Kanban.
-   */
-  const handleDropLeadInColumn = async (leadId: string, fromColumnId: string, toColumnId: string) => {
-    console.log('🚀 [useKanbanLeadActions] handleDropLeadInColumn chamado:', {
-      leadId,
-      fromColumnId,
-      toColumnId
-    });
-
-    try {
-      await moveLeadMutation.mutateAsync({
-        leadId,
-        etapaId: toColumnId
+      // CORREÇÃO: Remover 'data' wrapper e passar as propriedades diretamente
+      await updateLeadMutation.mutateAsync({
+        id: leadData.id,
+        ...leadData // Spread das propriedades diretamente
       });
-      console.log('✅ [useKanbanLeadActions] Lead movido com sucesso');
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
     } catch (error) {
-      console.error('❌ [useKanbanLeadActions] Erro ao mover lead:', error);
-      toast.error('Erro ao mover lead');
+      console.error('Erro ao atualizar lead:', error);
+      toast.error('Erro ao atualizar lead');
     }
   };
 
-  const handleOpenHistory = async (lead: Lead) => {
+  const handleDeleteLead = async (leadId: string) => {
     try {
-      console.log('📖 [useKanbanLeadActions] Abrindo histórico do lead:', lead.id);
-      // Por enquanto, retorna array vazio até implementar a busca de consultas
-      return [];
+      await deleteLeadMutation.mutateAsync(leadId);
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
     } catch (error) {
-      console.error('❌ [useKanbanLeadActions] Erro ao buscar histórico:', error);
-      toast.error('Erro ao carregar histórico');
-      return [];
-    }
-  };
-
-  const handleOpenChat = (lead: Lead) => {
-    console.log('💬 [useKanbanLeadActions] Abrindo chat do lead:', lead.id);
-    if (onNavigateToChat) {
-      onNavigateToChat(lead.id);
+      console.error('Erro ao deletar lead:', error);
+      toast.error('Erro ao deletar lead');
     }
   };
 
   return {
-    handleSaveLead,
-    handleDropLeadInColumn,
-    handleOpenHistory,
-    handleOpenChat,
-    isCreatingLead: createLeadMutation.isPending,
-    isUpdatingLead: updateLeadMutation.isPending,
-    isMovingLead: moveLeadMutation.isPending,
+    handleEditLead,
+    handleDeleteLead,
+    isUpdating: updateLeadMutation.isPending,
+    isDeleting: deleteLeadMutation.isPending,
   };
 };

@@ -25,6 +25,8 @@ interface ChartData {
   leads?: number;
   category?: string;
   conversions?: number;
+  // NOVO: Campo para identificar se o lead veio de anúncio
+  isFromAd?: boolean;
   [key: string]: any;
 }
 
@@ -33,23 +35,58 @@ interface ChartCardProps {
   description: string;
   data: ChartData[];
   type: 'line' | 'bar';
-  showFilter?: boolean; // Novo prop para controlar se mostra filtros
+  showFilter?: boolean; // Prop para controlar se mostra filtros
+  // NOVO: Prop para receber dados brutos dos leads para filtragem
+  rawLeadsData?: any[];
 }
 
-export const ChartCard = ({ title, description, data, type, showFilter = false }: ChartCardProps) => {
+export const ChartCard = ({ 
+  title, 
+  description, 
+  data, 
+  type, 
+  showFilter = false,
+  rawLeadsData = []
+}: ChartCardProps) => {
   const [filterType, setFilterType] = useState<'all' | 'ads'>('all');
 
-  // Filtrar dados baseado no tipo selecionado (apenas para gráfico de linha)
-  const filteredData = showFilter && type === 'line' 
-    ? data.filter(item => {
-        if (filterType === 'ads') {
-          // Lógica para filtrar apenas dados de anúncios
-          // Assumindo que dados de anúncios têm uma propriedade específica
-          return item.isFromAd === true;
-        }
-        return true; // Mostrar todos
-      })
-    : data;
+  // Função para reprocessar dados baseado no filtro quando é gráfico de linha
+  const getFilteredData = () => {
+    if (!showFilter || type !== 'line' || !rawLeadsData.length) {
+      return data;
+    }
+
+    if (filterType === 'ads') {
+      // Filtrar apenas leads que têm ad_name preenchido
+      const leadsComAnuncio = rawLeadsData.filter(lead => 
+        lead.ad_name && lead.ad_name.trim() !== ''
+      );
+
+      // Reprocessar dados agrupando por data apenas os leads com anúncio
+      const datasMap = new Map<string, number>();
+      
+      leadsComAnuncio.forEach(lead => {
+        const dataLead = new Date(lead.created_at);
+        const labelData = `${dataLead.getDate().toString().padStart(2, '0')}/${(dataLead.getMonth() + 1).toString().padStart(2, '0')}`;
+        datasMap.set(labelData, (datasMap.get(labelData) || 0) + 1);
+      });
+
+      // Converter para formato do gráfico
+      return Array.from(datasMap.entries()).map(([label, leads]) => ({
+        label,
+        leads
+      })).sort((a, b) => {
+        // Ordenar por data
+        const [diaA, mesA] = a.label.split('/').map(Number);
+        const [diaB, mesB] = b.label.split('/').map(Number);
+        return (mesA * 100 + diaA) - (mesB * 100 + diaB);
+      });
+    }
+
+    return data; // Mostrar todos os dados
+  };
+
+  const filteredData = getFilteredData();
 
   const renderChart = () => {
     if (type === 'line') {
@@ -156,13 +193,18 @@ export const ChartCard = ({ title, description, data, type, showFilter = false }
 
       {/* Gráfico */}
       <div className="w-full">
-        {data && data.length > 0 ? (
+        {filteredData && filteredData.length > 0 ? (
           renderChart()
         ) : (
           <div className="flex items-center justify-center h-64 text-gray-500">
             <div className="text-center">
               <TrendingUp className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>Nenhum dado disponível para o período selecionado</p>
+              <p>
+                {filterType === 'ads' 
+                  ? 'Nenhum lead de anúncio encontrado no período selecionado'
+                  : 'Nenhum dado disponível para o período selecionado'
+                }
+              </p>
             </div>
           </div>
         )}
