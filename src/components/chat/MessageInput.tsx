@@ -56,6 +56,7 @@ export const MessageInput = ({
 
   // Função para acionar a seleção de arquivo ao clicar no botão de anexo
   const handleTriggerFileUpload = () => {
+    console.log('📎 [MessageInput] Botão de anexo clicado');
     fileInputRef.current?.click(); // Simula clique no input de arquivo oculto
   };
 
@@ -63,6 +64,11 @@ export const MessageInput = ({
   const handleFileSelectedAndForward = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; // Pega o primeiro arquivo selecionado
     if (file) {
+      console.log('📎 [MessageInput] Arquivo selecionado:', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+      });
       onFileSelect(file); // Envia o arquivo para o componente pai (ChatPage.tsx)
     }
     // Limpa o valor do input para permitir que o mesmo arquivo seja selecionado novamente
@@ -77,6 +83,9 @@ export const MessageInput = ({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (value.trim() && !loading) {
+        console.log('⌨️ [MessageInput] Enter pressionado, enviando mensagem...');
+        console.log('⌨️ [MessageInput] Estado da IA:', aiEnabled);
+        console.log('⌨️ [MessageInput] Conteúdo:', value.substring(0, 50) + '...');
         // Enviar estado atual da IA junto com a mensagem
         onSend(aiEnabled);
       }
@@ -102,6 +111,28 @@ export const MessageInput = ({
         resposta.titulo.toLowerCase().includes(value.toLowerCase())
       : false
   );
+
+  // Função para enviar mensagem com logs detalhados
+  const handleSendClick = () => {
+    console.log('🔘 [MessageInput] Botão de enviar clicado');
+    console.log('🔘 [MessageInput] Validações:', {
+      hasContent: !!value.trim(),
+      isNotLoading: !loading,
+      canSend: value.trim() && !loading
+    });
+    
+    if (value.trim() && !loading) {
+      console.log('🔘 [MessageInput] Enviando mensagem via botão...');
+      console.log('🔘 [MessageInput] Estado da IA:', aiEnabled);
+      console.log('🔘 [MessageInput] Conteúdo:', value.substring(0, 50) + '...');
+      onSend(aiEnabled);
+    } else {
+      console.log('🔘 [MessageInput] Envio bloqueado:', {
+        noContent: !value.trim(),
+        isLoading: loading
+      });
+    }
+  };
 
   return (
     <div className="bg-white border-t border-gray-200 p-4">
@@ -225,7 +256,7 @@ export const MessageInput = ({
         </div>
 
         <Button
-          onClick={() => onSend(aiEnabled)}
+          onClick={handleSendClick}
           disabled={!value.trim() || loading}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 h-[60px]"
         >

@@ -39,6 +39,18 @@ export const useWebhook = () => {
     anexo_url?: string | null
   ) => {
     try {
+      console.log('🚀 [useWebhook] INICIANDO PROCESSO DE WEBHOOK');
+      console.log('📊 [useWebhook] Parâmetros recebidos:', {
+        mensagemId,
+        leadId,
+        clinicaId,
+        conteudo: conteudo?.substring(0, 50) + '...',
+        tipo,
+        createdAt,
+        aiEnabled,
+        anexo_url
+      });
+
       // Validações críticas antes de qualquer outra coisa
       if (!clinicaId || clinicaId === 'undefined' || clinicaId === 'null') {
         console.error('❌ [useWebhook] ERRO CRÍTICO: clinicaId inválido:', clinicaId);
@@ -48,12 +60,18 @@ export const useWebhook = () => {
         console.error('❌ [useWebhook] ERRO CRÍTICO: leadId inválido:', leadId);
         throw new Error('leadId inválido para webhook');
       }
+      if (!mensagemId) {
+        console.error('❌ [useWebhook] ERRO CRÍTICO: mensagemId inválido:', mensagemId);
+        throw new Error('mensagemId inválido para webhook');
+      }
+
+      console.log('✅ [useWebhook] Validações iniciais passaram');
 
       // Passo 1: Buscar o lead para determinar a plataforma de destino (Instagram ou WhatsApp)
-      console.log(`[useWebhook] Verificando plataforma para o lead: ${leadId}`);
+      console.log(`🔍 [useWebhook] Buscando dados do lead: ${leadId}`);
       const { data: lead, error: leadError } = await supabase
         .from('leads')
-        .select('id_direct, telefone') // Campos que definem a plataforma
+        .select('id, id_direct, telefone, nome, meu_id_direct') // Campos que definem a plataforma
         .eq('id', leadId)
         .single();
 
@@ -66,19 +84,35 @@ export const useWebhook = () => {
         throw new Error('Lead não encontrado.');
       }
 
+      console.log('📋 [useWebhook] Dados do lead encontrados:', {
+        id: lead.id,
+        nome: lead.nome,
+        tem_id_direct: !!lead.id_direct,
+        tem_telefone: !!lead.telefone,
+        id_direct_valor: lead.id_direct?.substring(0, 10) + '...',
+        telefone_valor: lead.telefone,
+        meu_id_direct: lead.meu_id_direct?.substring(0, 10) + '...'
+      });
+
       // Passo 2: Definir qual Edge Function usar com base nos dados do lead
       let targetFunction = '';
       if (lead.id_direct) {
         // Se o lead tem 'id_direct', ele veio do Instagram.
         targetFunction = 'send-instagram-webhook';
-        console.log(`[useWebhook] ➡️ Roteando para Instagram. Lead: ${leadId}, Função: ${targetFunction}`);
+        console.log(`📱 [useWebhook] ➡️ ROTEANDO PARA INSTAGRAM`);
+        console.log(`📱 [useWebhook] Lead: ${leadId}, Função: ${targetFunction}`);
+        console.log(`📱 [useWebhook] id_direct: ${lead.id_direct}`);
+        console.log(`📱 [useWebhook] meu_id_direct: ${lead.meu_id_direct}`);
       } else if (lead.telefone) {
         // Se tem 'telefone' (e não 'id_direct'), é do WhatsApp.
         targetFunction = 'send-webhook';
-        console.log(`[useWebhook] ➡️ Roteando para WhatsApp. Lead: ${leadId}, Função: ${targetFunction}`);
+        console.log(`📞 [useWebhook] ➡️ ROTEANDO PARA WHATSAPP`);
+        console.log(`📞 [useWebhook] Lead: ${leadId}, Função: ${targetFunction}`);
+        console.log(`📞 [useWebhook] telefone: ${lead.telefone}`);
       } else {
         // Se não tiver nenhum dos dois, não é possível contatar o lead.
         console.error(`❌ [useWebhook] Lead ${leadId} não tem 'id_direct' nem 'telefone'. Impossível enviar webhook.`);
+        console.error(`❌ [useWebhook] Dados do lead:`, lead);
         return null; // Interrompe a execução para não causar erros.
       }
       
@@ -95,27 +129,39 @@ export const useWebhook = () => {
         anexo_url: anexo_url
       };
 
-      console.log(`📤 [useWebhook] Payload a ser enviado para a Edge Function '${targetFunction}':`);
+      console.log(`📤 [useWebhook] Payload montado para '${targetFunction}':`);
       console.log(JSON.stringify(webhookPayload, null, 2));
 
       // Passo 3: Invocar a Edge Function correta
-      console.log(`🚀 [useWebhook] Invocando Edge Function '${targetFunction}'...`);
+      console.log(`🚀 [useWebhook] INVOCANDO EDGE FUNCTION: '${targetFunction}'`);
+      console.log(`🚀 [useWebhook] URL da função: https://wabnuxerjnecrjynyyfo.supabase.co/functions/v1/${targetFunction}`);
       
       const { data, error } = await supabase.functions.invoke(targetFunction, {
         body: webhookPayload
       });
 
       if (error) {
-        console.error(`❌ [useWebhook] Erro ao invocar a Edge Function '${targetFunction}':`, error);
+        console.error(`❌ [useWebhook] ERRO ao invocar Edge Function '${targetFunction}':`, error);
+        console.error(`❌ [useWebhook] Detalhes do erro:`, {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
         throw error;
       }
 
-      console.log(`✅ [useWebhook] Webhook via '${targetFunction}' enviado com sucesso!`);
-      console.log('- Response data:', data);
+      console.log(`✅ [useWebhook] WEBHOOK ENVIADO COM SUCESSO via '${targetFunction}'!`);
+      console.log('📊 [useWebhook] Response data:', data);
+      
       return data;
 
     } catch (error) {
-      console.error('❌ [useWebhook] Erro completo no processo de envio do webhook:', error);
+      console.error('❌ [useWebhook] ERRO COMPLETO no processo de envio do webhook:');
+      console.error('❌ [useWebhook] Error object:', error);
+      console.error('❌ [useWebhook] Error message:', error instanceof Error ? error.message : 'Erro desconhecido');
+      console.error('❌ [useWebhook] Error stack:', error instanceof Error ? error.stack : 'Sem stack trace');
+      
       // Retorna null para não quebrar a aplicação principal (ex: envio de mensagem na UI).
       // O erro já foi logado para depuração.
       return null;
