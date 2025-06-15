@@ -1,11 +1,12 @@
+
 import { useState } from 'react';
 import { MetricCard } from './MetricCard';
 import { ChartCard } from './ChartCard';
 import { AdPerformanceCard } from './AdPerformanceCard';
 import { TimeRangeFilter } from '@/components/admin/TimeRangeFilter';
 import { useDashboardData } from '@/hooks/useDashboardData';
-// ÍCONES ADICIONADOS: CheckCircle para "Consultas Realizadas" e Megaphone para "Leads de Anúncios".
-import { Users, Calendar, TrendingUp, DollarSign, CheckCircle, Megaphone, Target } from 'lucide-react';
+// Ícones atualizados: removido Target, mantidos os outros
+import { Users, Calendar, TrendingUp, DollarSign, CheckCircle, Megaphone } from 'lucide-react';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 
 /**
@@ -15,7 +16,7 @@ import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
  * - Filtro de período configurável
  * - Cartões com métricas baseadas em dados reais do Supabase
  * - Gráficos de performance e conversão
- * - NOVO: Performance de anúncios específicos por ad_name
+ * - Performance de anúncios específicos por ad_name
  * - Insights automáticos baseados nos dados
  * 
  * Os dados são buscados do Supabase através do hook useDashboardData
@@ -23,16 +24,12 @@ import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
  */
 
 export const Dashboard = () => {
-  // O estado do filtro de período foi atualizado para permitir valores nulos,
-  // o que é necessário para a opção "Máximo" do novo filtro.
   const [startDate, setStartDate] = useState<Date | null>(() => startOfDay(startOfMonth(new Date())));
   const [endDate, setEndDate] = useState<Date | null>(() => endOfDay(endOfMonth(new Date())));
   const [currentFilter, setCurrentFilter] = useState('Este Mês');
 
-  // O hook `useDashboardData` agora é chamado com os estados que podem ser nulos.
   const { data: dashboardData, isLoading, error } = useDashboardData(startDate, endDate);
 
-  // A função de callback para o filtro foi atualizada para aceitar datas nulas.
   const handleFilterChange = (newStartDate: Date | null, newEndDate: Date | null, filterName: string) => {
     setStartDate(newStartDate);
     setEndDate(newEndDate);
@@ -71,69 +68,43 @@ export const Dashboard = () => {
     );
   }
 
-  // Preparar dados das métricas com base nos dados carregados
+  // Preparar dados das métricas com base nos dados carregados - REMOVIDO o card de "Leads de Anúncios Específicos"
   const metrics = dashboardData ? [
     {
       title: 'Total de Contatos',
       value: dashboardData.totalContatos.toString(),
-      change: `+${dashboardData.variacaoContatos}%`,
-      changeType: 'positive' as const,
       icon: Users
     },
-    // NOVO CARD: Exibe o total de leads provenientes de anúncios.
     {
       title: 'Leads de Anúncios',
       value: dashboardData.leadsAnuncios.toString(),
-      change: `+${dashboardData.variacaoLeadsAnuncios}%`,
-      changeType: 'positive' as const,
       icon: Megaphone
-    },
-    // NOVO CARD: Leads com identificação específica do anúncio (ad_name)
-    {
-      title: 'Leads de Anúncios Específicos',
-      value: dashboardData.leadsComAdName.toString(),
-      change: `+${dashboardData.variacaoLeadsAdName}%`,
-      changeType: 'positive' as const,
-      icon: Target
     },
     {
       title: 'Consultas Agendadas',
       value: dashboardData.consultasAgendadas.toString(),
-      change: `+${dashboardData.variacaoConsultas}%`,
-      changeType: 'positive' as const,
       icon: Calendar
     },
-    // NOVO CARD: Exibe o total de consultas que foram efetivamente realizadas ou pagas.
     {
       title: 'Consultas Realizadas',
       value: dashboardData.consultasRealizadas.toString(),
-      change: `+${dashboardData.variacaoConsultasRealizadas}%`,
-      changeType: 'positive' as const,
       icon: CheckCircle
     },
     {
       title: 'Taxa de Conversão',
       value: `${dashboardData.taxaConversao}%`,
-      change: `+${dashboardData.variacaoConversao}%`,
-      changeType: 'positive' as const,
       icon: TrendingUp
     },
     {
       title: 'Faturamento Realizado',
       value: `R$ ${dashboardData.faturamentoRealizado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      change: `+${dashboardData.variacaoFaturamento}%`,
-      changeType: 'positive' as const,
       icon: DollarSign
     }
   ] : [];
 
   return (
     <div className="space-y-6">
-      {/* 
-        Header da página com o filtro de período.
-        O filtro foi adicionado de volta e posicionado ao lado do título.
-        O layout é responsivo, ajustando-se para telas menores.
-      */}
+      {/* Header da página com o filtro de período */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
@@ -147,12 +118,8 @@ export const Dashboard = () => {
         />
       </div>
 
-      {/* 
-        Grid de cartões de métricas
-        ALTERAÇÃO DE LAYOUT: A grade foi ajustada para `lg:grid-cols-3` para
-        acomodar os 6 cards de forma harmoniosa em telas maiores (2 linhas de 3).
-      */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-6">
+      {/* Grid de cartões de métricas - Layout reorganizado para 6 cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {metrics.map((metric, index) => (
           <MetricCard key={index} {...metric} />
         ))}
@@ -172,7 +139,6 @@ export const Dashboard = () => {
           type="bar"
           data={dashboardData?.conversoesPorCategoria || []}
         />
-        {/* NOVO: Card de performance de anúncios */}
         <AdPerformanceCard
           data={dashboardData?.leadsPorAnuncio || []}
         />
@@ -199,7 +165,7 @@ export const Dashboard = () => {
                 </div>
               </div>
               
-              {/* NOVO: Insight sobre anúncios */}
+              {/* Insight sobre anúncios usando o campo leadsComAdName */}
               {dashboardData.leadsComAdName > 0 && (
                 <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg">
                   <div className="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>

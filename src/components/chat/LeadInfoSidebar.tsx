@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Phone, Mail, Calendar as CalendarIconLucide, FileText, ChevronDown, ChevronRight, History, Edit, Check, X, MoveHorizontal, UserPlus } from 'lucide-react'; // Ícone para a etapa
+import { User, Phone, Mail, Calendar as CalendarIconLucide, FileText, ChevronDown, ChevronRight, History, Edit, Check, X, MoveHorizontal, UserPlus, Target } from 'lucide-react'; // Ícone para a etapa
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';

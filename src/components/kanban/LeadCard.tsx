@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { MessageCircle, History, Edit, Target } from 'lucide-react';
 import { Lead } from '@/hooks/useLeadsData';
@@ -55,7 +54,7 @@ export const LeadCard = ({
     e.stopPropagation();
   };
 
-  // NOVA LÓGICA: Determinar se o lead veio de um anúncio específico
+  // Determinar se o lead veio de um anúncio específico
   const temAnuncioEspecifico = lead.ad_name && lead.ad_name.trim() !== '';
 
   return (
@@ -76,18 +75,18 @@ export const LeadCard = ({
           <h4 className="font-semibold text-gray-900 text-sm leading-tight">
             {lead.nome}
           </h4>
-          {/* NOVO: Indicador visual para leads de anúncios específicos */}
+          {/* Indicador visual para leads de anúncios específicos */}
           {temAnuncioEspecifico && (
             <div className="flex-shrink-0">
-              <Target className="h-4 w-4 text-purple-600" title="Lead de anúncio específico" />
+              <Target className="h-4 w-4 text-purple-600" />
             </div>
           )}
         </div>
         
-        {/* NOVO: Mostrar nome do anúncio se disponível */}
+        {/* Mostrar nome do anúncio se disponível */}
         {temAnuncioEspecifico && (
           <div className="mt-1">
-            <p className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full inline-block truncate max-w-full" title={lead.ad_name}>
+            <p className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full inline-block truncate max-w-full">
               📢 {lead.ad_name}
             </p>
           </div>
