@@ -61,11 +61,10 @@ serve(async (req) => {
   }
 
   try {
-    // Adicionando um número de versão para garantir que o deploy foi atualizado
-    const functionVersion = "v1.2.2"; // VERSÃO ATUALIZADA PARA FORÇAR DEPLOYMENT
+    // A versão foi atualizada para indicar a remoção dos logs
+    const functionVersion = "v1.3.0_secure_logs"; 
     console.log(`⚡️ [send-instagram-webhook] INICIANDO - Versão: ${functionVersion}`);
-    console.log('🔍 [send-instagram-webhook] Requisição recebida');
-
+    
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -73,7 +72,7 @@ serve(async (req) => {
     )
 
     const requestBody = await req.json();
-    console.log('📋 [send-instagram-webhook] Payload recebido:', JSON.stringify(requestBody, null, 2));
+    console.log('📋 [send-instagram-webhook] Payload recebido e sendo processado.');
 
     const { 
       mensagem_id, 
@@ -102,20 +101,19 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Clínica não encontrada' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    console.log('✅ [send-instagram-webhook] Dados da clínica carregados:', clinica);
+    console.log('✅ [send-instagram-webhook] Dados da clínica carregados.');
 
-    // LÓGICA PARA DETERMINAR A URL DO WEBHOOK (REVISADA COM LOGS ADICIONAIS)
+    // LÓGICA PARA DETERMINAR A URL DO WEBHOOK
     let webhookUrl = '';
     console.log(`[send-instagram-webhook] Verificando tipo de webhook: '${clinica.instagram_webhook_type}'`);
     if (clinica.instagram_webhook_type === 'padrao' && clinica.instagram_webhook_url) {
       webhookUrl = clinica.instagram_webhook_url;
-      console.log(`[send-instagram-webhook] TIPO PADRÃO. URL: ${webhookUrl}`);
+      console.log(`[send-instagram-webhook] TIPO PADRÃO. URL definida.`);
     } else if (clinica.instagram_webhook_type === 'personalizado' && clinica.instagram_user_handle) {
       // A URL foi corrigida para usar o endpoint /webhook/ em vez de /webhook-instagram/.
-      // Isso garante que a requisição seja enviada para o endpoint correto no servidor n8n.
       webhookUrl = `https://webhooks.marcolinofernandes.site/webhook/${clinica.instagram_user_handle}`;
       console.log(`[send-instagram-webhook] TIPO PERSONALIZADO. Handle: ${clinica.instagram_user_handle}`);
-      console.log(`[send-instagram-webhook] URL construída (CORRIGIDA): ${webhookUrl}`);
+      console.log(`[send-instagram-webhook] URL construída.`);
     }
 
     if (!webhookUrl) {
@@ -142,8 +140,7 @@ serve(async (req) => {
         messagePayload = { conversation: conteudo };
     }
     
-    // CORREÇÃO: Lógica aprimorada para mapear o tipo da mensagem do nosso banco de dados
-    // para o formato esperado pelo webhook (ex: 'texto' -> 'conversation').
+    // CORREÇÃO: Lógica aprimorada para mapear o tipo da mensagem
     let messageTypeForWebhook: string;
     switch (tipo) {
       case 'texto':
@@ -187,26 +184,19 @@ serve(async (req) => {
       timestamp_sp: timestampSP
     };
 
-    console.log('📤 [send-instagram-webhook] Payload final para n8n:', JSON.stringify(webhookPayload, null, 2));
+    console.log('📤 [send-instagram-webhook] Payload final montado para envio.');
 
-    // CRIAÇÃO DO JWT COM LOGS DETALHADOS
+    // CRIAÇÃO DO JWT
     console.log('🔐 [send-instagram-webhook] Iniciando criação do token JWT...');
     const secretKey = Deno.env.get('EVOLUTION_API_KEY') || 'default-secret';
-    console.log('🔐 [send-instagram-webhook] Secret key definida:', secretKey.substring(0, 10) + '...');
     
     const cryptoKey = await crypto.subtle.importKey("raw", new TextEncoder().encode(secretKey), { name: "HMAC", hash: "SHA-256" }, true, ["sign", "verify"]);
-    console.log('🔐 [send-instagram-webhook] Crypto key importada com sucesso');
     
     const jwt = await djwt.create({ alg: "HS256", typ: "JWT" }, { clinica_id, exp: djwt.getNumericDate(60 * 60) }, cryptoKey);
-    console.log('🔐 [send-instagram-webhook] JWT criado com sucesso:', jwt.substring(0, 50) + '...');
+    console.log('🔐 [send-instagram-webhook] JWT criado com sucesso.');
 
-    // ENVIO DO WEBHOOK COM LOGS DETALHADOS E TIMEOUT
-    console.log('🚀 [send-instagram-webhook] Iniciando envio do webhook...');
-    console.log('🚀 [send-instagram-webhook] URL de destino:', webhookUrl);
-    console.log('🚀 [send-instagram-webhook] Headers que serão enviados:', {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${jwt.substring(0, 20)}...`
-    });
+    // ENVIO DO WEBHOOK COM TIMEOUT
+    console.log(`🚀 [send-instagram-webhook] Iniciando envio para: ${webhookUrl}`);
 
     // Criando um AbortController para timeout
     const controller = new AbortController();
@@ -226,23 +216,18 @@ serve(async (req) => {
 
       clearTimeout(timeoutId);
 
-      console.log('📡 [send-instagram-webhook] Resposta recebida do webhook:');
-      console.log('📡 [send-instagram-webhook] Status:', webhookResponse.status);
-      console.log('📡 [send-instagram-webhook] StatusText:', webhookResponse.statusText);
-      console.log('📡 [send-instagram-webhook] Headers:', Object.fromEntries(webhookResponse.headers.entries()));
-
       const responseText = await webhookResponse.text();
-      console.log('📡 [send-instagram-webhook] Conteúdo da resposta:', responseText);
+      console.log('📡 [send-instagram-webhook] Resposta recebida do webhook. Status:', webhookResponse.status);
 
       if (webhookResponse.ok) {
-        console.log('✅ [send-instagram-webhook] Webhook enviado com sucesso:', responseText);
-        return new Response(JSON.stringify({ success: true, response: responseText }), { 
+        console.log('✅ [send-instagram-webhook] Webhook enviado com sucesso.');
+        return new Response(JSON.stringify({ success: true, message: "Webhook sent successfully" }), { 
           status: 200, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         });
       } else {
         console.error('❌ [send-instagram-webhook] Erro no webhook - Status:', webhookResponse.status);
-        console.error('❌ [send-instagram-webhook] Erro no webhook - Response:', responseText);
+        console.error('❌ [send-instagram-webhook] Detalhes do erro:', responseText);
         return new Response(JSON.stringify({ 
           error: 'Falha ao enviar webhook', 
           status: webhookResponse.status,
