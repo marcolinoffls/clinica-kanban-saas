@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { endOfDay, startOfDay, subDays } from 'date-fns';
+import { Users, TrendingUp, Calendar, DollarSign } from 'lucide-react';
 import { TimeRangeFilter } from '../TimeRangeFilter';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { ChartCard } from '@/components/dashboard/ChartCard';
@@ -96,42 +97,48 @@ export const AdminClinicDashboard = ({ clinicaId }: AdminClinicDashboardProps) =
       {/* Cards de Métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
-          title="Total de Leads"
-          value={dashboardData.totalLeads}
-          icon="users"
-          color="blue"
+          title="Total de Contatos"
+          value={dashboardData.totalContatos.toString()}
+          change={`${dashboardData.variacaoContatos > 0 ? '+' : ''}${dashboardData.variacaoContatos}%`}
+          changeType={dashboardData.variacaoContatos >= 0 ? 'positive' : 'negative'}
+          icon={Users}
         />
         <MetricCard
           title="Taxa de Conversão"
           value={`${dashboardData.taxaConversao}%`}
-          icon="trending-up"
-          color="green"
+          change={`${dashboardData.variacaoConversao > 0 ? '+' : ''}${dashboardData.variacaoConversao}%`}
+          changeType={dashboardData.variacaoConversao >= 0 ? 'positive' : 'negative'}
+          icon={TrendingUp}
         />
         <MetricCard
-          title="Agendamentos"
-          value={dashboardData.totalAgendamentos}
-          icon="calendar"
-          color="purple"
+          title="Consultas Agendadas"
+          value={dashboardData.consultasAgendadas.toString()}
+          change={`${dashboardData.variacaoConsultas > 0 ? '+' : ''}${dashboardData.variacaoConsultas}%`}
+          changeType={dashboardData.variacaoConsultas >= 0 ? 'positive' : 'negative'}
+          icon={Calendar}
         />
         <MetricCard
-          title="Receita Estimada"
-          value={`R$ ${dashboardData.receitaEstimada.toLocaleString('pt-BR')}`}
-          icon="dollar-sign"
-          color="orange"
+          title="Faturamento Realizado"
+          value={`R$ ${(dashboardData.faturamentoRealizado || 0).toLocaleString('pt-BR')}`}
+          change={`${dashboardData.variacaoFaturamento > 0 ? '+' : ''}${dashboardData.variacaoFaturamento}%`}
+          changeType={dashboardData.variacaoFaturamento >= 0 ? 'positive' : 'negative'}
+          icon={DollarSign}
         />
       </div>
 
       {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ChartCard
-          title="Leads por Dia"
-          data={dashboardData.leadsPorDia}
+          title="Leads por Período"
+          description="Evolução dos leads ao longo do tempo"
+          data={dashboardData.leadsParaGrafico}
           type="line"
         />
         <ChartCard
-          title="Origem dos Leads"
-          data={dashboardData.origemLeads}
-          type="pie"
+          title="Conversões por Categoria"
+          description="Distribuição das conversões por tipo de serviço"
+          data={dashboardData.conversoesPorCategoria}
+          type="bar"
         />
       </div>
     </div>
