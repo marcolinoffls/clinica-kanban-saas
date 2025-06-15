@@ -6,9 +6,10 @@
  * - Exibe ranking dos anúncios por número de leads gerados
  * - Mostra taxa de conversão de cada anúncio
  * - Permite visualizar ROI e performance comparativa
+ * - Inclui rolagem interna para visualizar muitos anúncios
  * 
  * Onde é usado:
- * - No dashboard principal para análise de campanhas publicitárias
+ * - No dashboard principal para análise de campanias publicitárias
  * 
  * Como se conecta:
  * - Recebe dados processados pelo dashboardService
@@ -57,7 +58,7 @@ export const AdPerformanceCard = ({ data }: AdPerformanceCardProps) => {
   }
 
   return (
-    <div className="bg-white rounded-lg p-6 border border-gray-200">
+    <div className="bg-white rounded-lg p-6 border border-gray-200 flex flex-col">
       {/* Header do card */}
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -69,8 +70,8 @@ export const AdPerformanceCard = ({ data }: AdPerformanceCardProps) => {
         </p>
       </div>
 
-      {/* Lista de anúncios */}
-      <div className="space-y-4">
+      {/* Lista de anúncios com rolagem interna */}
+      <div className="flex-1 overflow-y-auto max-h-64 space-y-4 pr-2">
         {data.map((item, index) => {
           const taxaConversao = item.leads > 0 ? (item.conversoes / item.leads) * 100 : 0;
           
@@ -80,7 +81,7 @@ export const AdPerformanceCard = ({ data }: AdPerformanceCardProps) => {
                 {/* Posição no ranking */}
                 <div className="flex items-center gap-3">
                   <div className={`
-                    w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white
+                    w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0
                     ${index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-400' : 'bg-gray-300'}
                   `}>
                     {index + 1}
@@ -103,7 +104,7 @@ export const AdPerformanceCard = ({ data }: AdPerformanceCardProps) => {
               </div>
 
               {/* Taxa de conversão */}
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                 <TrendingUp className={`h-4 w-4 ${taxaConversao > 10 ? 'text-green-600' : taxaConversao > 5 ? 'text-yellow-600' : 'text-red-600'}`} />
                 <span className={`text-sm font-medium ${
                   taxaConversao > 10 ? 'text-green-600' : taxaConversao > 5 ? 'text-yellow-600' : 'text-red-600'

@@ -15,8 +15,8 @@ import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
  * Exibe métricas e indicadores dinâmicos da clínica:
  * - Filtro de período configurável
  * - Cartões com métricas baseadas em dados reais do Supabase
- * - Gráficos de performance e conversão
- * - Performance de anúncios específicos por ad_name
+ * - Gráficos de performance e conversão com melhor visualização
+ * - Performance de anúncios específicos por ad_name com rolagem
  * - Insights automáticos baseados nos dados
  * 
  * Os dados são buscados do Supabase através do hook useDashboardData
@@ -44,8 +44,8 @@ export const Dashboard = () => {
           <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
           <p className="text-gray-600 mt-1">Carregando métricas da sua clínica...</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} className="bg-white rounded-lg p-6 border border-gray-200 animate-pulse">
               <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
               <div className="h-8 bg-gray-200 rounded w-1/2"></div>
@@ -68,7 +68,7 @@ export const Dashboard = () => {
     );
   }
 
-  // Preparar dados das métricas com base nos dados carregados - REMOVIDO o card de "Leads de Anúncios Específicos"
+  // Preparar dados das métricas com base nos dados carregados
   const metrics = dashboardData ? [
     {
       title: 'Total de Contatos',
@@ -125,23 +125,43 @@ export const Dashboard = () => {
         ))}
       </div>
 
-      {/* Grid de gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        <ChartCard
-          title="Leads por Período"
-          description="Evolução dos leads recebidos no período selecionado"
-          type="line"
-          data={dashboardData?.leadsParaGrafico || []}
-        />
+      {/* Grid de gráficos - Reorganizado para dar mais espaço ao gráfico de leads */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Gráfico de leads ocupando 2 colunas para mais espaço */}
+        <div className="lg:col-span-2">
+          <ChartCard
+            title="Leads por Período"
+            description="Evolução dos leads recebidos no período selecionado"
+            type="line"
+            data={dashboardData?.leadsParaGrafico || []}
+            showFilter={true}
+          />
+        </div>
+        
+        {/* Performance de anúncios */}
+        <div className="lg:col-span-1">
+          <AdPerformanceCard
+            data={dashboardData?.leadsPorAnuncio || []}
+          />
+        </div>
+      </div>
+
+      {/* Segunda linha de gráficos */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ChartCard
           title="Conversões por Categoria"
           description="Conversões por tipo de procedimento no período"
           type="bar"
           data={dashboardData?.conversoesPorCategoria || []}
         />
-        <AdPerformanceCard
-          data={dashboardData?.leadsPorAnuncio || []}
-        />
+        
+        {/* Espaço para futuro gráfico ou card adicional */}
+        <div className="bg-white rounded-lg p-6 border border-gray-200 flex items-center justify-center">
+          <div className="text-center text-gray-500">
+            <TrendingUp className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p className="text-sm">Espaço reservado para futuras métricas</p>
+          </div>
+        </div>
       </div>
 
       {/* Seção de insights e alertas */}

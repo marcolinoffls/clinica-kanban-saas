@@ -23,39 +23,18 @@ export {
   useMoveLeadToEtapa as useMoveLeadToStage, // Alias para compatibilidade
   useUpdateLeadAiConversationStatus,
   useToggleLeadFollowup,
-  type Lead as SupabaseLead,
   type CreateLeadData,
   type UpdateLeadData
 } from './useSupabaseLeads';
 
+// Importar o tipo base do Supabase
+import { Lead as SupabaseLead } from './useSupabaseLeads';
+
 // Interface Lead mais completa para compatibilidade com componentes existentes
-export interface Lead {
-  id: string;
-  nome: string | null;
-  telefone?: string | null;
-  email?: string | null;
-  origem_lead?: string | null;
-  servico_interesse?: string | null;
-  anotacoes?: string | null;
+export interface Lead extends SupabaseLead {
   etapa_id: string; // Para compatibilidade com componentes antigos
-  etapa_kanban_id: string | null; // Nova propriedade do Supabase
-  clinica_id: string | null;
-  tag_id: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-  data_ultimo_contato?: string | null;
-  convertido: boolean | null;
-  anuncio?: string | null;
-  ad_name?: string | null;
-  
-  // Propriedades adicionais do Supabase
-  status_conversao: string | null;
-  ltv: number | null;
-  follow_up_pausado: boolean | null;
-  data_ultimo_followup: string | null;
-  ai_conversation_enabled: boolean | null;
-  avatar_url: string | null;
-  nome_clinica: string | null;
+  avatar_url: string | null; // Avatar do lead
+  nome_clinica: string | null; // Nome da clínica
 }
 
 // Função de dados de leads com filtros (mantida para compatibilidade)
@@ -72,11 +51,22 @@ interface UseLeadsDataProps {
  * Este hook é mantido apenas para compatibilidade com componentes existentes.
  */
 export const useLeadsData = ({ etapaId, searchTerm, sortOrder }: UseLeadsDataProps = {}) => {
+  // Importar o hook dentro da função para evitar problemas de ciclo
+  const { useLeads } = require('./useSupabaseLeads');
+  
   // Usar o hook principal do Supabase
   const { data: allLeads, isLoading, error, refetch } = useLeads();
 
+  // Transformar leads do Supabase para o formato compatível
+  const compatibleLeads: Lead[] = (allLeads || []).map((lead: SupabaseLead) => ({
+    ...lead,
+    etapa_id: lead.etapa_kanban_id || '', // Mapeamento para compatibilidade
+    avatar_url: null, // Campo adicional
+    nome_clinica: null // Campo adicional
+  }));
+
   // Aplicar filtros nos dados retornados
-  const filteredLeads = (allLeads || []).filter((lead: any) => {
+  const filteredLeads = compatibleLeads.filter((lead: Lead) => {
     // Filtro por etapa
     if (etapaId && lead.etapa_kanban_id !== etapaId) {
       return false;
