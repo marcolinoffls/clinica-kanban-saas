@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Save, Users, Bell, Shield, CreditCard, Settings } from 'lucide-react';
+import { Save, Users, Bell, Shield, CreditCard, Settings, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PasswordInput } from '@/components/ui/password-input';
 import { ClinicServicesManager } from './ClinicServicesManager';
+import { BusinessHoursSettings } from './BusinessHoursSettings';
 
 /**
  * Página de Configurações
@@ -20,17 +21,36 @@ import { ClinicServicesManager } from './ClinicServicesManager';
  * e aplicadas em tempo real no sistema.
  */
 
+// Lista completa de estados brasileiros para o seletor
+const brazilianStates = [
+  { value: 'AC', label: 'Acre' }, { value: 'AL', label: 'Alagoas' },
+  { value: 'AP', label: 'Amapá' }, { value: 'AM', label: 'Amazonas' },
+  { value: 'BA', label: 'Bahia' }, { value: 'CE', label: 'Ceará' },
+  { value: 'DF', label: 'Distrito Federal' }, { value: 'ES', label: 'Espírito Santo' },
+  { value: 'GO', label: 'Goiás' }, { value: 'MA', label: 'Maranhão' },
+  { value: 'MT', label: 'Mato Grosso' }, { value: 'MS', label: 'Mato Grosso do Sul' },
+  { value: 'MG', label: 'Minas Gerais' }, { value: 'PA', label: 'Pará' },
+  { value: 'PB', label: 'Paraíba' }, { value: 'PR', label: 'Paraná' },
+  { value: 'PE', label: 'Pernambuco' }, { value: 'PI', label: 'Piauí' },
+  { value: 'RJ', label: 'Rio de Janeiro' }, { value: 'RN', label: 'Rio Grande do Norte' },
+  { value: 'RS', label: 'Rio Grande do Sul' }, { value: 'RO', label: 'Rondônia' },
+  { value: 'RR', label: 'Roraima' }, { value: 'SC', label: 'Santa Catarina' },
+  { value: 'SP', label: 'São Paulo' }, { value: 'SE', label: 'Sergipe' },
+  { value: 'TO', label: 'Tocantins' }
+];
+
 export const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('clinic');
   const [loading, setLoading] = useState(false);
   const [clinicaId, setClinicaId] = useState<string | null>(null);
   
-  // Estados para os formulários de configuração
+  // Estados para os formulários de configuração - adicionados novos campos de endereço
   const [clinicData, setClinicData] = useState({
     name: '',
     phone: '',
     email: '',
     address: '',
+    complemento: '', // Novo campo para complemento
     city: '',
     state: 'SP',
     zipCode: '',
@@ -50,7 +70,7 @@ export const SettingsPage = () => {
     carregarDadosClinica();
   }, []);
 
-  // Função para carregar dados da clínica
+  // Função para carregar dados da clínica - atualizada para buscar os novos campos
   const carregarDadosClinica = async () => {
     try {
       const { data, error } = await supabase
@@ -71,9 +91,10 @@ export const SettingsPage = () => {
           phone: data.telefone || '',
           email: data.email || '',
           address: data.endereco || '',
-          city: '', // Não temos cidade separada no banco
-          state: 'SP',
-          zipCode: '', // Não temos CEP separado no banco
+          complemento: data.complemento || '', // Carrega o complemento
+          city: data.cidade || '', // Carrega a cidade
+          state: data.estado || 'SP', // Carrega o estado
+          zipCode: data.cep || '', // Carrega o CEP
           webhook_usuario: data.webhook_usuario || '',
           evolution_instance_name: data.evolution_instance_name || '' // Carregar ID da instância Evolution
         });
@@ -83,7 +104,7 @@ export const SettingsPage = () => {
     }
   };
 
-  // Função para salvar configurações da clínica
+  // Função para salvar configurações da clínica - atualizada para salvar os novos campos
   const salvarConfiguracoes = async () => {
     try {
       setLoading(true);
@@ -97,8 +118,12 @@ export const SettingsPage = () => {
             telefone: clinicData.phone,
             email: clinicData.email,
             endereco: clinicData.address,
+            complemento: clinicData.complemento, // Salva o complemento
+            cidade: clinicData.city,           // Salva a cidade
+            estado: clinicData.state,         // Salva o estado
+            cep: clinicData.zipCode,           // Salva o CEP
             webhook_usuario: clinicData.webhook_usuario,
-            evolution_instance_name: clinicData.evolution_instance_name, // Salvar ID da instância Evolution
+            evolution_instance_name: clinicData.evolution_instance_name,
             updated_at: new Date().toISOString()
           })
           .eq('id', clinicaId);
@@ -113,8 +138,12 @@ export const SettingsPage = () => {
             telefone: clinicData.phone,
             email: clinicData.email,
             endereco: clinicData.address,
+            complemento: clinicData.complemento,
+            cidade: clinicData.city,
+            estado: clinicData.state,
+            cep: clinicData.zipCode,
             webhook_usuario: clinicData.webhook_usuario,
-            evolution_instance_name: clinicData.evolution_instance_name, // Incluir no insert
+            evolution_instance_name: clinicData.evolution_instance_name,
           })
           .select()
           .single();
@@ -132,9 +161,10 @@ export const SettingsPage = () => {
     }
   };
 
-  // Tabs de navegação (adicionando nova aba "Serviços")
+  // Tabs de navegação (adicionando nova aba "Horário")
   const tabs = [
     { id: 'clinic', label: 'Clínica', icon: Shield },
+    { id: 'horario', label: 'Horário', icon: Clock }, // Nova aba de Horário
     { id: 'services', label: 'Serviços', icon: Settings },
     { id: 'users', label: 'Usuários', icon: Users },
     { id: 'notifications', label: 'Notificações', icon: Bell },
@@ -219,7 +249,7 @@ export const SettingsPage = () => {
                   />
                 </div>
 
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Email *
                   </label>
@@ -232,18 +262,6 @@ export const SettingsPage = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    CEP
-                  </label>
-                  <input
-                    type="text"
-                    value={clinicData.zipCode}
-                    onChange={(e) => setClinicData(prev => ({ ...prev, zipCode: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Endereço
@@ -252,6 +270,32 @@ export const SettingsPage = () => {
                     type="text"
                     value={clinicData.address}
                     onChange={(e) => setClinicData(prev => ({ ...prev, address: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* NOVO CAMPO: Complemento */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Complemento
+                  </label>
+                  <input
+                    type="text"
+                    value={clinicData.complemento}
+                    onChange={(e) => setClinicData(prev => ({ ...prev, complemento: e.target.value }))}
+                    placeholder="Apto, sala, etc."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    CEP
+                  </label>
+                  <input
+                    type="text"
+                    value={clinicData.zipCode}
+                    onChange={(e) => setClinicData(prev => ({ ...prev, zipCode: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -268,6 +312,7 @@ export const SettingsPage = () => {
                   />
                 </div>
 
+                {/* CAMPO ATUALIZADO: Estado com todos os estados brasileiros */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Estado
@@ -277,10 +322,9 @@ export const SettingsPage = () => {
                     onChange={(e) => setClinicData(prev => ({ ...prev, state: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="SP">São Paulo</option>
-                    <option value="RJ">Rio de Janeiro</option>
-                    <option value="MG">Minas Gerais</option>
-                    {/* Adicionar outros estados */}
+                    {brazilianStates.map(state => (
+                      <option key={state.value} value={state.value}>{state.label}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -305,6 +349,11 @@ export const SettingsPage = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* NOVA ABA: Horário */}
+          {activeTab === 'horario' && (
+            <BusinessHoursSettings clinicaId={clinicaId} />
           )}
 
           {/* Nova aba de Serviços */}
