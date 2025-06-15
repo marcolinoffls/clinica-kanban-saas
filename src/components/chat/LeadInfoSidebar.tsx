@@ -4,6 +4,8 @@ import { Calendar, MapPin, Phone, Mail, User, MessageSquare, Tag, Briefcase, Dol
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Lead } from '@/hooks/useLeadsData';
 import { useUpdateLead } from '@/hooks/useSupabaseLeads';
 import { useEtapas } from '@/hooks/useEtapasData';
@@ -25,6 +27,30 @@ interface LeadInfoSidebarProps {
   lead: Lead;
   onClose: () => void;
 }
+
+/**
+ * Função para formatar números de telefone no padrão brasileiro
+ * Converte números como "84987759827" para "(84) 98775-9827"
+ */
+const formatPhoneNumber = (phone: string | null | undefined): string => {
+  if (!phone) return 'Não informado';
+  
+  // Remove todos os caracteres não numéricos
+  const cleanPhone = phone.replace(/\D/g, '');
+  
+  // Se tem 11 dígitos (celular com 9 na frente)
+  if (cleanPhone.length === 11) {
+    return `(${cleanPhone.slice(0, 2)}) ${cleanPhone.slice(2, 7)}-${cleanPhone.slice(7)}`;
+  }
+  
+  // Se tem 10 dígitos (telefone fixo)
+  if (cleanPhone.length === 10) {
+    return `(${cleanPhone.slice(0, 2)}) ${cleanPhone.slice(2, 6)}-${cleanPhone.slice(6)}`;
+  }
+  
+  // Se não está no padrão esperado, retorna como está
+  return phone;
+};
 
 export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -98,9 +124,18 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
               )}
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-lg text-gray-900">
-                {lead.nome || 'Lead sem nome'}
-              </h3>
+              {isEditing ? (
+                <Input
+                  value={editedLead.nome || ''}
+                  onChange={(e) => setEditedLead(prev => ({ ...prev, nome: e.target.value }))}
+                  className="font-semibold text-lg mb-2"
+                  placeholder="Nome do lead"
+                />
+              ) : (
+                <h3 className="font-semibold text-lg text-gray-900">
+                  {lead.nome || 'Lead sem nome'}
+                </h3>
+              )}
               <p className="text-sm text-gray-500">
                 Criado em {formatDate(lead.created_at)}
               </p>
@@ -153,11 +188,30 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         <CardContent className="space-y-3">
           <div className="flex items-center space-x-3">
             <Phone className="w-4 h-4 text-gray-400" />
-            <span className="text-sm">{lead.telefone || 'Não informado'}</span>
+            {isEditing ? (
+              <Input
+                value={editedLead.telefone || ''}
+                onChange={(e) => setEditedLead(prev => ({ ...prev, telefone: e.target.value }))}
+                placeholder="Telefone"
+                className="text-sm"
+              />
+            ) : (
+              <span className="text-sm">{formatPhoneNumber(lead.telefone)}</span>
+            )}
           </div>
           <div className="flex items-center space-x-3">
             <Mail className="w-4 h-4 text-gray-400" />
-            <span className="text-sm">{lead.email || 'Não informado'}</span>
+            {isEditing ? (
+              <Input
+                value={editedLead.email || ''}
+                onChange={(e) => setEditedLead(prev => ({ ...prev, email: e.target.value }))}
+                placeholder="Email"
+                className="text-sm"
+                type="email"
+              />
+            ) : (
+              <span className="text-sm">{lead.email || 'Não informado'}</span>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -209,9 +263,20 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         <CardContent>
           <div>
             <p className="text-xs text-gray-500 mb-1">LTV (Lifetime Value)</p>
-            <p className="text-lg font-semibold text-green-600">
-              {formatCurrency(lead.ltv || 0)}
-            </p>
+            {isEditing ? (
+              <Input
+                value={editedLead.ltv || ''}
+                onChange={(e) => setEditedLead(prev => ({ ...prev, ltv: parseFloat(e.target.value) || 0 }))}
+                placeholder="Valor em R$"
+                type="number"
+                step="0.01"
+                className="text-lg font-semibold"
+              />
+            ) : (
+              <p className="text-lg font-semibold text-green-600">
+                {formatCurrency(lead.ltv || 0)}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -227,12 +292,30 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         <CardContent className="space-y-3">
           <div>
             <p className="text-xs text-gray-500 mb-1">Origem do lead</p>
-            <p className="text-sm">{lead.origem_lead || 'Não informado'}</p>
+            {isEditing ? (
+              <Input
+                value={editedLead.origem_lead || ''}
+                onChange={(e) => setEditedLead(prev => ({ ...prev, origem_lead: e.target.value }))}
+                placeholder="Origem do lead"
+                className="text-sm"
+              />
+            ) : (
+              <p className="text-sm">{lead.origem_lead || 'Não informado'}</p>
+            )}
           </div>
           
           <div>
             <p className="text-xs text-gray-500 mb-1">Serviço de interesse</p>
-            <p className="text-sm">{lead.servico_interesse || 'Não informado'}</p>
+            {isEditing ? (
+              <Input
+                value={editedLead.servico_interesse || ''}
+                onChange={(e) => setEditedLead(prev => ({ ...prev, servico_interesse: e.target.value }))}
+                placeholder="Serviço de interesse"
+                className="text-sm"
+              />
+            ) : (
+              <p className="text-sm">{lead.servico_interesse || 'Não informado'}</p>
+            )}
           </div>
 
           {lead.ad_name && (
@@ -247,18 +330,25 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
       </Card>
 
       {/* Anotações */}
-      {lead.anotacoes && (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle className="text-sm">Anotações</CardTitle>
-          </CardHeader>
-          <CardContent>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="text-sm">Anotações</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isEditing ? (
+            <Textarea
+              value={editedLead.anotacoes || ''}
+              onChange={(e) => setEditedLead(prev => ({ ...prev, anotacoes: e.target.value }))}
+              placeholder="Adicione anotações sobre o lead..."
+              className="text-sm min-h-[80px]"
+            />
+          ) : (
             <p className="text-sm text-gray-700 whitespace-pre-wrap">
-              {lead.anotacoes}
+              {lead.anotacoes || 'Nenhuma anotação'}
             </p>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {/* Última atividade */}
       <Card>
