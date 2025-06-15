@@ -102,14 +102,14 @@ serve(async (req) => {
 
     console.log('✅ [send-instagram-webhook] Dados da clínica carregados:', clinica);
 
-    // LÓGICA PARA DETERMINAR A URL DO WEBHOOK
+    // LÓGICA PARA DETERMINAR A URL DO WEBHOOK (CORRIGIDA)
     let webhookUrl = '';
     if (clinica.instagram_webhook_type === 'padrao' && clinica.instagram_webhook_url) {
       webhookUrl = clinica.instagram_webhook_url;
       console.log(`[send-instagram-webhook] Usando webhook padrão: ${webhookUrl}`);
     } else if (clinica.instagram_webhook_type === 'personalizado' && clinica.instagram_user_handle) {
-      // CORREÇÃO: Corrigido o erro de digitação no domínio de 'fernades' para 'fernandes'.
-      webhookUrl = `https://webhooks.marcolinofernandes.site/webhook-instagram/${clinica.instagram_user_handle}`;
+      // CORREÇÃO: URL corrigida para webhook/teste-gmail ao invés de webhook-instagram/teste-gmail
+      webhookUrl = `https://webhooks.marcolinofernandes.site/webhook/${clinica.instagram_user_handle}`;
       console.log(`[send-instagram-webhook] Usando webhook personalizado com URL corrigida: ${webhookUrl}`);
     }
 
