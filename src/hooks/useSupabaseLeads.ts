@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -10,9 +11,14 @@ import { toast } from 'sonner';
  * - Criar novos leads
  * - Atualizar leads existentes
  * - Deletar leads
+ * - Controlar follow-up automático (NOVO)
  * 
  * Com as políticas RLS implementadas, os leads são automaticamente
  * filtrados pela clínica do usuário logado, garantindo isolamento de dados.
+ * 
+ * NOVO: Campos de controle de follow-up:
+ * - follow_up_pausado: controla se o lead deve receber follow-ups automáticos
+ * - data_ultimo_followup: registra quando foi enviado o último follow-up
  */
 
 export interface Lead {
@@ -33,6 +39,10 @@ export interface Lead {
   clinica_id: string | null;
   created_at: string | null;
   updated_at: string | null;
+  // NOVOS CAMPOS para follow-up
+  follow_up_pausado: boolean | null;
+  data_ultimo_followup: string | null;
+  ai_conversation_enabled: boolean | null;
 }
 
 export interface CreateLeadData {
@@ -46,10 +56,14 @@ export interface CreateLeadData {
   origem_lead?: string;
   servico_interesse?: string;
   clinica_id: string; // Obrigatório para associar à clínica correta
+  // NOVOS CAMPOS opcionais para follow-up
+  follow_up_pausado?: boolean;
+  ai_conversation_enabled?: boolean;
 }
 
 export interface UpdateLeadData extends Partial<CreateLeadData> {
   id: string;
+  data_ultimo_followup?: string; // NOVO: permite atualizar data do último follow-up
 }
 
 // Hook para buscar todos os leads da clínica do usuário
@@ -244,6 +258,100 @@ export const useMoveLeadToEtapa = () => {
     onError: (error: Error) => {
       console.error('Erro ao mover lead:', error);
       toast.error(`Erro ao mover lead: ${error.message}`);
+    },
+  });
+};
+
+// NOVO: Hook para atualizar estado da IA por lead
+export const useUpdateLeadAiConversationStatus = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      leadId, 
+      enabled 
+    }: { 
+      leadId: string; 
+      enabled: boolean; 
+    }): Promise<Lead> => {
+      console.log('Atualizando status de IA para lead:', leadId, enabled);
+
+      const { data, error } = await supabase
+        .from('leads')
+        .update({ 
+          ai_conversation_enabled: enabled,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', leadId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Erro ao atualizar status de IA:', error);
+        throw new Error(`Erro ao atualizar IA: ${error.message}`);
+      }
+
+      console.log('Status de IA atualizado com sucesso:', data);
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success(
+        variables.enabled 
+          ? 'IA ativada para este lead' 
+          : 'IA desativada para este lead'
+      );
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao atualizar IA:', error);
+      toast.error(`Erro ao alterar IA: ${error.message}`);
+    },
+  });
+};
+
+// NOVO: Hook para pausar/despausar follow-up de um lead
+export const useToggleLeadFollowup = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      leadId, 
+      pausado 
+    }: { 
+      leadId: string; 
+      pausado: boolean; 
+    }): Promise<Lead> => {
+      console.log('Alterando status de follow-up do lead:', leadId, pausado);
+
+      const { data, error } = await supabase
+        .from('leads')
+        .update({ 
+          follow_up_pausado: pausado,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', leadId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Erro ao alterar follow-up:', error);
+        throw new Error(`Erro ao alterar follow-up: ${error.message}`);
+      }
+
+      console.log('Follow-up do lead alterado com sucesso:', data);
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success(
+        variables.pausado 
+          ? 'Follow-up pausado para este lead' 
+          : 'Follow-up reativado para este lead'
+      );
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao alterar follow-up:', error);
+      toast.error(`Erro ao alterar follow-up: ${error.message}`);
     },
   });
 };

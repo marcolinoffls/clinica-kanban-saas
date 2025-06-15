@@ -438,6 +438,194 @@ export type Database = {
           },
         ]
       }
+      follow_up_campaigns: {
+        Row: {
+          apenas_dias_uteis: boolean | null
+          ativo: boolean
+          clinica_id: string
+          created_at: string
+          descricao: string | null
+          dias_inatividade: number
+          horario_envio: string | null
+          id: string
+          nome: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          apenas_dias_uteis?: boolean | null
+          ativo?: boolean
+          clinica_id: string
+          created_at?: string
+          descricao?: string | null
+          dias_inatividade?: number
+          horario_envio?: string | null
+          id?: string
+          nome: string
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          apenas_dias_uteis?: boolean | null
+          ativo?: boolean
+          clinica_id?: string
+          created_at?: string
+          descricao?: string | null
+          dias_inatividade?: number
+          horario_envio?: string | null
+          id?: string
+          nome?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_up_campaigns_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_up_campaigns_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      follow_up_execucoes: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          data_agendada: string
+          data_enviado: string | null
+          erro_detalhes: string | null
+          id: string
+          lead_id: string
+          mensagem_id: string | null
+          status: string
+          template_id: string
+          tipo_execucao: string
+          updated_at: string
+          user_id_manual: string | null
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          data_agendada: string
+          data_enviado?: string | null
+          erro_detalhes?: string | null
+          id?: string
+          lead_id: string
+          mensagem_id?: string | null
+          status?: string
+          template_id: string
+          tipo_execucao?: string
+          updated_at?: string
+          user_id_manual?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          data_agendada?: string
+          data_enviado?: string | null
+          erro_detalhes?: string | null
+          id?: string
+          lead_id?: string
+          mensagem_id?: string | null
+          status?: string
+          template_id?: string
+          tipo_execucao?: string
+          updated_at?: string
+          user_id_manual?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_up_execucoes_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "follow_up_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_up_execucoes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_up_execucoes_mensagem_id_fkey"
+            columns: ["mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "chat_mensagens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_up_execucoes_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "follow_up_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_up_execucoes_user_id_manual_fkey"
+            columns: ["user_id_manual"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      follow_up_templates: {
+        Row: {
+          ativo: boolean
+          campaign_id: string
+          conteudo: string
+          created_at: string
+          id: string
+          intervalo_dias: number
+          sequencia: number
+          tipo_mensagem: string | null
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          campaign_id: string
+          conteudo: string
+          created_at?: string
+          id?: string
+          intervalo_dias?: number
+          sequencia: number
+          tipo_mensagem?: string | null
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          campaign_id?: string
+          conteudo?: string
+          created_at?: string
+          id?: string
+          intervalo_dias?: number
+          sequencia?: number
+          tipo_mensagem?: string | null
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_up_templates_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "follow_up_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           ad_name: string | null
@@ -449,8 +637,10 @@ export type Database = {
           convertido: boolean | null
           created_at: string | null
           data_ultimo_contato: string | null
+          data_ultimo_followup: string | null
           email: string | null
           etapa_kanban_id: string | null
+          follow_up_pausado: boolean | null
           id: string
           id_direct: string | null
           ltv: number | null
@@ -478,8 +668,10 @@ export type Database = {
           convertido?: boolean | null
           created_at?: string | null
           data_ultimo_contato?: string | null
+          data_ultimo_followup?: string | null
           email?: string | null
           etapa_kanban_id?: string | null
+          follow_up_pausado?: boolean | null
           id?: string
           id_direct?: string | null
           ltv?: number | null
@@ -507,8 +699,10 @@ export type Database = {
           convertido?: boolean | null
           created_at?: string | null
           data_ultimo_contato?: string | null
+          data_ultimo_followup?: string | null
           email?: string | null
           etapa_kanban_id?: string | null
+          follow_up_pausado?: boolean | null
           id?: string
           id_direct?: string | null
           ltv?: number | null
