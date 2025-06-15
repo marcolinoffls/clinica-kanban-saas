@@ -1,8 +1,10 @@
+
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
 import { ChatWindow } from './ChatWindow';
 import { LeadInfoSidebar } from './LeadInfoSidebar';
+import { FollowupButton } from '@/components/followup/FollowupButton';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useWebhook } from '@/hooks/useWebhook';
 import { useClinicaData } from '@/hooks/useClinicaData';
@@ -25,6 +27,7 @@ import { toast } from 'sonner';
  * - Integração com IA
  * - Webhook para notificações
  * - Estados de carregamento para uploads
+ * - Botão de follow-up manual integrado
  */
 
 interface ChatPageProps {
@@ -416,7 +419,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       <div className="flex-1 flex flex-col min-w-0">
         {selectedLead ? (
           <>
-            {/* Header da conversa */}
+            {/* Header da conversa com botão de follow-up */}
             <div className="bg-white border-b border-gray-200 p-4 flex justify-between items-center flex-shrink-0">
               <div className="flex items-center gap-3 min-w-0">
                 <Avatar className="w-10 h-10">
@@ -437,6 +440,16 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                 </div>
               </div>
               <div className="flex gap-2 flex-shrink-0">
+                {/* Botão de Follow-up integrado */}
+                <FollowupButton
+                  leadId={selectedLead.id}
+                  leadNome={selectedLead.nome}
+                  leadTelefone={selectedLead.telefone}
+                  variant="outline"
+                  size="sm"
+                  showLabel={true}
+                  className="mr-2"
+                />
                 <button className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
                   <Phone size={20} />
                 </button>
