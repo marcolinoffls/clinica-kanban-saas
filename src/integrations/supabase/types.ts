@@ -293,6 +293,7 @@ export type Database = {
           evolution_api_key: string | null
           evolution_instance_name: string | null
           id: string
+          instagram_api_token: string | null
           instagram_user_handle: string | null
           instagram_webhook_type: string | null
           instagram_webhook_url: string | null
@@ -330,6 +331,7 @@ export type Database = {
           evolution_api_key?: string | null
           evolution_instance_name?: string | null
           id?: string
+          instagram_api_token?: string | null
           instagram_user_handle?: string | null
           instagram_webhook_type?: string | null
           instagram_webhook_url?: string | null
@@ -367,6 +369,7 @@ export type Database = {
           evolution_api_key?: string | null
           evolution_instance_name?: string | null
           id?: string
+          instagram_api_token?: string | null
           instagram_user_handle?: string | null
           instagram_webhook_type?: string | null
           instagram_webhook_url?: string | null

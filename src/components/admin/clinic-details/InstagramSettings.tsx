@@ -3,15 +3,17 @@
  *
  * O que faz:
  * - Permite ao administrador configurar como o webhook do Instagram será enviado.
+ * - Adiciona um campo seguro para inserir um Token de API do Instagram.
  * - Oferece duas opções: 'Padrão' (usando uma URL de webhook fixa) e 'Personalizado' (construindo a URL a partir do nome de usuário do Instagram).
- * - Salva as configurações diretamente no banco de dados (tabela 'clinicas').
+ * - Salva as configurações, incluindo o token, diretamente no banco de dados (tabela 'clinicas').
  *
  * Onde é usado:
  * - Renderizado dentro de `AdminClinicDetails`.
  *
  * Como se conecta com outras partes:
  * - Recebe o objeto `clinica` para exibir os valores atuais.
- * - Utiliza o cliente Supabase para salvar as alterações diretamente, contornando limitações de componentes pais somente leitura.
+ * - Utiliza o cliente Supabase para salvar as alterações diretamente.
+ * - Usa o componente 'PasswordInput' para garantir a segurança do campo de token.
  * - Usa 'sonner' para exibir notificações de sucesso ou erro.
  */
 import React, { useState, useEffect } from 'react';
@@ -23,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Instagram } from "lucide-react";
+import { PasswordInput } from '@/components/ui/password-input'; // Importa o componente de input seguro
 
 interface InstagramSettingsProps {
   clinica: {
@@ -30,6 +33,7 @@ interface InstagramSettingsProps {
     instagram_user_handle?: string | null;
     instagram_webhook_type?: string | null;
     instagram_webhook_url?: string | null;
+    instagram_api_token?: string | null; // Adiciona o novo campo de token à interface
   };
   onSave: (userHandle: string) => Promise<void>; // Mantido por compatibilidade
   saving: boolean; // Mantido por compatibilidade
@@ -40,6 +44,7 @@ export const InstagramSettings = ({ clinica, saving: parentSaving }: InstagramSe
   const [webhookType, setWebhookType] = useState('personalizado');
   const [userHandle, setUserHandle] = useState('');
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [apiToken, setApiToken] = useState(''); // Novo estado para o token da API
   const [isSaving, setIsSaving] = useState(false);
 
   // Efeito para popular os estados quando os dados da clínica são carregados
@@ -48,6 +53,7 @@ export const InstagramSettings = ({ clinica, saving: parentSaving }: InstagramSe
       setWebhookType(clinica.instagram_webhook_type || 'personalizado');
       setUserHandle(clinica.instagram_user_handle || '');
       setWebhookUrl(clinica.instagram_webhook_url || '');
+      setApiToken(clinica.instagram_api_token || ''); // Popula o estado do token com o valor do banco
     }
   }, [clinica]);
 
@@ -60,11 +66,12 @@ export const InstagramSettings = ({ clinica, saving: parentSaving }: InstagramSe
       instagram_webhook_type: webhookType,
       instagram_user_handle: webhookType === 'personalizado' ? userHandle : null,
       instagram_webhook_url: webhookType === 'padrao' ? webhookUrl : null,
+      instagram_api_token: apiToken, // Inclui o token nos dados a serem salvos
       updated_at: new Date().toISOString(),
     };
 
     // Log para depuração
-    console.log("Salvando configurações do Instagram:", { clinicaId: clinica.id, ...updates });
+    console.log("Salvando configurações do Instagram:", { clinicaId: clinica.id });
 
     const { error } = await supabase
       .from('clinicas')
@@ -88,7 +95,7 @@ export const InstagramSettings = ({ clinica, saving: parentSaving }: InstagramSe
           <CardTitle>Integração com Instagram Direct</CardTitle>
         </div>
         <CardDescription>
-          Configure como o sistema enviará webhooks para o Instagram.
+          Configure como o sistema enviará webhooks para o Instagram e o token de acesso.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -156,6 +163,17 @@ export const InstagramSettings = ({ clinica, saving: parentSaving }: InstagramSe
             </div>
           )}
           
+          {/* NOVO CAMPO: Token da API do Instagram */}
+          <div className="space-y-2">
+            <PasswordInput
+              value={apiToken}
+              onChange={setApiToken}
+              label="Token da API do Instagram (Opcional)"
+              placeholder="Cole seu token da API aqui"
+              description="Este token será usado pelo n8n para se comunicar com a API do Instagram. Mantenha-o seguro."
+            />
+          </div>
+
           <Button type="submit" disabled={isSaving || parentSaving} className="mt-4">
             {isSaving ? 'Salvando...' : 'Salvar Configuração do Instagram'}
           </Button>

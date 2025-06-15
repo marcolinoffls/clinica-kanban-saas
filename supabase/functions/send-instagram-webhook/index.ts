@@ -7,13 +7,10 @@
  *
  * Como funciona:
  * 1.  Recebe um payload com os detalhes da mensagem (mensagem_id, lead_id, clinica_id, etc.).
- * 2.  Busca os dados da clínica, incluindo as novas configurações de webhook do Instagram:
- *     - `instagram_webhook_type`: 'padrao' ou 'personalizado'.
- *     - `instagram_webhook_url`: A URL, se o tipo for 'padrao'.
- *     - `instagram_user_handle`: O nome de usuário, se o tipo for 'personalizado'.
+ * 2.  Busca os dados da clínica, incluindo as configurações de webhook e o novo `instagram_api_token`.
  * 3.  Busca os dados do lead, incluindo `id_direct` (destinatário) e `meu_id_direct` (remetente).
  * 4.  Constrói a URL do webhook de destino com base no tipo selecionado.
- * 5.  Monta um payload específico para o Instagram, incluindo `meu_id_direct` nos metadados.
+ * 5.  Monta um payload específico para o Instagram, incluindo `meu_id_direct` e `instagram_api_token` nos metadados.
  * 6.  Envia o payload para o n8n de forma segura, usando um token JWT.
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
@@ -51,6 +48,7 @@ interface WebhookPayload {
     lead_id: string;
     ai_enabled: boolean;
     meu_id_direct: string | null; // ID da conta do Instagram que está enviando (remetente)
+    instagram_api_token: string | null; // Adiciona o token da API para ser usado pelo n8n
   };
   timestamp_sp: string;
 }
@@ -61,8 +59,8 @@ serve(async (req) => {
   }
 
   try {
-    // A versão foi atualizada para indicar a remoção dos logs
-    const functionVersion = "v1.3.0_secure_logs"; 
+    // A versão foi atualizada para indicar a remoção dos logs e adição do token
+    const functionVersion = "v1.4.0_secure_logs_with_token"; 
     console.log(`⚡️ [send-instagram-webhook] INICIANDO - Versão: ${functionVersion}`);
     
     const supabaseClient = createClient(
@@ -89,10 +87,10 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'clinica_id é obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Busca os dados da clínica, incluindo as novas colunas do Instagram
+    // Busca os dados da clínica, incluindo a nova coluna instagram_api_token
     const { data: clinica, error: clinicaError } = await supabaseClient
       .from('clinicas')
-      .select('id, evolution_instance_name, instagram_user_handle, instagram_webhook_type, instagram_webhook_url')
+      .select('id, evolution_instance_name, instagram_user_handle, instagram_webhook_type, instagram_webhook_url, instagram_api_token')
       .eq('id', clinica_id)
       .single();
 
@@ -180,6 +178,7 @@ serve(async (req) => {
         lead_id: lead_id,
         ai_enabled: evento_boolean,
         meu_id_direct: lead?.meu_id_direct || null, // Campo adicionado aqui
+        instagram_api_token: clinica.instagram_api_token || null, // NOVO: Passando o token para o n8n
       },
       timestamp_sp: timestampSP
     };
