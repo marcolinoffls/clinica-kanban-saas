@@ -1,432 +1,284 @@
-import { useState, useEffect } from 'react';
-import { User, Phone, Mail, Calendar as CalendarIconLucide, FileText, ChevronDown, ChevronRight, History, Edit, Check, X, MoveHorizontal, UserPlus, Target } from 'lucide-react'; // Ícone para a etapa
-import { Button } from '@/components/ui/button';
+
+import React, { useState } from 'react';
+import { Calendar, MapPin, Phone, Mail, User, MessageSquare, Tag, Briefcase, DollarSign } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Lead, useUpdateLead, useMoveLeadToStage } from '@/hooks/useLeadsData'; // Importar o hook para mover o lead
-import { useEtapas } from '@/hooks/useEtapasData'; // Importar o hook para buscar as etapas
-import { Input } from '../ui/input';
-import { toast } from 'sonner';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"; // Componentes para o seletor
+import { Button } from '@/components/ui/button';
+import { Lead } from '@/hooks/useLeadsData';
+import { useUpdateLead } from '@/hooks/useSupabaseLeads';
+import { useEtapas } from '@/hooks/useEtapasData';
+import { useTags } from '@/hooks/useTagsData';
 
 /**
- * Barra lateral com informações detalhadas do lead
- *
- * Funcionalidades:
- * - Exibe imagem do contato (avatar_url)
- * - Edição inline do nome do lead
- * - Informações básicas do lead (telefone, email)
- * - Edição da etapa do funil de vendas (NOVO)
- * - Histórico de interações
- * - Tags associadas
- * - Ações rápidas (ligar, agendar, ver histórico)
- * - Seções expansíveis para melhor organização
- * - Timeline de atividades
+ * Componente lateral com informações detalhadas do lead
+ * 
+ * Exibe e permite editar:
+ * - Informações básicas do lead (nome, telefone, email)
+ * - Avatar e dados de identificação
+ * - Etapa atual no pipeline
+ * - Tags e anotações
+ * - Histórico de conversões e LTV
+ * - Origem do lead e serviços de interesse
  */
 
-// Ajustar a interface para aceitar a prop Lead completa, que inclui avatar_url
 interface LeadInfoSidebarProps {
-  lead: Lead; // Usar a interface Lead importada que já deve ter avatar_url
-  tags?: Array<{
-    id: string;
-    nome: string;
-    cor: string;
-  }>;
-  historico?: Array<{
-    id: string;
-    tipo: string;
-    descricao: string;
-    data: string;
-  }>;
-  onCallLead?: () => void;
-  onScheduleAppointment?: () => void;
-  onViewHistory?: () => void;
-  onAddContact?: (lead: Lead) => void; // Nova prop para adicionar contato
+  lead: Lead;
+  onClose: () => void;
 }
 
-export const LeadInfoSidebar = ({
-  lead,
-  tags = [],
-  historico = [],
-  onCallLead,
-  onScheduleAppointment,
-  onViewHistory,
-  onAddContact
-}: LeadInfoSidebarProps) => {
-  const [expandedSections, setExpandedSections] = useState({
-    info: true,
-    tags: true,
-    historico: true,
-    anotacoes: true
-  });
+export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedLead, setEditedLead] = useState<Partial<Lead>>(lead);
 
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [editedName, setEditedName] = useState(lead.nome);
+  // Hooks para buscar dados relacionados
+  const { data: etapas = [] } = useEtapas();
+  const { data: tags = [] } = useTags();
   const updateLeadMutation = useUpdateLead();
 
-  // Hooks para buscar as etapas e mover o lead entre elas
-  const { data: etapas, isLoading: etapasLoading } = useEtapas();
-  const moveLeadMutation = useMoveLeadToStage();
+  // Buscar nome da etapa atual
+  const etapaAtual = etapas.find(etapa => etapa.id === (lead.etapa_kanban_id || lead.etapa_id));
+  const etapaNome = etapaAtual?.nome || 'Sem etapa';
 
-  // Efeito para resetar o estado de edição quando o lead selecionado mudar
-  useEffect(() => {
-    setIsEditingName(false);
-    setEditedName(lead.nome);
-  }, [lead.id, lead.nome]);
+  // Buscar informações da tag
+  const tagAtual = tags.find(tag => tag.id === lead.tag_id);
 
-
-  // Função para salvar o novo nome do lead
-  const handleSaveName = () => {
-    if (!editedName || editedName.trim() === '') {
-      toast.error('O nome do lead não pode ficar em branco.');
-      return;
-    }
-    if (editedName.trim() === lead.nome) {
-      setIsEditingName(false); // Nenhuma mudança, apenas fecha o editor
-      return;
-    }
-
-    updateLeadMutation.mutate(
-      { id: lead.id, data: { nome: editedName.trim() } },
-      {
-        onSuccess: (updatedLead) => {
-          toast.success(`Nome do lead atualizado para "${updatedLead.nome}"!`);
-          setIsEditingName(false);
-        },
-        onError: () => {
-          // O hook useUpdateLead já mostra um toast de erro genérico.
-          // Poderíamos adicionar um mais específico aqui se necessário.
-        }
-      }
-    );
-  };
-
-  // Função para lidar com a mudança de etapa do lead
-  const handleStageChange = (newStageId: string) => {
-    // Verifica se a etapa selecionada é diferente da atual para evitar chamadas desnecessárias
-    if (newStageId && newStageId !== lead.etapa_kanban_id) {
-      // Chama a mutação para mover o lead para a nova etapa
-      moveLeadMutation.mutate({ leadId: lead.id, etapaId: newStageId });
+  const handleSave = async () => {
+    try {
+      await updateLeadMutation.mutateAsync({
+        id: lead.id,
+        ...editedLead
+      });
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Erro ao salvar lead:', error);
     }
   };
 
-  // Função para toggle de seções
-  const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
+  const handleCancel = () => {
+    setEditedLead(lead);
+    setIsEditing(false);
   };
 
-  // Função para formatar data
-  const formatarData = (dataString: string | null | undefined) => {
-    if (!dataString) return 'N/A'; // Tratar caso a data seja nula ou indefinida
-    const data = new Date(dataString);
-    // Verificar se a data é válida
-    if (isNaN(data.getTime())) {
-        return 'Data inválida';
-    }
-    return data.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const formatCurrency = (value: number | null | undefined) => {
+    if (!value) return 'R$ 0,00';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
   };
 
-  // NOVA LÓGICA: Verificar se o lead tem informações de anúncio
-  const temAnuncioEspecifico = lead.ad_name && lead.ad_name.trim() !== '';
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'Não informado';
+    return new Date(dateString).toLocaleDateString('pt-BR');
+  };
 
   return (
-    <div className="w-80 bg-white border-l border-gray-200 flex flex-col h-full">
-      {/* Header com foto/avatar e nome editável do lead */}
-      <div className="p-4 border-b border-gray-200 bg-gray-50">
-        <div className="flex items-center gap-3">
-          {/* Usar o componente Avatar para exibir a imagem do contato */}
-          <Avatar className="w-12 h-12">
-            <AvatarImage src={lead.avatar_url || undefined} alt={`Avatar de ${lead.nome || 'Lead'}`} />
-            <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold text-lg">
-              {/* CORREÇÃO: Adicionado fallback para quando o nome for nulo */}
-              {lead.nome ? lead.nome.charAt(0).toUpperCase() : '?'}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            {isEditingName ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-1">
-                  <Input
-                    value={editedName || ''}
-                    onChange={(e) => setEditedName(e.target.value)}
-                    className="h-8 text-base"
-                    placeholder="Nome do Lead"
-                    disabled={updateLeadMutation.isPending}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSaveName();
-                      if (e.key === 'Escape') setIsEditingName(false);
-                    }}
-                  />
-                  <Button size="icon" variant="ghost" className="h-8 w-8 flex-shrink-0" onClick={handleSaveName} disabled={updateLeadMutation.isPending}>
-                    <Check size={16} className="text-green-600" />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 flex-shrink-0" onClick={() => setIsEditingName(false)} disabled={updateLeadMutation.isPending}>
-                    <X size={16} className="text-red-600" />
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-gray-900 truncate" title={lead.nome || 'Lead sem nome'}>
-                  {lead.nome || 'Lead sem nome'}
-                </h3>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6 rounded-full"
-                  onClick={() => {
-                    setEditedName(lead.nome);
-                    setIsEditingName(true);
-                  }}
-                >
-                  <Edit size={14} className="text-gray-500 hover:text-gray-800" />
-                </Button>
-              </div>
-            )}
-            <p className="text-sm text-gray-500">
-              {temAnuncioEspecifico ? 'Lead de anúncio específico' : 'Lead ativo'}
-            </p>
-          </div>
-        </div>
-        
-        {/* NOVO: Badge de anúncio específico */}
-        {temAnuncioEspecifico && (
-          <div className="mt-3">
-            <div className="bg-purple-100 border border-purple-200 rounded-lg p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Target className="h-4 w-4 text-purple-600" />
-                <span className="text-sm font-medium text-purple-800">Anúncio Específico</span>
-              </div>
-              <p className="text-sm text-purple-700 break-words">
-                {lead.ad_name}
+    <div className="w-80 bg-gray-50 border-l border-gray-200 p-4 overflow-y-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold text-gray-900">Informações do Lead</h2>
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          ✕
+        </Button>
+      </div>
+
+      {/* Avatar e informações básicas */}
+      <Card className="mb-4">
+        <CardContent className="p-4">
+          <div className="flex items-center space-x-4 mb-4">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+              {lead.avatar_url ? (
+                <img
+                  src={lead.avatar_url}
+                  alt={lead.nome || 'Lead'}
+                  className="w-16 h-16 rounded-full object-cover"
+                />
+              ) : (
+                <User className="w-8 h-8 text-blue-600" />
+              )}
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg text-gray-900">
+                {lead.nome || 'Lead sem nome'}
+              </h3>
+              <p className="text-sm text-gray-500">
+                Criado em {formatDate(lead.created_at)}
               </p>
             </div>
           </div>
-        )}
-      </div>
 
-      {/* Ações rápidas */}
-      <div className="p-4 border-b border-gray-200">
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onCallLead}
-            className="flex items-center gap-2"
-          >
-            <Phone size={14} />
-            Ligar
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onScheduleAppointment}
-            className="flex items-center gap-2"
-          >
-            <CalendarIconLucide size={14} /> {/* Usar o ícone renomeado */}
-            Agendar
-          </Button>
-        </div>
-
-        {/* Container para botões de ação secundários */}
-        <div className="flex flex-col space-y-2 mt-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onViewHistory}
-              className="w-full mt-0 flex items-center gap-2 justify-start"
-            >
-              <History size={14} />
-              Ver Histórico
-            </Button>
-            
-            {/* NOVO: Botão para adicionar contato para leads do Instagram */}
-            {lead.origem_lead === 'Instagram' && onAddContact && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onAddContact(lead)}
-                className="w-full flex items-center justify-start gap-2 border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+          {/* Botões de ação */}
+          <div className="flex space-x-2">
+            {!isEditing ? (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => setIsEditing(true)}
+                className="flex-1"
               >
-                <UserPlus size={14} />
-                Adicionar Contato (WhatsApp)
+                Editar
               </Button>
-            )}
-        </div>
-      </div>
-
-      {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Informações básicas */}
-        <Collapsible open={expandedSections.info} onOpenChange={() => toggleSection('info')}>
-          <CollapsibleTrigger className="w-full p-4 border-b border-gray-200 hover:bg-gray-50 flex items-center justify-between text-left">
-            <h4 className="font-medium text-gray-900">Informações Básicas</h4>
-            {expandedSections.info ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </CollapsibleTrigger>
-          <CollapsibleContent className="p-4 border-b border-gray-200 space-y-3">
-            {lead.telefone && (
-              <div className="flex items-center gap-3">
-                <Phone size={16} className="text-gray-400 flex-shrink-0" />
-                <span className="text-sm text-gray-700 break-all">{lead.telefone}</span>
-              </div>
-            )}
-
-            {lead.email && (
-              <div className="flex items-center gap-3">
-                <Mail size={16} className="text-gray-400 flex-shrink-0" />
-                <span className="text-sm text-gray-700 break-all">{lead.email}</span>
-              </div>
-            )}
-
-            <div className="flex items-center gap-3">
-              <CalendarIconLucide size={16} className="text-gray-400 flex-shrink-0" /> {/* Usar o ícone renomeado */}
-              <div className="text-sm text-gray-700">
-                <div>Criado: {formatarData(lead.created_at)}</div>
-                {lead.updated_at && <div>Atualizado: {formatarData(lead.updated_at)}</div>}
-              </div>
-            </div>
-
-            {/* NOVA SEÇÃO: Informações de anúncio */}
-            {temAnuncioEspecifico && (
-              <div className="flex items-start gap-3 pt-2 border-t border-gray-100">
-                <Target size={16} className="text-purple-500 flex-shrink-0 mt-2.5" />
-                <div className="w-full">
-                  <label className="text-sm font-medium text-gray-700">Anúncio de Origem</label>
-                  <p className="text-sm text-gray-900 mt-1 p-2 bg-purple-50 rounded border break-words">
-                    {lead.ad_name}
-                  </p>
-                  <p className="text-xs text-purple-600 mt-1">
-                    Este lead foi gerado através de um anúncio específico identificado pelo sistema.
-                  </p>
-                </div>
-              </div>
-            )}
-            
-            {/* NOVO: Seletor de Etapa do Funil */}
-            <div className="flex items-start gap-3 pt-2">
-              <MoveHorizontal size={16} className="text-gray-400 flex-shrink-0 mt-2.5" />
-              <div className="w-full">
-                <label className="text-sm text-gray-700">Etapa do Funil</label>
-                <Select
-                  value={lead.etapa_kanban_id || ''}
-                  onValueChange={handleStageChange}
-                  disabled={etapasLoading || moveLeadMutation.isPending}
+            ) : (
+              <>
+                <Button 
+                  size="sm" 
+                  onClick={handleSave}
+                  disabled={updateLeadMutation.isPending}
+                  className="flex-1"
                 >
-                  <SelectTrigger className="w-full mt-1 h-9">
-                    <SelectValue placeholder="Selecione uma etapa..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {etapasLoading ? (
-                      <SelectItem value="loading" disabled>Carregando etapas...</SelectItem>
-                    ) : (
-                      etapas && [...etapas].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)).map((etapa) => (
-                        <SelectItem key={etapa.id} value={etapa.id}>
-                          {etapa.nome}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                {moveLeadMutation.isPending && <p className="text-xs text-gray-500 mt-1">Movendo lead...</p>}
-              </div>
+                  Salvar
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={handleCancel}
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Informações de contato */}
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <MessageSquare className="w-4 h-4" />
+            Contato
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center space-x-3">
+            <Phone className="w-4 h-4 text-gray-400" />
+            <span className="text-sm">{lead.telefone || 'Não informado'}</span>
+          </div>
+          <div className="flex items-center space-x-3">
+            <Mail className="w-4 h-4 text-gray-400" />
+            <span className="text-sm">{lead.email || 'Não informado'}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Status e etapa */}
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Briefcase className="w-4 h-4" />
+            Status
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Etapa atual</p>
+            <Badge variant="secondary">{etapaNome}</Badge>
+          </div>
+          
+          {tagAtual && (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Tag</p>
+              <Badge 
+                style={{ backgroundColor: tagAtual.cor }}
+                className="text-white"
+              >
+                <Tag className="w-3 h-3 mr-1" />
+                {tagAtual.nome}
+              </Badge>
             </div>
+          )}
 
-            {lead.ltv && typeof lead.ltv === 'number' && lead.ltv > 0 && (
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 bg-green-500 rounded-full flex-shrink-0"></div>
-                <span className="text-sm text-gray-700">
-                  LTV: <span className="font-medium text-green-600">R$ {Number(lead.ltv).toFixed(2)}</span>
-                </span>
-              </div>
-            )}
-          </CollapsibleContent>
-        </Collapsible>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Status de conversão</p>
+            <Badge variant={lead.convertido ? "default" : "secondary"}>
+              {lead.convertido ? 'Convertido' : 'Em andamento'}
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Tags */}
-        <Collapsible open={expandedSections.tags} onOpenChange={() => toggleSection('tags')}>
-          <CollapsibleTrigger className="w-full p-4 border-b border-gray-200 hover:bg-gray-50 flex items-center justify-between text-left">
-            <h4 className="font-medium text-gray-900">Tags ({tags.length})</h4>
-            {expandedSections.tags ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </CollapsibleTrigger>
-          <CollapsibleContent className="p-4 border-b border-gray-200">
-            {tags.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {tags.map((tag) => (
-                  <Badge
-                    key={tag.id}
-                    style={{ backgroundColor: tag.cor }}
-                    className="text-white text-xs"
-                  >
-                    {tag.nome}
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">Nenhuma tag associada</p>
-            )}
-          </CollapsibleContent>
-        </Collapsible>
+      {/* Informações de valor */}
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <DollarSign className="w-4 h-4" />
+            Valor
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">LTV (Lifetime Value)</p>
+            <p className="text-lg font-semibold text-green-600">
+              {formatCurrency(lead.ltv || 0)}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Anotações */}
-        {lead.anotacoes && (
-          <Collapsible open={expandedSections.anotacoes} onOpenChange={() => toggleSection('anotacoes')}>
-            <CollapsibleTrigger className="w-full p-4 border-b border-gray-200 hover:bg-gray-50 flex items-center justify-between text-left">
-              <h4 className="font-medium text-gray-900">Anotações</h4>
-              {expandedSections.anotacoes ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="p-4 border-b border-gray-200">
-              <div className="flex items-start gap-3">
-                <FileText size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-gray-700 leading-relaxed break-words">{lead.anotacoes}</p>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        )}
+      {/* Origem e interesse */}
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <MapPin className="w-4 h-4" />
+            Origem e Interesse
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Origem do lead</p>
+            <p className="text-sm">{lead.origem_lead || 'Não informado'}</p>
+          </div>
+          
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Serviço de interesse</p>
+            <p className="text-sm">{lead.servico_interesse || 'Não informado'}</p>
+          </div>
 
-        {/* Histórico de atividades */}
-        <Collapsible open={expandedSections.historico} onOpenChange={() => toggleSection('historico')}>
-          <CollapsibleTrigger className="w-full p-4 border-b border-gray-200 hover:bg-gray-50 flex items-center justify-between text-left">
-            <h4 className="font-medium text-gray-900">Histórico ({historico.length})</h4>
-            {expandedSections.historico ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </CollapsibleTrigger>
-          <CollapsibleContent className="p-4">
-            {historico.length > 0 ? (
-              <div className="space-y-3">
-                {historico.map((item) => (
-                  <div key={item.id} className="flex items-start gap-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0"></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-900 break-words">{item.descricao}</p>
-                      <p className="text-xs text-gray-500">{formatarData(item.data)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-4">
-                <History size={24} className="text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Nenhuma atividade registrada</p>
-              </div>
-            )}
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
+          {lead.ad_name && (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Anúncio específico</p>
+              <Badge variant="outline" className="text-purple-600 border-purple-300">
+                📢 {lead.ad_name}
+              </Badge>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Anotações */}
+      {lead.anotacoes && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle className="text-sm">Anotações</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">
+              {lead.anotacoes}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Última atividade */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Calendar className="w-4 h-4" />
+            Última Atividade
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div>
+            <p className="text-xs text-gray-500">Último contato</p>
+            <p className="text-sm">{formatDate(lead.data_ultimo_contato)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Última atualização</p>
+            <p className="text-sm">{formatDate(lead.updated_at)}</p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
