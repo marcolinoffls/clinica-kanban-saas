@@ -130,7 +130,11 @@ export const useClientsPage = () => {
 
   const handleSaveLead = async (leadData: any) => {
     if (!selectedLeadForEdit) return;
-    await updateLeadMutation.mutateAsync({ id: selectedLeadForEdit.id, data: leadData });
+    // Corrigido: usar as propriedades diretas ao invés de um objeto 'data'
+    await updateLeadMutation.mutateAsync({ 
+      id: selectedLeadForEdit.id, 
+      ...leadData 
+    });
     setIsLeadModalOpen(false);
     setSelectedLeadForEdit(null);
   };

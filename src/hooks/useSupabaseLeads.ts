@@ -43,6 +43,11 @@ export interface Lead {
   follow_up_pausado: boolean | null;
   data_ultimo_followup: string | null;
   ai_conversation_enabled: boolean | null;
+  // CAMPOS ADICIONAIS para compatibilidade com componentes
+  etapa_id: string | null; // Alias para etapa_kanban_id
+  avatar_url: string | null; // Avatar do lead
+  nome_clinica: string | null; // Nome da clínica
+  ad_name: string | null; // Nome do anúncio específico
 }
 
 export interface CreateLeadData {
@@ -59,6 +64,7 @@ export interface CreateLeadData {
   // NOVOS CAMPOS opcionais para follow-up
   follow_up_pausado?: boolean;
   ai_conversation_enabled?: boolean;
+  ad_name?: string; // Nome do anúncio
 }
 
 export interface UpdateLeadData extends Partial<CreateLeadData> {
@@ -84,7 +90,15 @@ export const useLeads = () => {
       }
 
       console.log(`${data?.length || 0} leads encontrados`);
-      return data || [];
+      
+      // Mapear dados para incluir campos de compatibilidade
+      return (data || []).map((lead: any) => ({
+        ...lead,
+        etapa_id: lead.etapa_kanban_id, // Alias para compatibilidade
+        avatar_url: lead.avatar_url || null,
+        nome_clinica: lead.nome_clinica || null,
+        ad_name: lead.ad_name || null
+      }));
     },
     staleTime: 30000, // Cache por 30 segundos
   });
@@ -110,7 +124,14 @@ export const useLeadsByEtapa = (etapaId: string | null) => {
         throw new Error(`Erro ao buscar leads: ${error.message}`);
       }
 
-      return data || [];
+      // Mapear dados para incluir campos de compatibilidade
+      return (data || []).map((lead: any) => ({
+        ...lead,
+        etapa_id: lead.etapa_kanban_id,
+        avatar_url: lead.avatar_url || null,
+        nome_clinica: lead.nome_clinica || null,
+        ad_name: lead.ad_name || null
+      }));
     },
     enabled: !!etapaId,
     staleTime: 30000,
@@ -137,7 +158,15 @@ export const useCreateLead = () => {
       }
 
       console.log('Lead criado com sucesso:', data);
-      return data;
+      
+      // Mapear dados para incluir campos de compatibilidade
+      return {
+        ...data,
+        etapa_id: data.etapa_kanban_id,
+        avatar_url: data.avatar_url || null,
+        nome_clinica: data.nome_clinica || null,
+        ad_name: data.ad_name || null
+      };
     },
     onSuccess: () => {
       // Invalidar cache dos leads para refletir a mudança
@@ -179,7 +208,15 @@ export const useUpdateLead = () => {
       }
 
       console.log('Lead atualizado com sucesso:', data);
-      return data;
+      
+      // Mapear dados para incluir campos de compatibilidade
+      return {
+        ...data,
+        etapa_id: data.etapa_kanban_id,
+        avatar_url: data.avatar_url || null,
+        nome_clinica: data.nome_clinica || null,
+        ad_name: data.ad_name || null
+      };
     },
     onSuccess: () => {
       // Invalidar cache dos leads para refletir a mudança
@@ -248,7 +285,14 @@ export const useMoveLeadToEtapa = () => {
         throw new Error(`Erro ao mover lead: ${error.message}`);
       }
 
-      return data;
+      // Mapear dados para incluir campos de compatibilidade
+      return {
+        ...data,
+        etapa_id: data.etapa_kanban_id,
+        avatar_url: data.avatar_url || null,
+        nome_clinica: data.nome_clinica || null,
+        ad_name: data.ad_name || null
+      };
     },
     onSuccess: () => {
       // Invalidar cache dos leads para refletir a mudança
@@ -292,7 +336,15 @@ export const useUpdateLeadAiConversationStatus = () => {
       }
 
       console.log('Status de IA atualizado com sucesso:', data);
-      return data;
+      
+      // Mapear dados para incluir campos de compatibilidade
+      return {
+        ...data,
+        etapa_id: data.etapa_kanban_id,
+        avatar_url: data.avatar_url || null,
+        nome_clinica: data.nome_clinica || null,
+        ad_name: data.ad_name || null
+      };
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
@@ -339,7 +391,15 @@ export const useToggleLeadFollowup = () => {
       }
 
       console.log('Follow-up do lead alterado com sucesso:', data);
-      return data;
+      
+      // Mapear dados para incluir campos de compatibilidade
+      return {
+        ...data,
+        etapa_id: data.etapa_kanban_id,
+        avatar_url: data.avatar_url || null,
+        nome_clinica: data.nome_clinica || null,
+        ad_name: data.ad_name || null
+      };
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });

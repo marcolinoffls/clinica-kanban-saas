@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
@@ -79,7 +78,13 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
   const { aiEnabled, toggleAI, isInitializing, isUpdating } = useAIConversationControl({
     selectedLead,
-    updateLeadAiConversationStatus: updateLeadAiStatusMutation.mutateAsync
+    updateLeadAiConversationStatus: async (params: { leadId: string; aiEnabled: boolean }) => {
+      // Converter parâmetros para o formato esperado pelo hook
+      return await updateLeadAiStatusMutation.mutateAsync({
+        leadId: params.leadId,
+        enabled: params.aiEnabled
+      });
+    }
   });
 
   useEffect(() => {
@@ -185,6 +190,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       setIsUploadingMedia(false);
     }
   };
+
   /**
    * Função modificada para lidar com envio de mensagens (texto e mídia)
    * Agora recebe um objeto MessageData ao invés de apenas aiEnabledForMessage
@@ -510,12 +516,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       {selectedLead && (
         <LeadInfoSidebar
           lead={selectedLead}
-          tags={tags.filter(tag => tag.id === selectedLead.tag_id)}
-          historico={[]}
-          onCallLead={() => console.log('Ligar para lead:', selectedLead.id)}
-          onScheduleAppointment={() => setIsAgendamentoModalOpen(true)}
-          onViewHistory={() => setIsHistoricoModalOpen(true)}
-          onAddContact={handleAddContact} // Passa a função para o sidebar
+          onClose={() => setSelectedConversation(null)}
         />
       )}
       
