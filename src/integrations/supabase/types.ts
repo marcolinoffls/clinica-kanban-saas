@@ -285,13 +285,18 @@ export type Database = {
           ai_saturday_hours_start: string | null
           ai_sunday_hours_end: string | null
           ai_sunday_hours_start: string | null
+          cep: string | null
+          cidade: string | null
           cnpj: string | null
+          complemento: string | null
           created_at: string | null
           email: string
           endereco: string | null
           endereco_completo: string | null
+          estado: string | null
           evolution_api_key: string | null
           evolution_instance_name: string | null
+          horario_funcionamento: Json | null
           id: string
           instagram_api_token: string | null
           instagram_user_handle: string | null
@@ -323,13 +328,18 @@ export type Database = {
           ai_saturday_hours_start?: string | null
           ai_sunday_hours_end?: string | null
           ai_sunday_hours_start?: string | null
+          cep?: string | null
+          cidade?: string | null
           cnpj?: string | null
+          complemento?: string | null
           created_at?: string | null
           email: string
           endereco?: string | null
           endereco_completo?: string | null
+          estado?: string | null
           evolution_api_key?: string | null
           evolution_instance_name?: string | null
+          horario_funcionamento?: Json | null
           id?: string
           instagram_api_token?: string | null
           instagram_user_handle?: string | null
@@ -361,13 +371,18 @@ export type Database = {
           ai_saturday_hours_start?: string | null
           ai_sunday_hours_end?: string | null
           ai_sunday_hours_start?: string | null
+          cep?: string | null
+          cidade?: string | null
           cnpj?: string | null
+          complemento?: string | null
           created_at?: string | null
           email?: string
           endereco?: string | null
           endereco_completo?: string | null
+          estado?: string | null
           evolution_api_key?: string | null
           evolution_instance_name?: string | null
+          horario_funcionamento?: Json | null
           id?: string
           instagram_api_token?: string | null
           instagram_user_handle?: string | null

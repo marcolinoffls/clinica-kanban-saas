@@ -1,4 +1,3 @@
-
 // src/hooks/useClinicaData.ts
 
 import { useQuery } from '@tanstack/react-query';
@@ -123,7 +122,9 @@ export const useClinicaData = () => {
         }
       }
       
-      return data as Clinica | null; // Faz o cast para Clinica ou null.
+      // A conversão para 'unknown' primeiro é a forma correta de lidar com a discrepância de tipos
+      // até que os tipos gerados pelo Supabase sejam atualizados.
+      return data as unknown as Clinica | null;
     },
     enabled: queryEnabled, // A query só é executada se queryEnabled for true.
     staleTime: 5 * 60 * 1000, // Dados são considerados "frescos" por 5 minutos.
