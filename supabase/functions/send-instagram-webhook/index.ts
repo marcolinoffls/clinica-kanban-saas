@@ -62,7 +62,7 @@ serve(async (req) => {
 
   try {
     // Adicionando um número de versão para garantir que o deploy foi atualizado
-    const functionVersion = "v1.2.1"; 
+    const functionVersion = "v1.2.2"; // VERSÃO ATUALIZADA PARA FORÇAR DEPLOYMENT
     console.log(`⚡️ [send-instagram-webhook] INICIANDO - Versão: ${functionVersion}`);
     console.log('🔍 [send-instagram-webhook] Requisição recebida');
 

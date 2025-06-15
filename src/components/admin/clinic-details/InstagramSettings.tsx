@@ -1,4 +1,3 @@
-
 /**
  * Componente para as Configurações de Integração com o Instagram
  *
@@ -134,7 +133,7 @@ export const InstagramSettings = ({ clinica, saving: parentSaving }: InstagramSe
                 placeholder="Ex: nome_da_sua_clinica"
               />
               <p className="text-sm text-muted-foreground">
-                Preencha apenas o nome de usuário, sem o '@'. A URL final será: <code className="text-xs bg-gray-100 p-1 rounded">.../webhook-instagram/{userHandle || '{usuario}'}</code>.
+                Preencha apenas o nome de usuário, sem o '@'. A URL final será: <code className="text-xs bg-gray-100 p-1 rounded">.../webhook/{userHandle || '{usuario}'}</code>.
               </p>
             </div>
           )}
