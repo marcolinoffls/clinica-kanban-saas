@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { X, User, Phone, Mail, MessageSquare, Building, Stethoscope, Workflow } from 'lucide-react';
 import { Lead } from './KanbanBoard';
@@ -13,12 +14,14 @@ import { Label } from '@/components/ui/label';
  * Nova funcionalidade implementada:
  * - Seleção de etapa inicial do kanban ao criar lead
  * - Interface melhorada para seleção de etapa
+ * - Suporte para pré-preenchimento de dados na criação de um novo lead (Partial<Lead>)
  */
 
 interface LeadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  lead: Lead | null;
+  // Alterado para Partial<Lead> para permitir pré-preenchimento na criação
+  lead: Partial<Lead> | null;
   etapas: any[]; // Nova prop com etapas disponíveis
   onSave: (leadData: Partial<Lead>) => void;
   onOpenHistory?: () => void;
@@ -66,17 +69,18 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [isLoading, setIsLoading] = useState(false);
 
-  // Preenche o formulário quando um lead é selecionado para edição
+  // Preenche o formulário quando um lead é selecionado para edição ou para criação com dados pré-preenchidos
   useEffect(() => {
     if (lead) {
-      console.log('📝 Carregando dados do lead para edição:', lead);
+      console.log('📝 Carregando dados do lead para edição/criação:', lead);
       setFormData({
         nome: lead.nome || '',
         telefone: lead.telefone || '',
         email: lead.email || '',
         origem_lead: lead.origem_lead || '',
         servico_interesse: lead.servico_interesse || '',
-        etapa_kanban_id: lead.etapa_kanban_id || '',
+        // Garante que a etapa seja selecionada na criação ou edição
+        etapa_kanban_id: lead.etapa_kanban_id || (etapas.length > 0 ? etapas[0].id : ''),
         anotacoes: lead.anotacoes || ''
       });
     } else {

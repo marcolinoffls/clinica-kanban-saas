@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Phone, Mail, Calendar as CalendarIconLucide, FileText, ChevronDown, ChevronRight, History, Edit, Check, X, MoveHorizontal } from 'lucide-react'; // Ícone para a etapa
+import { User, Phone, Mail, Calendar as CalendarIconLucide, FileText, ChevronDown, ChevronRight, History, Edit, Check, X, MoveHorizontal, UserPlus } from 'lucide-react'; // Ícone para a etapa
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -47,7 +47,8 @@ interface LeadInfoSidebarProps {
   }>;
   onCallLead?: () => void;
   onScheduleAppointment?: () => void;
-  onViewHistory?: () => void; // Nova prop para ver histórico
+  onViewHistory?: () => void;
+  onAddContact?: (lead: Lead) => void; // Nova prop para adicionar contato
 }
 
 export const LeadInfoSidebar = ({
@@ -56,7 +57,8 @@ export const LeadInfoSidebar = ({
   historico = [],
   onCallLead,
   onScheduleAppointment,
-  onViewHistory
+  onViewHistory,
+  onAddContact
 }: LeadInfoSidebarProps) => {
   const [expandedSections, setExpandedSections] = useState({
     info: true,
@@ -221,15 +223,32 @@ export const LeadInfoSidebar = ({
             Agendar
           </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onViewHistory}
-          className="w-full mt-2 flex items-center gap-2"
-        >
-          <History size={14} />
-          Ver Histórico
-        </Button>
+
+        {/* Container para botões de ação secundários */}
+        <div className="flex flex-col space-y-2 mt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onViewHistory}
+              className="w-full mt-0 flex items-center gap-2 justify-start"
+            >
+              <History size={14} />
+              Ver Histórico
+            </Button>
+            
+            {/* NOVO: Botão para adicionar contato para leads do Instagram */}
+            {lead.origem_lead === 'Instagram' && onAddContact && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onAddContact(lead)}
+                className="w-full flex items-center justify-start gap-2 border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+              >
+                <UserPlus size={14} />
+                Adicionar Contato (WhatsApp)
+              </Button>
+            )}
+        </div>
       </div>
 
       {/* Scrollable content area */}

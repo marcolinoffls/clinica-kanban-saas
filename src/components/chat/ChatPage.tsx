@@ -7,12 +7,14 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useWebhook } from '@/hooks/useWebhook';
 import { useClinicaData } from '@/hooks/useClinicaData';
 import { useAIConversationControl } from '@/hooks/useAIConversationControl';
-import { useUpdateLeadAiConversationStatus } from '@/hooks/useLeadsData';
+import { useUpdateLeadAiConversationStatus, useCreateLead } from '@/hooks/useLeadsData';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Lead } from '@/hooks/useLeadsData';
 import { supabase } from '@/integrations/supabase/client';
 import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
 import { HistoricoConsultasModal } from './HistoricoConsultasModal';
+import { LeadModal } from '@/components/kanban/LeadModal';
+import { toast } from 'sonner';
 
 /**
  * Página principal do chat com funcionalidades de mídia
@@ -42,6 +44,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
   const {
     leads,
+    etapas,
     tags,
     enviarMensagem,
     respostasProntas,
@@ -52,6 +55,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
   const { enviarWebhook } = useWebhook();
   const updateLeadAiStatusMutation = useUpdateLeadAiConversationStatus();
+  const createLeadMutation = useCreateLead();
 
   const [selectedConversation, setSelectedConversation] = useState<string | null>(selectedLeadId || null);
   const [messageInput, setMessageInput] = useState('');
@@ -65,7 +69,9 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   // Novos estados para os modais
   const [isAgendamentoModalOpen, setIsAgendamentoModalOpen] = useState(false);
   const [isHistoricoModalOpen, setIsHistoricoModalOpen] = useState(false);
-  
+  const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
+  const [leadSourceForModal, setLeadSourceForModal] = useState<Lead | null>(null);
+
   const selectedLead = leads.find(l => l.id === selectedConversation) || null;
 
   const { aiEnabled, toggleAI, isInitializing, isUpdating } = useAIConversationControl({
@@ -446,6 +452,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           onCallLead={() => console.log('Ligar para lead:', selectedLead.id)}
           onScheduleAppointment={() => setIsAgendamentoModalOpen(true)}
           onViewHistory={() => setIsHistoricoModalOpen(true)}
+          onAddContact={handleAddContact} // Passa a função para o sidebar
         />
       )}
       
@@ -465,6 +472,76 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           />
         </>
       )}
+
+      {/* NOVO: Modal para adicionar contato, renderizado fora do {selectedLead && ...} para não depender dele */}
+      {isAddContactModalOpen && leadSourceForModal && (
+        <LeadModal
+            isOpen={isAddContactModalOpen}
+            onClose={handleCloseContactModal}
+            // Pré-preenche o formulário com dados do lead do Instagram, mas sem ID para forçar a criação.
+            lead={{
+              nome: leadSourceForModal.nome,
+              email: leadSourceForModal.email,
+              servico_interesse: leadSourceForModal.servico_interesse,
+              // Deixa o telefone em branco para ser preenchido pelo usuário.
+              telefone: '',
+              // Muda a origem para indicar que veio do WhatsApp, mas originado pelo Instagram.
+              origem_lead: 'WhatsApp (via Instagram)',
+            }}
+            etapas={etapas}
+            onSave={handleSaveContact}
+        />
+      )}
     </div>
   );
+};
+
+/**
+ * NOVO: Abre o modal para adicionar um novo contato a partir de um lead do Instagram.
+ * @param sourceLead O lead do Instagram que servirá de base.
+ */
+const handleAddContact = (sourceLead: Lead) => {
+  setLeadSourceForModal(sourceLead);
+  setIsAddContactModalOpen(true);
+};
+
+/**
+ * NOVO: Salva o novo contato criado no modal.
+ * É chamado pelo onSave do LeadModal.
+ * @param newLeadData Dados do formulário do novo lead.
+ */
+const handleSaveContact = (newLeadData: Partial<Lead>) => {
+  // Usa o clinicaId do hook, que é mais confiável.
+  if (!clinicaId) {
+    toast.error("ID da clínica não encontrado. Não é possível criar o lead.");
+    console.error("Tentativa de criar lead sem clinica_id");
+    return;
+  }
+
+  // Combina os dados do formulário com o clinica_id e anotações de rastreabilidade.
+  const finalLeadData = {
+    ...newLeadData,
+    clinica_id: clinicaId,
+    anotacoes: `Contato criado a partir de um lead do Instagram (${leadSourceForModal?.nome}).\n${newLeadData.anotacoes || ''}`.trim()
+  };
+  
+  createLeadMutation.mutate(finalLeadData, {
+    onSuccess: (createdLead) => {
+      toast.success(`Contato "${createdLead.nome}" criado com sucesso!`);
+      setIsAddContactModalOpen(false);
+      setLeadSourceForModal(null);
+    },
+    onError: (error) => {
+      // O hook useCreateLead já pode mostrar um toast, mas um extra aqui pode ser mais específico.
+      toast.error(`Erro ao criar contato: ${error.message}`);
+    }
+  });
+};
+
+/**
+ * NOVO: Fecha o modal de adicionar contato e limpa o estado.
+ */
+const handleCloseContactModal = () => {
+  setIsAddContactModalOpen(false);
+  setLeadSourceForModal(null);
 };
