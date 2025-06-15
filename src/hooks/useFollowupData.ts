@@ -85,7 +85,12 @@ export const useFollowupCampaigns = () => {
       }
 
       console.log(`✅ ${data?.length || 0} campanhas encontradas`);
-      return data || [];
+      
+      // Type assertion para garantir que os tipos do Supabase sejam tratados corretamente
+      return (data || []).map(campaign => ({
+        ...campaign,
+        tipo: campaign.tipo as 'automatico' | 'manual'
+      }));
     },
     staleTime: 30000, // Cache por 30 segundos
   });
@@ -112,7 +117,12 @@ export const useFollowupTemplates = (campaignId: string | null) => {
       }
 
       console.log(`✅ ${data?.length || 0} templates encontrados`);
-      return data || [];
+      
+      // Type assertion para garantir que os tipos do Supabase sejam tratados corretamente
+      return (data || []).map(template => ({
+        ...template,
+        tipo_mensagem: template.tipo_mensagem as 'text' | 'image' | 'audio'
+      }));
     },
     enabled: !!campaignId,
     staleTime: 30000,
@@ -139,7 +149,12 @@ export const useCreateFollowupCampaign = () => {
       }
 
       console.log('✅ Campanha criada com sucesso:', data);
-      return data;
+      
+      // Type assertion para garantir que o tipo seja tratado corretamente
+      return {
+        ...data,
+        tipo: data.tipo as 'automatico' | 'manual'
+      };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['followup-campaigns'] });
@@ -172,7 +187,12 @@ export const useCreateFollowupTemplate = () => {
       }
 
       console.log('✅ Template criado com sucesso:', data);
-      return data;
+      
+      // Type assertion para garantir que o tipo seja tratado corretamente
+      return {
+        ...data,
+        tipo_mensagem: data.tipo_mensagem as 'text' | 'image' | 'audio'
+      };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['followup-templates', data.campaign_id] });
@@ -212,7 +232,13 @@ export const useCreateFollowupExecution = () => {
       }
 
       console.log('✅ Execução criada com sucesso:', data);
-      return data;
+      
+      // Type assertion para garantir que o tipo seja tratado corretamente
+      return {
+        ...data,
+        tipo_execucao: data.tipo_execucao as 'automatico' | 'manual',
+        status: data.status as 'pendente' | 'enviado' | 'erro' | 'cancelado'
+      };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['followup-executions'] });
@@ -249,7 +275,12 @@ export const useLeadFollowupExecutions = (leadId: string | null) => {
         throw new Error(`Erro ao buscar execuções: ${error.message}`);
       }
 
-      return data || [];
+      // Type assertion para garantir que os tipos sejam tratados corretamente
+      return (data || []).map(execution => ({
+        ...execution,
+        tipo_execucao: execution.tipo_execucao as 'automatico' | 'manual',
+        status: execution.status as 'pendente' | 'enviado' | 'erro' | 'cancelado'
+      }));
     },
     enabled: !!leadId,
     staleTime: 30000,
@@ -294,7 +325,13 @@ export const useUpdateFollowupExecution = () => {
       }
 
       console.log('✅ Execução atualizada:', data);
-      return data;
+      
+      // Type assertion para garantir que o tipo seja tratado corretamente
+      return {
+        ...data,
+        tipo_execucao: data.tipo_execucao as 'automatico' | 'manual',
+        status: data.status as 'pendente' | 'enviado' | 'erro' | 'cancelado'
+      };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['followup-executions'] });

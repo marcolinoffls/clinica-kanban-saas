@@ -66,7 +66,7 @@ export const FollowupButton = ({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
 
   // Hooks para dados
-  const { data: user } = useAuthUser();
+  const { user } = useAuthUser();
   const { data: campaigns = [], isLoading: campaignsLoading } = useFollowupCampaigns();
   const { data: templates = [], isLoading: templatesLoading } = useFollowupTemplates(selectedCampaignId || null);
   const sendManualFollowup = useSendManualFollowup();
