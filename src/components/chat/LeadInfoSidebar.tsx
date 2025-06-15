@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Phone, Mail, User, MessageSquare, Tag, Briefcase, DollarSign } from 'lucide-react';
+import { Calendar, MapPin, Phone, Mail, User, MessageSquare, Tag, Briefcase, DollarSign, Check, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -55,6 +55,10 @@ const formatPhoneNumber = (phone: string | null | undefined): string => {
 export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedLead, setEditedLead] = useState<Partial<Lead>>({});
+  
+  // Estados específicos para anotações
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState('');
 
   // Hooks para buscar dados relacionados
   const { data: etapas = [] } = useEtapas();
@@ -72,7 +76,9 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
       servico_interesse: lead.servico_interesse,
       anotacoes: lead.anotacoes
     });
+    setNotesValue(lead.anotacoes || '');
     setIsEditing(false);
+    setIsEditingNotes(false);
   }, [lead.id]); // Dependência no ID para garantir que reset quando trocar de lead
 
   // Buscar nome da etapa atual
@@ -123,6 +129,37 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
     setIsEditing(false);
   };
 
+  // Funções específicas para anotações
+  const handleSaveNotes = async () => {
+    try {
+      console.log('Salvando anotações:', notesValue);
+      
+      const updateData = {
+        id: lead.id,
+        nome: lead.nome,
+        telefone: lead.telefone,
+        email: lead.email,
+        ltv: lead.ltv,
+        origem_lead: lead.origem_lead,
+        servico_interesse: lead.servico_interesse,
+        anotacoes: notesValue,
+        etapa_kanban_id: lead.etapa_kanban_id,
+        clinica_id: lead.clinica_id
+      };
+
+      await updateLeadMutation.mutateAsync(updateData);
+      setIsEditingNotes(false);
+      console.log('Anotações salvas com sucesso');
+    } catch (error) {
+      console.error('Erro ao salvar anotações:', error);
+    }
+  };
+
+  const handleCancelNotes = () => {
+    setNotesValue(lead.anotacoes || '');
+    setIsEditingNotes(false);
+  };
+
   const formatCurrency = (value: number | null | undefined) => {
     if (!value) return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', {
@@ -137,7 +174,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
   };
 
   return (
-    <div className="w-80 bg-gray-50 border-l border-gray-200 p-4 overflow-y-auto">
+    <div className="w-96 bg-gray-50 border-l border-gray-200 p-4 overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-gray-900">Informações do Lead</h2>
@@ -373,17 +410,49 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
           <CardTitle className="text-sm">Anotações</CardTitle>
         </CardHeader>
         <CardContent>
-          {isEditing ? (
-            <Textarea
-              value={editedLead.anotacoes || ''}
-              onChange={(e) => setEditedLead(prev => ({ ...prev, anotacoes: e.target.value }))}
-              placeholder="Adicione anotações sobre o lead..."
-              className="text-sm min-h-[80px]"
-            />
+          {isEditingNotes ? (
+            <div className="space-y-3">
+              <Textarea
+                value={notesValue}
+                onChange={(e) => setNotesValue(e.target.value)}
+                placeholder="Adicione anotações sobre o lead..."
+                className="text-sm min-h-[80px]"
+              />
+              <div className="flex space-x-2">
+                <Button 
+                  size="sm" 
+                  onClick={handleSaveNotes}
+                  disabled={updateLeadMutation.isPending}
+                  className="flex-1"
+                >
+                  <Check className="w-4 h-4 mr-1" />
+                  {updateLeadMutation.isPending ? 'Salvando...' : 'Salvar'}
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={handleCancelNotes}
+                  className="flex-1"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Cancelar
+                </Button>
+              </div>
+            </div>
           ) : (
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">
-              {lead.anotacoes || 'Nenhuma anotação'}
-            </p>
+            <div>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap mb-3">
+                {lead.anotacoes || 'Nenhuma anotação'}
+              </p>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => setIsEditingNotes(true)}
+                className="w-full"
+              >
+                {lead.anotacoes ? 'Editar anotações' : 'Adicionar anotação'}
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>

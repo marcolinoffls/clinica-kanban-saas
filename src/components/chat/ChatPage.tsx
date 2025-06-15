@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare } from 'lucide-react';
 import { MessageInput } from './MessageInput';
