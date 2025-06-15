@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Phone, Mail, User, MessageSquare, Tag, Briefcase, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -54,12 +54,26 @@ const formatPhoneNumber = (phone: string | null | undefined): string => {
 
 export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedLead, setEditedLead] = useState<Partial<Lead>>(lead);
+  const [editedLead, setEditedLead] = useState<Partial<Lead>>({});
 
   // Hooks para buscar dados relacionados
   const { data: etapas = [] } = useEtapas();
   const { data: tags = [] } = useTags();
   const updateLeadMutation = useUpdateLead();
+
+  // Resetar o estado de edição sempre que o lead mudar
+  useEffect(() => {
+    setEditedLead({
+      nome: lead.nome,
+      telefone: lead.telefone,
+      email: lead.email,
+      ltv: lead.ltv,
+      origem_lead: lead.origem_lead,
+      servico_interesse: lead.servico_interesse,
+      anotacoes: lead.anotacoes
+    });
+    setIsEditing(false);
+  }, [lead.id]); // Dependência no ID para garantir que reset quando trocar de lead
 
   // Buscar nome da etapa atual
   const etapaAtual = etapas.find(etapa => etapa.id === (lead.etapa_kanban_id || lead.etapa_id));
@@ -70,18 +84,42 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
 
   const handleSave = async () => {
     try {
-      await updateLeadMutation.mutateAsync({
+      console.log('Salvando lead com dados:', editedLead);
+      
+      // Preparar dados para atualização, removendo campos que não existem na interface UpdateLeadData
+      const updateData = {
         id: lead.id,
-        ...editedLead
-      });
+        nome: editedLead.nome,
+        telefone: editedLead.telefone,
+        email: editedLead.email,
+        ltv: editedLead.ltv,
+        origem_lead: editedLead.origem_lead,
+        servico_interesse: editedLead.servico_interesse,
+        anotacoes: editedLead.anotacoes,
+        // Usar etapa_kanban_id ao invés de etapa_id
+        etapa_kanban_id: lead.etapa_kanban_id,
+        clinica_id: lead.clinica_id
+      };
+
+      await updateLeadMutation.mutateAsync(updateData);
       setIsEditing(false);
+      console.log('Lead atualizado com sucesso');
     } catch (error) {
       console.error('Erro ao salvar lead:', error);
     }
   };
 
   const handleCancel = () => {
-    setEditedLead(lead);
+    // Resetar para os valores originais do lead
+    setEditedLead({
+      nome: lead.nome,
+      telefone: lead.telefone,
+      email: lead.email,
+      ltv: lead.ltv,
+      origem_lead: lead.origem_lead,
+      servico_interesse: lead.servico_interesse,
+      anotacoes: lead.anotacoes
+    });
     setIsEditing(false);
   };
 
@@ -161,7 +199,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
                   disabled={updateLeadMutation.isPending}
                   className="flex-1"
                 >
-                  Salvar
+                  {updateLeadMutation.isPending ? 'Salvando...' : 'Salvar'}
                 </Button>
                 <Button 
                   size="sm" 
