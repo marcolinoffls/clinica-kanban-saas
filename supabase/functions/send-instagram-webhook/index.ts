@@ -1,4 +1,3 @@
-
 /**
  * Edge Function para envio de webhooks do Instagram Direct
  * 
@@ -62,6 +61,9 @@ serve(async (req) => {
   }
 
   try {
+    // Adicionando um número de versão para garantir que o deploy foi atualizado
+    const functionVersion = "v1.2.1"; 
+    console.log(`⚡️ [send-instagram-webhook] INICIANDO - Versão: ${functionVersion}`);
     console.log('🔍 [send-instagram-webhook] Requisição recebida');
 
     const supabaseClient = createClient(
@@ -102,15 +104,18 @@ serve(async (req) => {
 
     console.log('✅ [send-instagram-webhook] Dados da clínica carregados:', clinica);
 
-    // LÓGICA PARA DETERMINAR A URL DO WEBHOOK (CORRIGIDA)
+    // LÓGICA PARA DETERMINAR A URL DO WEBHOOK (REVISADA COM LOGS ADICIONAIS)
     let webhookUrl = '';
+    console.log(`[send-instagram-webhook] Verificando tipo de webhook: '${clinica.instagram_webhook_type}'`);
     if (clinica.instagram_webhook_type === 'padrao' && clinica.instagram_webhook_url) {
       webhookUrl = clinica.instagram_webhook_url;
-      console.log(`[send-instagram-webhook] Usando webhook padrão: ${webhookUrl}`);
+      console.log(`[send-instagram-webhook] TIPO PADRÃO. URL: ${webhookUrl}`);
     } else if (clinica.instagram_webhook_type === 'personalizado' && clinica.instagram_user_handle) {
-      // CORREÇÃO: URL corrigida para webhook/teste-gmail ao invés de webhook-instagram/teste-gmail
+      // A URL foi corrigida para usar o endpoint /webhook/ em vez de /webhook-instagram/.
+      // Isso garante que a requisição seja enviada para o endpoint correto no servidor n8n.
       webhookUrl = `https://webhooks.marcolinofernandes.site/webhook/${clinica.instagram_user_handle}`;
-      console.log(`[send-instagram-webhook] Usando webhook personalizado com URL corrigida: ${webhookUrl}`);
+      console.log(`[send-instagram-webhook] TIPO PERSONALIZADO. Handle: ${clinica.instagram_user_handle}`);
+      console.log(`[send-instagram-webhook] URL construída (CORRIGIDA): ${webhookUrl}`);
     }
 
     if (!webhookUrl) {
