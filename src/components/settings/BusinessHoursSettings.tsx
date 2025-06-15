@@ -171,9 +171,10 @@ export const BusinessHoursSettings = ({ clinicaId }: BusinessHoursSettingsProps)
       <CardContent>
         <div className="divide-y divide-border">
           {daysOfWeek.map(day => (
-            <div key={day} className="flex flex-col md:flex-row md:items-start gap-4 py-6">
-              <Label className="font-semibold w-full md:w-32 shrink-0 pt-2">{day}</Label>
-              <div className="flex-grow space-y-4">
+            <div key={day} className="py-6">
+              {/* Agrupamos o dia e o checkbox em uma linha para garantir o alinhamento */}
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                <Label className="font-semibold w-full md:w-32 shrink-0">{day}</Label>
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id={`closed-${day}`}
@@ -182,42 +183,44 @@ export const BusinessHoursSettings = ({ clinicaId }: BusinessHoursSettingsProps)
                   />
                   <Label htmlFor={`closed-${day}`} className="font-normal">Fechado</Label>
                 </div>
-
-                {!hours[day]?.isClosed && (
-                  <div className="space-y-4 pt-2">
-                    {hours[day].slots.map((slot, index) => (
-                      <div key={index} className="flex items-center gap-2 animate-in fade-in">
-                        <Input
-                          type="time"
-                          value={slot.start}
-                          onChange={e => handleTimeChange(day, index, 'start', e.target.value)}
-                          className="w-[120px]"
-                        />
-                        <span className="text-sm text-muted-foreground">até</span>
-                        <Input
-                          type="time"
-                          value={slot.end}
-                          onChange={e => handleTimeChange(day, index, 'end', e.target.value)}
-                          className="w-[120px]"
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveTimeSlot(day, index)}
-                          disabled={hours[day].slots.length <= 1}
-                          className="group"
-                        >
-                          <Trash2 className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-red-500" />
-                        </Button>
-                      </div>
-                    ))}
-                    <Button variant="outline" size="sm" onClick={() => handleAddTimeSlot(day)} className="mt-2">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar horário
-                    </Button>
-                  </div>
-                )}
               </div>
+
+              {/* Renderiza os campos de horário apenas se o dia não estiver marcado como fechado */}
+              {!hours[day]?.isClosed && (
+                // Adicionamos um recuo (padding) para alinhar os campos com os controles acima em telas maiores
+                <div className="space-y-4 pt-4 md:pl-[calc(8rem+1rem)]">
+                  {hours[day].slots.map((slot, index) => (
+                    <div key={index} className="flex items-center gap-2 animate-in fade-in">
+                      <Input
+                        type="time"
+                        value={slot.start}
+                        onChange={e => handleTimeChange(day, index, 'start', e.target.value)}
+                        className="w-[120px]"
+                      />
+                      <span className="text-sm text-muted-foreground">até</span>
+                      <Input
+                        type="time"
+                        value={slot.end}
+                        onChange={e => handleTimeChange(day, index, 'end', e.target.value)}
+                        className="w-[120px]"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveTimeSlot(day, index)}
+                        disabled={hours[day].slots.length <= 1}
+                        className="group"
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" onClick={() => handleAddTimeSlot(day)} className="mt-2">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Adicionar horário
+                  </Button>
+                </div>
+              )}
             </div>
           ))}
         </div>
