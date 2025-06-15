@@ -1,3 +1,4 @@
+
 /**
  * Edge Function para envio de webhooks do Instagram Direct
  * 
@@ -183,27 +184,117 @@ serve(async (req) => {
 
     console.log('📤 [send-instagram-webhook] Payload final para n8n:', JSON.stringify(webhookPayload, null, 2));
 
+    // CRIAÇÃO DO JWT COM LOGS DETALHADOS
+    console.log('🔐 [send-instagram-webhook] Iniciando criação do token JWT...');
     const secretKey = Deno.env.get('EVOLUTION_API_KEY') || 'default-secret';
+    console.log('🔐 [send-instagram-webhook] Secret key definida:', secretKey.substring(0, 10) + '...');
+    
     const cryptoKey = await crypto.subtle.importKey("raw", new TextEncoder().encode(secretKey), { name: "HMAC", hash: "SHA-256" }, true, ["sign", "verify"]);
+    console.log('🔐 [send-instagram-webhook] Crypto key importada com sucesso');
+    
     const jwt = await djwt.create({ alg: "HS256", typ: "JWT" }, { clinica_id, exp: djwt.getNumericDate(60 * 60) }, cryptoKey);
+    console.log('🔐 [send-instagram-webhook] JWT criado com sucesso:', jwt.substring(0, 50) + '...');
 
-    const webhookResponse = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
-      body: JSON.stringify(webhookPayload)
+    // ENVIO DO WEBHOOK COM LOGS DETALHADOS E TIMEOUT
+    console.log('🚀 [send-instagram-webhook] Iniciando envio do webhook...');
+    console.log('🚀 [send-instagram-webhook] URL de destino:', webhookUrl);
+    console.log('🚀 [send-instagram-webhook] Headers que serão enviados:', {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${jwt.substring(0, 20)}...`
     });
 
-    const responseText = await webhookResponse.text();
-    if (webhookResponse.ok) {
-      console.log('✅ [send-instagram-webhook] Webhook enviado com sucesso:', responseText);
-      return new Response(JSON.stringify({ success: true, response: responseText }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    } else {
-      console.error('❌ [send-instagram-webhook] Erro no webhook:', responseText);
-      return new Response(JSON.stringify({ error: 'Falha ao enviar webhook', details: responseText }), { status: webhookResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // Criando um AbortController para timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos de timeout
+
+    try {
+      const webhookResponse = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${jwt}`,
+          'User-Agent': 'Supabase-Edge-Function/1.0'
+        },
+        body: JSON.stringify(webhookPayload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      console.log('📡 [send-instagram-webhook] Resposta recebida do webhook:');
+      console.log('📡 [send-instagram-webhook] Status:', webhookResponse.status);
+      console.log('📡 [send-instagram-webhook] StatusText:', webhookResponse.statusText);
+      console.log('📡 [send-instagram-webhook] Headers:', Object.fromEntries(webhookResponse.headers.entries()));
+
+      const responseText = await webhookResponse.text();
+      console.log('📡 [send-instagram-webhook] Conteúdo da resposta:', responseText);
+
+      if (webhookResponse.ok) {
+        console.log('✅ [send-instagram-webhook] Webhook enviado com sucesso:', responseText);
+        return new Response(JSON.stringify({ success: true, response: responseText }), { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      } else {
+        console.error('❌ [send-instagram-webhook] Erro no webhook - Status:', webhookResponse.status);
+        console.error('❌ [send-instagram-webhook] Erro no webhook - Response:', responseText);
+        return new Response(JSON.stringify({ 
+          error: 'Falha ao enviar webhook', 
+          status: webhookResponse.status,
+          statusText: webhookResponse.statusText,
+          details: responseText 
+        }), { 
+          status: webhookResponse.status, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      console.error('❌ [send-instagram-webhook] Erro durante o fetch:', fetchError);
+      console.error('❌ [send-instagram-webhook] Tipo do erro:', fetchError.constructor.name);
+      console.error('❌ [send-instagram-webhook] Mensagem do erro:', fetchError.message);
+      
+      // Verificar se é erro de timeout
+      if (fetchError.name === 'AbortError') {
+        console.error('❌ [send-instagram-webhook] Erro de timeout - O servidor webhook não respondeu em 30 segundos');
+        return new Response(JSON.stringify({ 
+          error: 'Timeout na requisição do webhook', 
+          message: 'O servidor webhook não respondeu em 30 segundos',
+          webhookUrl: webhookUrl
+        }), { 
+          status: 408, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      // Verificar se é erro de DNS/conectividade
+      if (fetchError.message.includes('error sending request')) {
+        console.error('❌ [send-instagram-webhook] Erro de conectividade - Não foi possível conectar ao webhook');
+        return new Response(JSON.stringify({ 
+          error: 'Erro de conectividade com o webhook', 
+          message: 'Não foi possível conectar ao servidor webhook. Verifique se a URL está correta e o servidor está online.',
+          webhookUrl: webhookUrl,
+          originalError: fetchError.message
+        }), { 
+          status: 503, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      throw fetchError; // Re-throw se não for um erro conhecido
     }
 
   } catch (error) {
     console.error('❌ [send-instagram-webhook] Erro geral na função:', error);
-    return new Response(JSON.stringify({ error: 'Erro interno do servidor', message: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    console.error('❌ [send-instagram-webhook] Stack trace:', error.stack);
+    return new Response(JSON.stringify({ 
+      error: 'Erro interno do servidor', 
+      message: error.message,
+      type: error.constructor.name
+    }), { 
+      status: 500, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
   }
 })
