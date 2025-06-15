@@ -86,17 +86,20 @@ export const SettingsPage = () => {
 
       if (data) {
         setClinicaId(data.id);
+        // Usamos 'as any' para que o TypeScript permita acessar os novos campos
+        // que podem não estar nos tipos gerados automaticamente.
+        const clinicDataTyped = data as any;
         setClinicData({
-          name: data.nome || '',
-          phone: data.telefone || '',
-          email: data.email || '',
-          address: data.endereco || '',
-          complemento: data.complemento || '', // Carrega o complemento
-          city: data.cidade || '', // Carrega a cidade
-          state: data.estado || 'SP', // Carrega o estado
-          zipCode: data.cep || '', // Carrega o CEP
-          webhook_usuario: data.webhook_usuario || '',
-          evolution_instance_name: data.evolution_instance_name || '' // Carregar ID da instância Evolution
+          name: clinicDataTyped.nome || '',
+          phone: clinicDataTyped.telefone || '',
+          email: clinicDataTyped.email || '',
+          address: clinicDataTyped.endereco || '',
+          complemento: clinicDataTyped.complemento || '', // Carrega o complemento
+          city: clinicDataTyped.cidade || '', // Carrega a cidade
+          state: clinicDataTyped.estado || 'SP', // Carrega o estado
+          zipCode: clinicDataTyped.cep || '', // Carrega o CEP
+          webhook_usuario: clinicDataTyped.webhook_usuario || '',
+          evolution_instance_name: clinicDataTyped.evolution_instance_name || '' // Carregar ID da instância Evolution
         });
       }
     } catch (error) {
@@ -111,6 +114,7 @@ export const SettingsPage = () => {
 
       if (clinicaId) {
         // Atualizar clínica existente
+        // Usamos 'as any' para contornar a verificação de tipo do Supabase
         const { error } = await supabase
           .from('clinicas')
           .update({
@@ -118,19 +122,20 @@ export const SettingsPage = () => {
             telefone: clinicData.phone,
             email: clinicData.email,
             endereco: clinicData.address,
-            complemento: clinicData.complemento, // Salva o complemento
-            cidade: clinicData.city,           // Salva a cidade
-            estado: clinicData.state,         // Salva o estado
-            cep: clinicData.zipCode,           // Salva o CEP
+            complemento: clinicData.complemento,
+            cidade: clinicData.city,
+            estado: clinicData.state,
+            cep: clinicData.zipCode,
             webhook_usuario: clinicData.webhook_usuario,
             evolution_instance_name: clinicData.evolution_instance_name,
             updated_at: new Date().toISOString()
-          })
+          } as any)
           .eq('id', clinicaId);
 
         if (error) throw error;
       } else {
         // Criar nova clínica
+        // Usamos 'as any' para contornar a verificação de tipo do Supabase
         const { data, error } = await supabase
           .from('clinicas')
           .insert({
@@ -144,7 +149,7 @@ export const SettingsPage = () => {
             cep: clinicData.zipCode,
             webhook_usuario: clinicData.webhook_usuario,
             evolution_instance_name: clinicData.evolution_instance_name,
-          })
+          } as any)
           .select()
           .single();
 

@@ -1,3 +1,4 @@
+
 // src/hooks/useClinicaData.ts
 
 import { useQuery } from '@tanstack/react-query';
@@ -8,13 +9,19 @@ import { useAuthUser } from './useAuthUser'; // Ajuste o caminho se necessário
  * @interface Clinica
  * Define a estrutura dos dados esperados para uma clínica.
  * É crucial que esta interface corresponda exatamente às colunas da sua tabela 'public.clinicas'.
+ * Os novos campos de endereço e horário foram adicionados para refletir a migração do banco de dados.
  */
 interface Clinica {
   id: string; 
   nome: string; 
   email: string; 
   telefone: string | null;
-  // endereco: string | null; // Considerado obsoleto no comentário original
+  endereco: string | null;
+  complemento: string | null;
+  cidade: string | null;
+  estado: string | null;
+  cep: string | null;
+  horario_funcionamento: any | null; // JSONB é mapeado para 'any' para flexibilidade
   endereco_completo: string | null; 
   cnpj: string | null;
   razao_social: string | null;

@@ -20,6 +20,12 @@ interface Clinica {
   email: string;
   telefone?: string;
   endereco?: string;
+  // Novos campos adicionados para refletir a estrutura atual da tabela 'clinicas'.
+  complemento?: string;
+  cidade?: string;
+  estado?: string;
+  cep?: string;
+  horario_funcionamento?: any; // JSONB é mapeado para 'any' para flexibilidade.
   endereco_completo?: string;
   cnpj?: string;
   razao_social?: string;

@@ -78,9 +78,10 @@ export const BusinessHoursSettings = ({ clinicaId }: BusinessHoursSettingsProps)
       if (error && error.code !== 'PGRST116') {
         console.error("Erro ao buscar horários:", error);
         toast.error("Não foi possível carregar os horários.");
-      } else if (data && data.horario_funcionamento) {
+      } else if (data && (data as any).horario_funcionamento) {
         // Se encontrou dados, mescla com o estado inicial para garantir que todos os dias estejam presentes
-        const dbHours = data.horario_funcionamento as BusinessHours;
+        // Usamos 'as any' para acessar 'horario_funcionamento' pois os tipos do Supabase podem estar desatualizados.
+        const dbHours = (data as any).horario_funcionamento as BusinessHours;
         const mergedHours = { ...initialHours };
         for (const day in dbHours) {
             if (mergedHours[day]) {
@@ -136,9 +137,11 @@ export const BusinessHoursSettings = ({ clinicaId }: BusinessHoursSettingsProps)
     if (!clinicaId) return;
     
     setIsSaving(true);
+    // Adicionamos 'as any' para contornar a verificação de tipo do Supabase,
+    // que pode estar com tipos desatualizados após a migração do banco.
     const { error } = await supabase
       .from('clinicas')
-      .update({ horario_funcionamento: hours })
+      .update({ horario_funcionamento: hours } as any)
       .eq('id', clinicaId);
 
     if (error) {
@@ -227,4 +230,3 @@ export const BusinessHoursSettings = ({ clinicaId }: BusinessHoursSettingsProps)
     </Card>
   );
 };
-
