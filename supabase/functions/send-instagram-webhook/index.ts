@@ -107,9 +107,9 @@ serve(async (req) => {
       webhookUrl = clinica.instagram_webhook_url;
       console.log(`[send-instagram-webhook] Usando webhook padrão: ${webhookUrl}`);
     } else if (clinica.instagram_webhook_type === 'personalizado' && clinica.instagram_user_handle) {
-      // Constrói a URL para o tipo 'personalizado'.
-      webhookUrl = `https://webhooks.marcolinofernades.site/webhook-instagram/${clinica.instagram_user_handle}`;
-      console.log(`[send-instagram-webhook] Usando webhook personalizado: ${webhookUrl}`);
+      // CORREÇÃO: Corrigido o erro de digitação no domínio de 'fernades' para 'fernandes'.
+      webhookUrl = `https://webhooks.marcolinofernandes.site/webhook-instagram/${clinica.instagram_user_handle}`;
+      console.log(`[send-instagram-webhook] Usando webhook personalizado com URL corrigida: ${webhookUrl}`);
     }
 
     if (!webhookUrl) {
@@ -136,19 +136,40 @@ serve(async (req) => {
         messagePayload = { conversation: conteudo };
     }
     
+    // CORREÇÃO: Lógica aprimorada para mapear o tipo da mensagem do nosso banco de dados
+    // para o formato esperado pelo webhook (ex: 'texto' -> 'conversation').
+    let messageTypeForWebhook: string;
+    switch (tipo) {
+      case 'texto':
+      case 'text':
+        messageTypeForWebhook = 'conversation';
+        break;
+      case 'image':
+      case 'photo':
+        messageTypeForWebhook = 'imageMessage';
+        break;
+      case 'audio':
+        messageTypeForWebhook = 'audioMessage';
+        break;
+      default:
+        // Se o tipo não for reconhecido, assume que é texto como um fallback seguro.
+        messageTypeForWebhook = 'conversation';
+        break;
+    }
+
     const webhookPayload: WebhookPayload = {
       event: "instagram.send.message",
       platform: "instagram",
       instance: clinica.evolution_instance_name || clinica.id, // Fallback para clinica.id
       data: {
         key: {
-          remoteJid: lead?.id_direct || '', // ID de usuário do Instagram
+          remoteJid: lead?.id_direct || '', // ID de usuário do Instagram (destinatário)
           fromMe: true,
           id: mensagem_id
         },
         pushName: lead?.nome || null,
         message: messagePayload,
-        messageType: tipo === 'text' ? 'conversation' : 'text', // Corrigido para ser sempre 'text' ou o tipo do anexo
+        messageType: messageTypeForWebhook, // AQUI: Usando o tipo de mensagem corrigido
         messageTimestamp: Math.floor(dataUTC.getTime() / 1000)
       },
       origin: {
