@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import { InstagramSettings } from './clinic-details/InstagramSettings';
 import { TimeRangeFilter } from './TimeRangeFilter';
 import { endOfDay, startOfDay, subDays } from 'date-fns';
 import { AdminAISettings } from './clinic-details/AdminAISettings';
+import { ClinicQuickActions } from './clinic-details/ClinicQuickActions';
 
 /**
  * Componente principal de detalhes da clínica no painel administrativo
@@ -20,6 +20,7 @@ import { AdminAISettings } from './clinic-details/AdminAISettings';
  * - Informações básicas
  * - Configurações da Evolution API e Instagram
  * - Configurações completas da Inteligência Artificial
+ * - NOVO: Acesso rápido ao dashboard e chat da clínica
  * 
  * Este componente foi refatorado em componentes menores para
  * melhor organização e manutenibilidade do código.
@@ -51,7 +52,6 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
   const [currentFilter, setCurrentFilter] = useState('Últimos 30 Dias');
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
-  // O estado foi atualizado para usar 'totalLeads' em vez de 'outrosLeads' para corresponder à nova lógica.
   const [leadStats, setLeadStats] = useState({ leadsDeAnuncios: 0, totalLeads: 0 });
   const [loadingStats, setLoadingStats] = useState(true);
 
@@ -223,6 +223,12 @@ export const AdminClinicDetails = ({ clinicaId, onBack }: AdminClinicDetailsProp
             </div>
           </div>
         </div>
+
+        {/* NOVO: Seção de Acesso Rápido */}
+        <ClinicQuickActions 
+          clinicaId={clinicaId} 
+          clinicaNome={clinica.nome}
+        />
 
         {/* Filtro de Tempo */}
         <TimeRangeFilter onFilterChange={handleFilterChange} currentFilter={currentFilter} />

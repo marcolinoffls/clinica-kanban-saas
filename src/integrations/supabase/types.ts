@@ -440,6 +440,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          ad_name: string | null
           ai_conversation_enabled: boolean | null
           anotacoes: string | null
           anuncio: string | null
@@ -468,6 +469,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          ad_name?: string | null
           ai_conversation_enabled?: boolean | null
           anotacoes?: string | null
           anuncio?: string | null
@@ -496,6 +498,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          ad_name?: string | null
           ai_conversation_enabled?: boolean | null
           anotacoes?: string | null
           anuncio?: string | null

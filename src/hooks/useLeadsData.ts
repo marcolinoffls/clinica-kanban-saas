@@ -1,3 +1,4 @@
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -36,7 +37,7 @@ export interface CreateLeadData {
   origem_lead?: string;
   servico_interesse?: string;
   anotacoes?: string;
-  etapa_kanban_id: string;
+  etapa_kanban_id?: string; // Tornado opcional para corrigir o erro TypeScript
   tag_id?: string;
   clinica_id: string;
   avatar_url?: string | null; // Adicionado
