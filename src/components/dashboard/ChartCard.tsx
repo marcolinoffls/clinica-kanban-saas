@@ -25,8 +25,6 @@ interface ChartData {
   leads?: number;
   category?: string;
   conversions?: number;
-  // NOVO: Campo para identificar se o lead veio de anúncio
-  isFromAd?: boolean;
   [key: string]: any;
 }
 
@@ -36,7 +34,7 @@ interface ChartCardProps {
   data: ChartData[];
   type: 'line' | 'bar';
   showFilter?: boolean; // Prop para controlar se mostra filtros
-  // NOVO: Prop para receber dados brutos dos leads para filtragem
+  // Prop para receber dados brutos dos leads para filtragem
   rawLeadsData?: any[];
 }
 
@@ -52,35 +50,42 @@ export const ChartCard = ({
 
   // Função para reprocessar dados baseado no filtro quando é gráfico de linha
   const getFilteredData = () => {
-    if (!showFilter || type !== 'line' || !rawLeadsData.length) {
+    if (!showFilter || type !== 'line') {
       return data;
     }
 
-    if (filterType === 'ads') {
+    if (filterType === 'ads' && rawLeadsData.length > 0) {
       // Filtrar apenas leads que têm ad_name preenchido
       const leadsComAnuncio = rawLeadsData.filter(lead => 
         lead.ad_name && lead.ad_name.trim() !== ''
       );
 
+      // Criar um mapa com as datas dos dados originais para manter a estrutura
+      const datasOriginais = data.map(item => item.label);
+      
       // Reprocessar dados agrupando por data apenas os leads com anúncio
       const datasMap = new Map<string, number>();
+      
+      // Inicializar todas as datas com 0
+      datasOriginais.forEach(label => {
+        if (label) datasMap.set(label, 0);
+      });
       
       leadsComAnuncio.forEach(lead => {
         const dataLead = new Date(lead.created_at);
         const labelData = `${dataLead.getDate().toString().padStart(2, '0')}/${(dataLead.getMonth() + 1).toString().padStart(2, '0')}`;
-        datasMap.set(labelData, (datasMap.get(labelData) || 0) + 1);
+        
+        // Só contar se a data existe nos dados originais
+        if (datasMap.has(labelData)) {
+          datasMap.set(labelData, (datasMap.get(labelData) || 0) + 1);
+        }
       });
 
-      // Converter para formato do gráfico
-      return Array.from(datasMap.entries()).map(([label, leads]) => ({
+      // Converter para formato do gráfico mantendo a ordem original
+      return datasOriginais.map(label => ({
         label,
-        leads
-      })).sort((a, b) => {
-        // Ordenar por data
-        const [diaA, mesA] = a.label.split('/').map(Number);
-        const [diaB, mesB] = b.label.split('/').map(Number);
-        return (mesA * 100 + diaA) - (mesB * 100 + diaB);
-      });
+        leads: datasMap.get(label || '') || 0
+      }));
     }
 
     return data; // Mostrar todos os dados
