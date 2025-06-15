@@ -1,4 +1,3 @@
-
 /**
  * Componente para gerenciar o Horário de Funcionamento da Clínica
  *
@@ -170,22 +169,22 @@ export const BusinessHoursSettings = ({ clinicaId }: BusinessHoursSettingsProps)
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-6">
+        <div className="divide-y divide-border">
           {daysOfWeek.map(day => (
-            <div key={day} className="grid grid-cols-1 md:grid-cols-[120px_1fr] items-start gap-4">
-              <Label className="font-semibold pt-2">{day}</Label>
-              <div className="space-y-4">
+            <div key={day} className="flex flex-col md:flex-row md:items-start gap-4 py-6">
+              <Label className="font-semibold w-full md:w-32 shrink-0 pt-2">{day}</Label>
+              <div className="flex-grow space-y-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id={`closed-${day}`}
                     checked={hours[day]?.isClosed}
                     onCheckedChange={() => handleToggleClosed(day)}
                   />
-                  <Label htmlFor={`closed-${day}`}>Fechado</Label>
+                  <Label htmlFor={`closed-${day}`} className="font-normal">Fechado</Label>
                 </div>
 
                 {!hours[day]?.isClosed && (
-                  <div className="space-y-3 pl-2 border-l-2 border-gray-100">
+                  <div className="space-y-4 pt-2">
                     {hours[day].slots.map((slot, index) => (
                       <div key={index} className="flex items-center gap-2 animate-in fade-in">
                         <Input
@@ -194,7 +193,7 @@ export const BusinessHoursSettings = ({ clinicaId }: BusinessHoursSettingsProps)
                           onChange={e => handleTimeChange(day, index, 'start', e.target.value)}
                           className="w-[120px]"
                         />
-                        <span>até</span>
+                        <span className="text-sm text-muted-foreground">até</span>
                         <Input
                           type="time"
                           value={slot.end}
@@ -206,12 +205,13 @@ export const BusinessHoursSettings = ({ clinicaId }: BusinessHoursSettingsProps)
                           size="icon"
                           onClick={() => handleRemoveTimeSlot(day, index)}
                           disabled={hours[day].slots.length <= 1}
+                          className="group"
                         >
-                          <Trash2 className="h-4 w-4 text-red-500" />
+                          <Trash2 className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-red-500" />
                         </Button>
                       </div>
                     ))}
-                    <Button variant="outline" size="sm" onClick={() => handleAddTimeSlot(day)}>
+                    <Button variant="outline" size="sm" onClick={() => handleAddTimeSlot(day)} className="mt-2">
                       <Plus className="h-4 w-4 mr-2" />
                       Adicionar horário
                     </Button>
