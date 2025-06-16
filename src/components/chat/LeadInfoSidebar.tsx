@@ -10,6 +10,8 @@ import { Lead } from '@/hooks/useLeadsData';
 import { useUpdateLead } from '@/hooks/useSupabaseLeads';
 import { useEtapas } from '@/hooks/useEtapasData';
 import { useTags } from '@/hooks/useTagsData';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useAdAliases } from '@/hooks/useAdAliases';
 import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
 
@@ -57,8 +59,56 @@ const formatPhoneNumber = (phone: string | null | undefined): string => {
 export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedLead, setEditedLead] = useState<Partial<Lead>>({});
-  const { getAliasForAd } = useAdAliases();
+  const { data: adAliases = [] } = useQuery({
+    queryKey: ['ad-aliases'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ad_aliases')
+        .select('*');
+      
+      if (error) {
+        console.error('❌ Erro ao buscar apelidos:', error);
+        return [];
+      }
+      
+      console.log('✅ Apelidos carregados da tabela:', data);
+      return data || [];
+    },
+  });
   
+  const getAliasForAd = (adName: string): string | null => {
+    if (!adName || !adAliases.length) {
+      console.log('⚠️ Sem nome do anúncio ou sem apelidos');
+      return null;
+    }
+    
+    console.log('🔍 Procurando apelido para:', adName);
+    console.log('🔍 Apelidos disponíveis:', adAliases);
+    
+    // Buscar por correspondência exata
+    const exactMatch = adAliases.find((alias: any) => 
+      alias.ad_name_original === adName
+    );
+    
+    if (exactMatch) {
+      console.log('✅ Apelido exato encontrado:', exactMatch.alias);
+      return exactMatch.alias;
+    }
+    
+    // Buscar por correspondência parcial
+    const partialMatch = adAliases.find((alias: any) => 
+      alias.ad_name_original.includes(adName) || 
+      adName.includes(alias.ad_name_original)
+    );
+    
+    if (partialMatch) {
+      console.log('✅ Apelido parcial encontrado:', partialMatch.alias);
+      return partialMatch.alias;
+    }
+    
+    console.log('❌ Nenhum apelido encontrado');
+    return null;
+  };  
   // Estados específicos para anotações
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState('');
