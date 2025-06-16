@@ -45,7 +45,7 @@ const ETAPA_COLORS = [
 export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
   // Hooks personalizados para diferentes responsabilidades
   const modalControls = useKanbanModals();
-  const leadActions = useKanbanLeadActions(onNavigateToChat);
+  const leadActions = useKanbanLeadActions();
   const etapaActions = useKanbanEtapaActions();
   const columnDrag = useKanbanColumnDrag();
 

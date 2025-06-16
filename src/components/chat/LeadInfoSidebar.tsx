@@ -496,9 +496,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
       <RegistroAgendamentoModal
         isOpen={isScheduleModalOpen}
         onClose={() => setIsScheduleModalOpen(false)}
-        selectedClientId={lead.id}
-        clientName={lead.nome || ''}
-        clientPhone={lead.telefone || ''}
+        lead={lead}
       />
     </div>
   );
