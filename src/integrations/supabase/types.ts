@@ -57,6 +57,33 @@ export type Database = {
           },
         ]
       }
+      ad_aliases: {
+        Row: {
+          ad_alias: string
+          ad_name_original: string
+          clinica_id: string
+          created_at: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          ad_alias: string
+          ad_name_original: string
+          clinica_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          ad_alias?: string
+          ad_name_original?: string
+          clinica_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       agendamentos: {
         Row: {
           cliente_id: string | null
@@ -628,6 +655,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          ad_ink: string | null
           ad_name: string | null
           ai_conversation_enabled: boolean | null
           anotacoes: string | null
@@ -659,6 +687,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          ad_ink?: string | null
           ad_name?: string | null
           ai_conversation_enabled?: boolean | null
           anotacoes?: string | null
@@ -690,6 +719,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          ad_ink?: string | null
           ad_name?: string | null
           ai_conversation_enabled?: boolean | null
           anotacoes?: string | null
