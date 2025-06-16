@@ -1,505 +1,306 @@
 
-import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Phone, Mail, User, MessageSquare, Tag, Briefcase, DollarSign, Check, X, Plus } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Lead } from '@/hooks/useLeadsData';
-import { useUpdateLead } from '@/hooks/useSupabaseLeads';
-import { useEtapas } from '@/hooks/useEtapasData';
-import { useTags } from '@/hooks/useTagsData';
+import { useState, useEffect } from 'react';
+import { X, Save, Edit2, Calendar, DollarSign, FileText } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Lead } from '@/types/global';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
 
 /**
- * Componente lateral com informações detalhadas do lead
+ * Componente da Sidebar de Informações do Lead
  * 
- * Exibe e permite editar:
- * - Informações básicas do lead (nome, telefone, email)
- * - Avatar e dados de identificação
- * - Etapa atual no pipeline
- * - Tags e anotações
- * - Histórico de conversões e LTV
- * - Origem do lead e serviços de interesse
+ * Exibe e permite editar informações detalhadas do lead selecionado,
+ * incluindo dados pessoais, notas, histórico e ações.
+ * Conecta-se diretamente ao Supabase para persistir as alterações.
  */
 
 interface LeadInfoSidebarProps {
   lead: Lead;
+  isOpen: boolean;
   onClose: () => void;
+  onUpdateLead: (updatedLead: Lead) => void;
 }
 
-/**
- * Função para formatar números de telefone no padrão brasileiro
- * Converte números como "84987759827" para "(84) 98775-9827"
- */
-const formatPhoneNumber = (phone: string | null | undefined): string => {
-  if (!phone) return 'Não informado';
-  
-  // Remove todos os caracteres não numéricos
-  const cleanPhone = phone.replace(/\D/g, '');
-  
-  // Se tem 11 dígitos (celular com 9 na frente)
-  if (cleanPhone.length === 11) {
-    return `(${cleanPhone.slice(0, 2)}) ${cleanPhone.slice(2, 7)}-${cleanPhone.slice(7)}`;
-  }
-  
-  // Se tem 10 dígitos (telefone fixo)
-  if (cleanPhone.length === 10) {
-    return `(${cleanPhone.slice(0, 2)}) ${cleanPhone.slice(2, 6)}-${cleanPhone.slice(6)}`;
-  }
-  
-  // Se não está no padrão esperado, retorna como está
-  return phone;
-};
-
-export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
+export const LeadInfoSidebar = ({ lead, isOpen, onClose, onUpdateLead }: LeadInfoSidebarProps) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedLead, setEditedLead] = useState<Partial<Lead>>({});
-  
-  // Estados específicos para anotações
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [notesValue, setNotesValue] = useState('');
+  const [editedLead, setEditedLead] = useState<Lead>(lead);
+  const [loading, setLoading] = useState(false);
+  const [newNote, setNewNote] = useState('');
+  const [notes, setNotes] = useState<string[]>([]);
+  const [showAgendamentoModal, setShowAgendamentoModal] = useState(false);
 
-  // Estado para controlar o modal de agendamento
-  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-
-  // Hooks para buscar dados relacionados
-  const { data: etapas = [] } = useEtapas();
-  const { data: tags = [] } = useTags();
-  const updateLeadMutation = useUpdateLead();
-
-  // Resetar o estado de edição sempre que o lead mudar
+  // useEffect para resetar editedLead quando o lead.id mudar
   useEffect(() => {
-    setEditedLead({
-      nome: lead.nome,
-      telefone: lead.telefone,
-      email: lead.email,
-      ltv: lead.ltv,
-      origem_lead: lead.origem_lead,
-      servico_interesse: lead.servico_interesse,
-      anotacoes: lead.anotacoes
-    });
-    setNotesValue(lead.anotacoes || '');
+    setEditedLead(lead);
     setIsEditing(false);
-    setIsEditingNotes(false);
-  }, [lead.id]); // Dependência no ID para garantir que reset quando trocar de lead
+    setNewNote('');
+    // Carregar notas salvas do localStorage ou de outro local
+    const savedNotes = localStorage.getItem(`notes_${lead.id}`);
+    if (savedNotes) {
+      setNotes(JSON.parse(savedNotes));
+    } else {
+      setNotes([]);
+    }
+  }, [lead.id]);
 
-  // Buscar nome da etapa atual
-  const etapaAtual = etapas.find(etapa => etapa.id === (lead.etapa_kanban_id || lead.etapa_id));
-  const etapaNome = etapaAtual?.nome || 'Sem etapa';
-
-  // Buscar informações da tag
-  const tagAtual = tags.find(tag => tag.id === lead.tag_id);
-
+  // Função para salvar alterações do lead
   const handleSave = async () => {
     try {
-      console.log('Salvando lead com dados:', editedLead);
-      
-      // Preparar dados para atualização, removendo campos que não existem na interface UpdateLeadData
-      const updateData = {
-        id: lead.id,
-        nome: editedLead.nome,
-        telefone: editedLead.telefone,
-        email: editedLead.email,
-        ltv: editedLead.ltv,
-        origem_lead: editedLead.origem_lead,
-        servico_interesse: editedLead.servico_interesse,
-        anotacoes: editedLead.anotacoes,
-        // Usar etapa_kanban_id ao invés de etapa_id
-        etapa_kanban_id: lead.etapa_kanban_id,
-        clinica_id: lead.clinica_id
-      };
+      setLoading(true);
 
-      await updateLeadMutation.mutateAsync(updateData);
+      const { error } = await supabase
+        .from('leads')
+        .update({
+          nome: editedLead.nome,
+          telefone: editedLead.telefone,
+          email: editedLead.email,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', lead.id);
+
+      if (error) {
+        console.error('Erro ao atualizar lead:', error);
+        toast.error('Erro ao atualizar lead');
+        return;
+      }
+
+      onUpdateLead(editedLead);
       setIsEditing(false);
-      console.log('Lead atualizado com sucesso');
+      toast.success('Lead atualizado com sucesso!');
     } catch (error) {
       console.error('Erro ao salvar lead:', error);
+      toast.error('Erro ao salvar alterações');
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Função para cancelar edição
   const handleCancel = () => {
-    // Resetar para os valores originais do lead
-    setEditedLead({
-      nome: lead.nome,
-      telefone: lead.telefone,
-      email: lead.email,
-      ltv: lead.ltv,
-      origem_lead: lead.origem_lead,
-      servico_interesse: lead.servico_interesse,
-      anotacoes: lead.anotacoes
-    });
+    setEditedLead(lead);
     setIsEditing(false);
   };
 
-  // Funções específicas para anotações
-  const handleSaveNotes = async () => {
-    try {
-      console.log('Salvando anotações:', notesValue);
-      
-      const updateData = {
-        id: lead.id,
-        nome: lead.nome,
-        telefone: lead.telefone,
-        email: lead.email,
-        ltv: lead.ltv,
-        origem_lead: lead.origem_lead,
-        servico_interesse: lead.servico_interesse,
-        anotacoes: notesValue,
-        etapa_kanban_id: lead.etapa_kanban_id,
-        clinica_id: lead.clinica_id
-      };
-
-      await updateLeadMutation.mutateAsync(updateData);
-      setIsEditingNotes(false);
-      console.log('Anotações salvas com sucesso');
-    } catch (error) {
-      console.error('Erro ao salvar anotações:', error);
+  // Função para adicionar nova nota
+  const handleAddNote = () => {
+    if (newNote.trim()) {
+      const updatedNotes = [...notes, newNote.trim()];
+      setNotes(updatedNotes);
+      // Salvar no localStorage (poderia ser no Supabase também)
+      localStorage.setItem(`notes_${lead.id}`, JSON.stringify(updatedNotes));
+      setNewNote('');
+      toast.success('Nota adicionada com sucesso!');
     }
   };
 
-  const handleCancelNotes = () => {
-    setNotesValue(lead.anotacoes || '');
-    setIsEditingNotes(false);
+  // Função para remover nota
+  const handleRemoveNote = (index: number) => {
+    const updatedNotes = notes.filter((_, i) => i !== index);
+    setNotes(updatedNotes);
+    localStorage.setItem(`notes_${lead.id}`, JSON.stringify(updatedNotes));
+    toast.success('Nota removida!');
   };
 
-  const formatCurrency = (value: number | null | undefined) => {
-    if (!value) return 'R$ 0,00';
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
-
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return 'Não informado';
-    return new Date(dateString).toLocaleDateString('pt-BR');
-  };
+  if (!isOpen) return null;
 
   return (
-    <div className="w-96 bg-gray-50 border-l border-gray-200 p-4 overflow-y-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">Informações do Lead</h2>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          ✕
-        </Button>
-      </div>
+    <>
+      <div className="fixed inset-y-0 right-0 w-96 bg-white shadow-xl border-l border-gray-200 z-50 flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">
+            Informações do Lead
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <X size={20} className="text-gray-500" />
+          </button>
+        </div>
 
-      {/* Botão para Novo Agendamento */}
-      <div className="mb-4">
-        <Button 
-          onClick={() => setIsScheduleModalOpen(true)}
-          className="w-full bg-green-600 hover:bg-green-700 text-white"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Novo Agendamento
-        </Button>
-      </div>
-
-      {/* Avatar e informações básicas */}
-      <Card className="mb-4">
-        <CardContent className="p-4">
-          <div className="flex items-center space-x-4 mb-4">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-              {lead.avatar_url ? (
-                <img
-                  src={lead.avatar_url}
-                  alt={lead.nome || 'Lead'}
-                  className="w-16 h-16 rounded-full object-cover"
-                />
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {/* Informações básicas */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-medium text-gray-900">Dados do Lead</h4>
+              {!isEditing ? (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                >
+                  <Edit2 size={16} />
+                </button>
               ) : (
-                <User className="w-8 h-8 text-blue-600" />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSave}
+                    disabled={loading}
+                    className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {loading ? 'Salvando...' : 'Salvar'}
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    className="px-3 py-1 bg-gray-300 text-gray-700 text-sm rounded hover:bg-gray-400"
+                  >
+                    Cancelar
+                  </button>
+                </div>
               )}
             </div>
-            <div className="flex-1">
-              {isEditing ? (
-                <Input
-                  value={editedLead.nome || ''}
-                  onChange={(e) => setEditedLead(prev => ({ ...prev, nome: e.target.value }))}
-                  className="font-semibold text-lg mb-2"
-                  placeholder="Nome do lead"
-                />
-              ) : (
-                <h3 className="font-semibold text-lg text-gray-900">
-                  {lead.nome || 'Lead sem nome'}
-                </h3>
-              )}
-              <p className="text-sm text-gray-500">
-                Criado em {formatDate(lead.created_at)}
-              </p>
-            </div>
-          </div>
 
-          {/* Botões de ação */}
-          <div className="flex space-x-2">
-            {!isEditing ? (
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={() => setIsEditing(true)}
-                className="flex-1"
-              >
-                Editar
-              </Button>
-            ) : (
-              <>
-                <Button 
-                  size="sm" 
-                  onClick={handleSave}
-                  disabled={updateLeadMutation.isPending}
-                  className="flex-1"
-                >
-                  {updateLeadMutation.isPending ? 'Salvando...' : 'Salvar'}
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={handleCancel}
-                  className="flex-1"
-                >
-                  Cancelar
-                </Button>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Informações de contato */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
-            <MessageSquare className="w-4 h-4" />
-            Contato
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center space-x-3">
-            <Phone className="w-4 h-4 text-gray-400" />
-            {isEditing ? (
-              <Input
-                value={editedLead.telefone || ''}
-                onChange={(e) => setEditedLead(prev => ({ ...prev, telefone: e.target.value }))}
-                placeholder="Telefone"
-                className="text-sm"
-              />
-            ) : (
-              <span className="text-sm">{formatPhoneNumber(lead.telefone)}</span>
-            )}
-          </div>
-          <div className="flex items-center space-x-3">
-            <Mail className="w-4 h-4 text-gray-400" />
-            {isEditing ? (
-              <Input
-                value={editedLead.email || ''}
-                onChange={(e) => setEditedLead(prev => ({ ...prev, email: e.target.value }))}
-                placeholder="Email"
-                className="text-sm"
-                type="email"
-              />
-            ) : (
-              <span className="text-sm">{lead.email || 'Não informado'}</span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Status e etapa */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Briefcase className="w-4 h-4" />
-            Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Etapa atual</p>
-            <Badge variant="secondary">{etapaNome}</Badge>
-          </div>
-          
-          {tagAtual && (
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Tag</p>
-              <Badge 
-                style={{ backgroundColor: tagAtual.cor }}
-                className="text-white"
-              >
-                <Tag className="w-3 h-3 mr-1" />
-                {tagAtual.nome}
-              </Badge>
-            </div>
-          )}
-
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Status de conversão</p>
-            <Badge variant={lead.convertido ? "default" : "secondary"}>
-              {lead.convertido ? 'Convertido' : 'Em andamento'}
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Anotações - movido para onde estava o LTV */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-sm">Anotações</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isEditingNotes ? (
             <div className="space-y-3">
-              <Textarea
-                value={notesValue}
-                onChange={(e) => setNotesValue(e.target.value)}
-                placeholder="Adicione anotações sobre o lead..."
-                className="text-sm min-h-[80px]"
-              />
-              <div className="flex space-x-2">
-                <Button 
-                  size="sm" 
-                  onClick={handleSaveNotes}
-                  disabled={updateLeadMutation.isPending}
-                  className="flex-1"
-                >
-                  <Check className="w-4 h-4 mr-1" />
-                  {updateLeadMutation.isPending ? 'Salvando...' : 'Salvar'}
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={handleCancelNotes}
-                  className="flex-1"
-                >
-                  <X className="w-4 h-4 mr-1" />
-                  Cancelar
-                </Button>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  Nome
+                </label>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editedLead.nome || ''}
+                    onChange={(e) => setEditedLead(prev => ({ ...prev, nome: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                ) : (
+                  <p className="text-gray-900">{lead.nome || 'Não informado'}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  Telefone
+                </label>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editedLead.telefone || ''}
+                    onChange={(e) => setEditedLead(prev => ({ ...prev, telefone: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                ) : (
+                  <p className="text-gray-900">{lead.telefone || 'Não informado'}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  Email
+                </label>
+                {isEditing ? (
+                  <input
+                    type="email"
+                    value={editedLead.email || ''}
+                    onChange={(e) => setEditedLead(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                ) : (
+                  <p className="text-gray-900">{lead.email || 'Não informado'}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  Data de Criação
+                </label>
+                <p className="text-gray-900">
+                  {format(new Date(lead.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                </p>
               </div>
             </div>
-          ) : (
-            <div>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap mb-3">
-                {lead.anotacoes || 'Nenhuma anotação'}
-              </p>
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={() => setIsEditingNotes(true)}
-                className="w-full"
-              >
-                {lead.anotacoes ? 'Editar anotações' : 'Adicionar anotação'}
-              </Button>
+          </div>
+
+          {/* Botão Novo Agendamento */}
+          <div className="bg-blue-50 rounded-lg p-4">
+            <button
+              onClick={() => setShowAgendamentoModal(true)}
+              className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 font-medium"
+            >
+              <Calendar size={20} />
+              Novo Agendamento
+            </button>
+          </div>
+
+          {/* Anotações */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <FileText size={16} className="text-gray-600" />
+              <h4 className="font-medium text-gray-900">Anotações</h4>
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* Origem e interesse */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
-            <MapPin className="w-4 h-4" />
-            Origem e Interesse
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Origem do lead</p>
-            {isEditing ? (
-              <Input
-                value={editedLead.origem_lead || ''}
-                onChange={(e) => setEditedLead(prev => ({ ...prev, origem_lead: e.target.value }))}
-                placeholder="Origem do lead"
-                className="text-sm"
-              />
-            ) : (
-              <p className="text-sm">{lead.origem_lead || 'Não informado'}</p>
-            )}
-          </div>
-          
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Serviço de interesse</p>
-            {isEditing ? (
-              <Input
-                value={editedLead.servico_interesse || ''}
-                onChange={(e) => setEditedLead(prev => ({ ...prev, servico_interesse: e.target.value }))}
-                placeholder="Serviço de interesse"
-                className="text-sm"
-              />
-            ) : (
-              <p className="text-sm">{lead.servico_interesse || 'Não informado'}</p>
-            )}
-          </div>
+            <div className="space-y-3">
+              {/* Formulário para nova nota */}
+              <div className="space-y-2">
+                <textarea
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  placeholder="Digite uma nova anotação..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
+                  rows={3}
+                />
+                <button
+                  onClick={handleAddNote}
+                  disabled={!newNote.trim()}
+                  className="w-full bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                >
+                  Adicionar Nota
+                </button>
+              </div>
 
-          {lead.ad_name && (
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Anúncio específico</p>
-              <Badge variant="outline" className="text-purple-600 border-purple-300">
-                📢 {lead.ad_name}
-              </Badge>
+              {/* Lista de notas */}
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {notes.length > 0 ? (
+                  notes.map((note, index) => (
+                    <div key={index} className="bg-white p-3 rounded border border-gray-200 group">
+                      <p className="text-sm text-gray-700 mb-2">{note}</p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">
+                          {format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveNote(index)}
+                          className="text-red-500 hover:text-red-700 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-4">
+                    Nenhuma anotação ainda
+                  </p>
+                )}
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
 
-      {/* Informações de valor - movido para baixo */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
-            <DollarSign className="w-4 h-4" />
-            Valor
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div>
-            <p className="text-xs text-gray-500 mb-1">LTV (Lifetime Value)</p>
-            {isEditing ? (
-              <Input
-                value={editedLead.ltv || ''}
-                onChange={(e) => setEditedLead(prev => ({ ...prev, ltv: parseFloat(e.target.value) || 0 }))}
-                placeholder="Valor em R$"
-                type="number"
-                step="0.01"
-                className="text-lg font-semibold"
-              />
-            ) : (
-              <p className="text-lg font-semibold text-green-600">
-                {formatCurrency(lead.ltv || 0)}
-              </p>
-            )}
+          {/* LTV (Lifetime Value) */}
+          <div className="bg-green-50 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <DollarSign size={16} className="text-green-600" />
+              <h4 className="font-medium text-gray-900">LTV</h4>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-green-600">R$ 0,00</p>
+              <p className="text-sm text-gray-600">Valor total investido</p>
+            </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Última atividade */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Calendar className="w-4 h-4" />
-            Última Atividade
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div>
-            <p className="text-xs text-gray-500">Último contato</p>
-            <p className="text-sm">{formatDate(lead.data_ultimo_contato)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Última atualização</p>
-            <p className="text-sm">{formatDate(lead.updated_at)}</p>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Modal de Agendamento */}
-      <RegistroAgendamentoModal
-        isOpen={isScheduleModalOpen}
-        onClose={() => setIsScheduleModalOpen(false)}
-        selectedClientId={lead.id}
-        clientName={lead.nome || ''}
-        clientPhone={lead.telefone || ''}
-      />
-    </div>
+      {showAgendamentoModal && (
+        <RegistroAgendamentoModal
+          isOpen={showAgendamentoModal}
+          onClose={() => setShowAgendamentoModal(false)}
+          clientName={lead.nome || ''}
+          clientPhone={lead.telefone || ''}
+        />
+      )}
+    </>
   );
 };
