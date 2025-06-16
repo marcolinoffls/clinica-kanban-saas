@@ -33,7 +33,7 @@ export const MetricCard = ({ title, value, icon: Icon, change, changeType }: Met
         <div className="p-2 bg-blue-100 rounded-lg">
           <Icon size={24} className="text-blue-600" />
         </div>
-        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+        <h3 className="text-xl font-semibold text-gray-900">{title}</h3>
       </div>
 
       {/* Valor principal */}
