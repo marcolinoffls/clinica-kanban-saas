@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Lead } from './useLeadsData';
 
 /**
  * Hook para gerenciar todas as ações relacionadas aos leads no Kanban
@@ -15,12 +14,25 @@ import { Lead } from './useLeadsData';
  * - Estados de loading para operações assíncronas
  */
 
+// Tipo Lead simplificado para evitar importação circular
+interface LeadData {
+  id: string;
+  nome: string;
+  email?: string;
+  telefone?: string;
+  etapa_kanban_id?: string;
+  origem_lead?: string;
+  servico_interesse?: string;
+  anotacoes?: string;
+  tag_id?: string;
+}
+
 export const useKanbanLeadActions = () => {
   const queryClient = useQueryClient();
 
   // Mutation para atualizar/editar lead
   const updateLeadMutation = useMutation({
-    mutationFn: async (leadData: Partial<Lead> & { id: string }) => {
+    mutationFn: async (leadData: Partial<LeadData> & { id: string }) => {
       console.log('🔄 Atualizando lead:', leadData.id);
       
       const { data, error } = await supabase
@@ -61,7 +73,7 @@ export const useKanbanLeadActions = () => {
 
   // Mutation para criar novo lead
   const createLeadMutation = useMutation({
-    mutationFn: async (leadData: Omit<Lead, 'id' | 'created_at' | 'updated_at'>) => {
+    mutationFn: async (leadData: Omit<LeadData, 'id'>) => {
       console.log('➕ Criando novo lead:', leadData);
       
       const { data, error } = await supabase
@@ -162,7 +174,7 @@ export const useKanbanLeadActions = () => {
   });
 
   // Função para editar lead existente
-  const handleEditLead = async (leadData: Partial<Lead> & { id: string }) => {
+  const handleEditLead = async (leadData: Partial<LeadData> & { id: string }) => {
     try {
       console.log('💾 Iniciando edição do lead:', leadData.id);
       await updateLeadMutation.mutateAsync(leadData);
@@ -173,7 +185,7 @@ export const useKanbanLeadActions = () => {
   };
 
   // Função para salvar lead (criar ou editar)
-  const handleSaveLead = async (leadData: any, existingLead?: Lead | null) => {
+  const handleSaveLead = async (leadData: any, existingLead?: any | null) => {
     try {
       if (existingLead?.id || leadData.id) {
         // Modo edição
@@ -233,7 +245,7 @@ export const useKanbanLeadActions = () => {
   };
 
   // Função para abrir chat com lead
-  const handleOpenChat = (lead: Lead) => {
+  const handleOpenChat = (lead: any) => {
     console.log('💬 Abrindo chat com lead:', lead.nome);
     
     if (typeof window !== 'undefined') {
@@ -243,7 +255,7 @@ export const useKanbanLeadActions = () => {
   };
 
   // Função para visualizar histórico do lead
-  const handleOpenHistory = async (lead: Lead) => {
+  const handleOpenHistory = async (lead: any) => {
     console.log('📋 Abrindo histórico do lead:', lead.nome);
     
     try {
