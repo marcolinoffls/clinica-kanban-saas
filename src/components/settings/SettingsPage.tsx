@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Save, Users, Bell, Shield, CreditCard, Settings, Clock, Lock } from 'lucide-react';
+import { Save, Users, Bell, Shield, CreditCard, Settings, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PasswordInput } from '@/components/ui/password-input';
 import { ClinicServicesManager } from './ClinicServicesManager';
 import { BusinessHoursSettings } from './BusinessHoursSettings';
-import { AccountSecuritySettings } from './AccountSecuritySettings';
 
 /**
  * Página de Configurações
@@ -16,7 +15,7 @@ import { AccountSecuritySettings } from './AccountSecuritySettings';
  * - Configurações de notificações
  * - Integrações externas (inclui evolution_instance_name com campo seguro)
  * - Serviços da clínica (nova seção para gerenciar procedimentos)
- * - Configurações de segurança da conta (alterar email e senha)
+ * - Configurações de segurança
  * 
  * Todas as configurações são persistidas no Supabase
  * e aplicadas em tempo real no sistema.
@@ -167,15 +166,14 @@ export const SettingsPage = () => {
     }
   };
 
-  // Tabs de navegação (adicionando nova aba "Segurança")
+  // Tabs de navegação (adicionando nova aba "Horário")
   const tabs = [
     { id: 'clinic', label: 'Clínica', icon: Shield },
-    { id: 'horario', label: 'Horário', icon: Clock },
+    { id: 'horario', label: 'Horário', icon: Clock }, // Nova aba de Horário
     { id: 'services', label: 'Serviços', icon: Settings },
     { id: 'users', label: 'Usuários', icon: Users },
     { id: 'notifications', label: 'Notificações', icon: Bell },
-    { id: 'integrations', label: 'Integrações', icon: CreditCard },
-    { id: 'security', label: 'Segurança', icon: Lock } // Nova aba de Segurança
+    { id: 'integrations', label: 'Integrações', icon: CreditCard }
   ];
 
   return (
@@ -508,6 +506,7 @@ export const SettingsPage = () => {
                     </button>
                   </div>
                   
+                  {/* Campo para ID da Instância Evolution API com funcionalidade de senha */}
                   <div className="mt-4 pt-4 border-t border-gray-100">
                     <PasswordInput
                       label="ID da Instância Evolution API"
@@ -564,13 +563,6 @@ export const SettingsPage = () => {
                   </div>
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* NOVA ABA: Segurança */}
-          {activeTab === 'security' && (
-            <div className="bg-white rounded-lg p-6 border border-gray-200">
-              <AccountSecuritySettings />
             </div>
           )}
         </div>
