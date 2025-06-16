@@ -6,6 +6,7 @@
  * - Busca apelidos existentes para os anúncios da clínica
  * - Permite criar novos apelidos
  * - Permite atualizar apelidos existentes
+ * - NOVO: Normaliza nomes de anúncios para melhor correspondência
  * 
  * Onde é usado:
  * - Componente AdPerformanceCard para edição inline de nomes
@@ -53,9 +54,23 @@ export const useAdAliases = () => {
     enabled: !!clinicaId,
   });
 
+  // Função para normalizar nome do anúncio (igual à do dashboardUtils)
+  const normalizarNomeAnuncio = (nome: string): string => {
+    return nome.trim().toLowerCase().replace(/\s+/g, ' ');
+  };
+
   // Função para obter o apelido de um anúncio específico
+  // MELHORADA: Busca por correspondência normalizada também
   const getAliasForAd = (adNameOriginal: string): string | null => {
-    const alias = aliases.find(a => a.ad_name_original === adNameOriginal);
+    // Primeiro, busca exata
+    let alias = aliases.find(a => a.ad_name_original === adNameOriginal);
+    
+    // Se não encontrou, busca por nome normalizado
+    if (!alias) {
+      const nomeNormalizado = normalizarNomeAnuncio(adNameOriginal);
+      alias = aliases.find(a => normalizarNomeAnuncio(a.ad_name_original) === nomeNormalizado);
+    }
+    
     return alias?.ad_alias || null;
   };
 
@@ -64,14 +79,21 @@ export const useAdAliases = () => {
     mutationFn: async ({ adNameOriginal, alias }: { adNameOriginal: string; alias: string }) => {
       if (!clinicaId) throw new Error('ID da clínica não encontrado');
 
-      // Verificar se já existe um apelido para este anúncio
-      const existingAlias = aliases.find(a => a.ad_name_original === adNameOriginal);
+      // Verificar se já existe um apelido para este anúncio (busca normalizada)
+      const nomeNormalizado = normalizarNomeAnuncio(adNameOriginal);
+      const existingAlias = aliases.find(a => 
+        a.ad_name_original === adNameOriginal || 
+        normalizarNomeAnuncio(a.ad_name_original) === nomeNormalizado
+      );
 
       if (existingAlias) {
         // Atualizar apelido existente
         const { data, error } = await supabase
           .from('ad_aliases')
-          .update({ ad_alias: alias })
+          .update({ 
+            ad_alias: alias,
+            ad_name_original: adNameOriginal // Atualizar também o nome original para a versão mais recente
+          })
           .eq('id', existingAlias.id)
           .select()
           .single();
@@ -97,6 +119,8 @@ export const useAdAliases = () => {
     onSuccess: () => {
       // Recarregar a lista de apelidos
       queryClient.invalidateQueries({ queryKey: ['ad-aliases', clinicaId] });
+      // Também invalidar dados do dashboard para refletir as mudanças
+      queryClient.invalidateQueries({ queryKey: ['dashboardData', clinicaId] });
     },
     onError: (error) => {
       console.error('Erro ao salvar apelido do anúncio:', error);
@@ -106,7 +130,12 @@ export const useAdAliases = () => {
   // Mutation para deletar apelido
   const deleteAliasMutation = useMutation({
     mutationFn: async (adNameOriginal: string) => {
-      const existingAlias = aliases.find(a => a.ad_name_original === adNameOriginal);
+      const nomeNormalizado = normalizarNomeAnuncio(adNameOriginal);
+      const existingAlias = aliases.find(a => 
+        a.ad_name_original === adNameOriginal || 
+        normalizarNomeAnuncio(a.ad_name_original) === nomeNormalizado
+      );
+      
       if (!existingAlias) throw new Error('Apelido não encontrado');
 
       const { error } = await supabase
@@ -118,6 +147,7 @@ export const useAdAliases = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ad-aliases', clinicaId] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardData', clinicaId] });
     },
     onError: (error) => {
       console.error('Erro ao deletar apelido do anúncio:', error);

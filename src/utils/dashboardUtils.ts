@@ -81,6 +81,7 @@ export const processarConversoesPorCategoria = (leads: any[], agendamentos: any[
 /**
  * NOVA FUNÇÃO: Processa leads por anúncio específico (ad_name)
  * Agrupa leads por nome do anúncio e calcula métricas de performance
+ * CORRIGIDO: Normaliza nomes dos anúncios para resolver problemas de agrupamento
  */
 export const processarLeadsPorAnuncio = (leads: any[]) => {
   if (!leads || leads.length === 0) return [];
@@ -90,25 +91,61 @@ export const processarLeadsPorAnuncio = (leads: any[]) => {
 
   if (leadsComAnuncio.length === 0) return [];
 
-  // Agrupar por nome do anúncio
-  const anunciosMap = new Map<string, { leads: number; conversoes: number }>();
+  // Função para normalizar o nome do anúncio (remove espaços extras, padroniza case)
+  const normalizarNomeAnuncio = (nome: string): string => {
+    return nome.trim().toLowerCase().replace(/\s+/g, ' ');
+  };
+
+  // Agrupar por nome do anúncio normalizado
+  const anunciosMap = new Map<string, { 
+    nomeOriginal: string; 
+    leads: number; 
+    conversoes: number; 
+    variacoes: Set<string> 
+  }>();
 
   leadsComAnuncio.forEach(lead => {
     const nomeAnuncio = lead.ad_name.trim();
-    const atual = anunciosMap.get(nomeAnuncio) || { leads: 0, conversoes: 0 };
+    const nomeNormalizado = normalizarNomeAnuncio(nomeAnuncio);
+    
+    const atual = anunciosMap.get(nomeNormalizado) || { 
+      nomeOriginal: nomeAnuncio, 
+      leads: 0, 
+      conversoes: 0, 
+      variacoes: new Set<string>() 
+    };
+    
+    // Adicionar variação do nome à lista
+    atual.variacoes.add(nomeAnuncio);
+    
+    // Se encontramos uma versão mais "limpa" do nome, usar ela como original
+    if (nomeAnuncio.length > atual.nomeOriginal.length || 
+        (nomeAnuncio.includes('AD') && !atual.nomeOriginal.includes('AD'))) {
+      atual.nomeOriginal = nomeAnuncio;
+    }
     
     atual.leads += 1;
     if (lead.convertido) {
       atual.conversoes += 1;
     }
     
-    anunciosMap.set(nomeAnuncio, atual);
+    anunciosMap.set(nomeNormalizado, atual);
   });
+
+  // Log para debug - mostrar agrupamentos encontrados
+  console.log('Agrupamentos de anúncios encontrados:', 
+    Array.from(anunciosMap.entries()).map(([chave, dados]) => ({
+      chaveNormalizada: chave,
+      nomeExibicao: dados.nomeOriginal,
+      variacoes: Array.from(dados.variacoes),
+      totalLeads: dados.leads
+    }))
+  );
 
   // Converter para array e ordenar por número de leads
   return Array.from(anunciosMap.entries())
-    .map(([anuncio, dados]) => ({
-      anuncio,
+    .map(([_, dados]) => ({
+      anuncio: dados.nomeOriginal,
       leads: dados.leads,
       conversoes: dados.conversoes
     }))
