@@ -10,6 +10,7 @@ import { Lead } from '@/hooks/useLeadsData';
 import { useUpdateLead } from '@/hooks/useSupabaseLeads';
 import { useEtapas } from '@/hooks/useEtapasData';
 import { useTags } from '@/hooks/useTagsData';
+import { useAdAliases } from '@/hooks/useAdAliases';
 import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
 
 /**
@@ -56,6 +57,7 @@ const formatPhoneNumber = (phone: string | null | undefined): string => {
 export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedLead, setEditedLead] = useState<Partial<Lead>>({});
+  const { getAliasForAd } = useAdAliases();
   
   // Estados específicos para anotações
   const [isEditingNotes, setIsEditingNotes] = useState(false);
@@ -175,6 +177,30 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return 'Não informado';
     return new Date(dateString).toLocaleDateString('pt-BR');
+  };
+    /**
+   * Função para truncar nomes de anúncios muito longos
+   */
+  const truncateAdName = (adName: string): string => {
+    if (!adName) return '';
+    
+    // Se o nome é muito longo, truncar de forma inteligente
+    if (adName.length > 30) {
+      // Tentar pegar as primeiras palavras mais importantes
+      const words = adName.split(' ');
+      
+      // Se tem muitas palavras, pegar as primeiras e últimas
+      if (words.length > 5) {
+        const firstPart = words.slice(0, 3).join(' ');
+        const lastPart = words.slice(-2).join(' ');
+        return `${firstPart}...${lastPart}`;
+      }
+      
+      // Se não, apenas truncar no meio
+      return adName.substring(0, 27) + '...';
+    }
+    
+    return adName;
   };
 
   return (
@@ -435,10 +461,35 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
           {lead.ad_name && (
             <div>
               <p className="text-xs text-gray-500 mb-1">Anúncio específico</p>
-              <Badge variant="outline" className="text-purple-600 border-purple-300">
-                📢 {lead.ad_name}
-              </Badge>
-            </div>
+              <div className="space-y-2">
+                <Badge 
+                  variant="outline" 
+                  className="text-purple-600 border-purple-300 max-w-full"
+                  title={`Nome original: ${lead.ad_name}`}
+                >
+                  <span className="flex items-center gap-1">
+                    📢 
+                    <span className="truncate max-w-[200px]">
+                      {getAliasForAd(lead.ad_name) || truncateAdName(lead.ad_name)}
+                    </span>
+                  </span>
+                </Badge>
+                
+                {/* Se tem apelido, mostrar que é um apelido */}
+                {getAliasForAd(lead.ad_name) && (
+                  <p className="text-xs text-gray-400 italic">
+                    Apelido personalizado
+                  </p>
+                )}
+                
+                {/* Se não tem apelido, mostrar nome original truncado com tooltip */}
+                {!getAliasForAd(lead.ad_name) && lead.ad_name.length > 30 && (
+                  <p className="text-xs text-gray-400" title={lead.ad_name}>
+                    📝 Nome completo: {lead.ad_name.substring(0, 50)}...
+                  </p>
+                )}
+              </div>
+            </div> 
           )}
         </CardContent>
       </Card>
