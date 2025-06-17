@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Plus, Settings, Search, Filter, MoreVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,10 +17,10 @@ import { useKanbanEtapaActions } from '@/hooks/useKanbanEtapaActions';
 import { useKanbanModals } from '@/hooks/useKanbanModals';
 
 // Imports dos componentes modais
-import KanbanColumn from './KanbanColumn';
-import LeadModal from './LeadModal';
-import EtapaModal from './EtapaModal';
-import MoveLeadsModal from './MoveLeadsModal';
+import { KanbanColumn } from './KanbanColumn';
+import { LeadModal } from './LeadModal';
+import { EtapaModal } from './EtapaModal';
+import { MoveLeadsModal } from './MoveLeadsModal';
 
 /**
  * Interface para definir a estrutura de uma etapa/coluna do Kanban
@@ -70,8 +71,8 @@ const KanbanBoard: React.FC = () => {
   
   /** Hook para buscar dados dos leads */
   const { 
-    data: leads = [], 
-    isLoading: isLoadingLeads, 
+    leads = [], 
+    loading: isLoadingLeads, 
     error: leadsError 
   } = useLeadsData();
   
@@ -238,7 +239,7 @@ const KanbanBoard: React.FC = () => {
    */
   const handleCreateLead = (etapaId?: string) => {
     console.log('➕ Criando novo lead para etapa:', etapaId);
-    modalActions.openEditLeadModal(null, etapaId);
+    modalActions.openCreateLeadModal();
   };
 
   /**
@@ -265,11 +266,11 @@ const KanbanBoard: React.FC = () => {
   /**
    * Handler para salvar lead (criar ou editar)
    */
-  const handleSaveLead = async (leadData: Partial<Lead>, existingLead?: Lead | null) => {
+  const handleSaveLead = async (leadData: Partial<Lead>) => {
     console.log('💾 Salvando lead:', leadData);
     try {
-      await leadActions.handleSaveLead(leadData, existingLead);
-      modalActions.closeEditLeadModal();
+      await leadActions.handleSaveLead(leadData, modalActions.selectedLead);
+      modalActions.closeLeadModal();
       console.log('✅ Lead salvo com sucesso');
     } catch (error) {
       console.error('❌ Erro ao salvar lead:', error);
@@ -281,7 +282,7 @@ const KanbanBoard: React.FC = () => {
    */
   const handleCreateEtapa = () => {
     console.log('➕ Criando nova etapa');
-    modalActions.openEditEtapaModal(null);
+    modalActions.openCreateEtapaModal();
   };
 
   /**
@@ -299,7 +300,7 @@ const KanbanBoard: React.FC = () => {
     console.log('💾 Salvando etapa:', nome);
     try {
       await etapaActions.handleSaveEtapa(nome, modalActions.editingEtapa, etapas);
-      modalActions.closeEditEtapaModal();
+      modalActions.closeEtapaModal();
       console.log('✅ Etapa salva com sucesso');
     } catch (error) {
       console.error('❌ Erro ao salvar etapa:', error);
@@ -316,7 +317,7 @@ const KanbanBoard: React.FC = () => {
       
       if (result.needsMoveLeads) {
         // Se precisa mover leads, abrir modal
-        modalActions.openMoveLeadsModal(result.etapaToDelete);
+        modalActions.openMoveLeadsModal(result.etapaToDelete, result.etapaToDelete.leadsCount || 0);
       } else {
         console.log('✅ Etapa deletada com sucesso');
       }
@@ -503,7 +504,7 @@ const KanbanBoard: React.FC = () => {
                               // Handlers para ações de lead
                               onEditLead={handleEditLead}
                               onDropLeadInColumn={leadActions.handleDropLeadInColumn}
-                              onOpenHistory={(lead) => modalActions.openHistoryModal(lead)}
+                              onOpenHistory={(lead) => modalActions.openHistoryModal(lead, [])}
                               onOpenChat={leadActions.handleOpenChat}
                               
                               // Handlers para ações de etapa
@@ -530,11 +531,10 @@ const KanbanBoard: React.FC = () => {
       {/* Modal para criar/editar lead */}
       <LeadModal
         isOpen={modalActions.isLeadModalOpen}
-        onClose={modalActions.closeEditLeadModal}
+        onClose={modalActions.closeLeadModal}
         lead={modalActions.selectedLead}
         etapas={etapas}
-        onSave={(leadData) => handleSaveLead(leadData, modalActions.selectedLead)}
-        isLoading={leadActions.isUpdating || leadActions.isCreating}
+        onSave={handleSaveLead}
       />
 
       {/* Modal para visualizar histórico do lead */}
@@ -579,11 +579,10 @@ const KanbanBoard: React.FC = () => {
       {/* Modal para criar/editar etapa */}
       <EtapaModal
         isOpen={modalActions.isEtapaModalOpen}
-        onClose={modalActions.closeEditEtapaModal}
+        onClose={modalActions.closeEtapaModal}
         etapa={modalActions.editingEtapa}
         etapasExistentes={etapas}
         onSave={handleSaveEtapa}
-        isLoading={etapaActions.isUpdating || etapaActions.isCreating}
       />
 
       {/* Modal para mover leads antes de deletar etapa */}

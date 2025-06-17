@@ -1,7 +1,6 @@
 
 import { useState } from 'react';
 import { Lead } from '@/hooks/useLeadsData';
-import { Lead } from '@/hooks/useLeadsData';
 
 interface IKanbanColumn {
   id: string;
@@ -10,6 +9,7 @@ interface IKanbanColumn {
   cor?: string;
   ordem?: number;
 }
+
 /**
  * Hook para gerenciar o estado de todos os modais do Kanban
  * 
