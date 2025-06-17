@@ -1,17 +1,17 @@
 
-
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthUser } from './useAuthUser';
 import { useToast } from '@/hooks/use-toast';
 
 /**
- * Hook para operações da clínica (criar leads, etapas e tags)
+ * Hook para operações da clínica (criar leads, etapas e tags, atualizar dados da clínica)
  * 
  * Este hook fornece funções para:
  * - Criar novos leads associados à clínica do usuário
  * - Criar novas etapas do kanban
  * - Criar novas tags
+ * - Atualizar dados básicos da clínica
  * - Gerenciar dados específicos da clínica logada
  * 
  * Todas as operações são automaticamente associadas à clínica
@@ -41,6 +41,21 @@ interface CreateEtapaData {
 interface CreateTagData {
   nome: string;
   cor?: string;
+}
+
+// Interface para atualização da clínica
+interface UpdateClinicaData {
+  id: string;
+  nome?: string;
+  razao_social?: string;
+  email?: string;
+  telefone?: string;
+  cnpj?: string;
+  endereco?: string;
+  cidade?: string;
+  estado?: string;
+  cep?: string;
+  complemento?: string;
 }
 
 export const useClinicaOperations = () => {
@@ -171,6 +186,43 @@ export const useClinicaOperations = () => {
     },
   });
 
+  // Mutation para atualizar dados da clínica
+  const updateClinicaMutation = useMutation({
+    mutationFn: async (clinicaData: UpdateClinicaData) => {
+      const { id, ...updateData } = clinicaData;
+
+      const { data, error } = await supabase
+        .from('clinicas')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Erro ao atualizar clínica:', error);
+        throw new Error(error.message || 'Erro ao atualizar clínica');
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clinica'] });
+      
+      toast({
+        title: "Sucesso",
+        description: "Dados da clínica atualizados com sucesso!",
+      });
+    },
+    onError: (error: any) => {
+      console.error('Erro na mutation de atualizar clínica:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao atualizar dados da clínica. Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Função para criar lead (wrapper da mutation)
   const createLead = async (leadData: CreateLeadData) => {
     return createLeadMutation.mutateAsync(leadData);
@@ -201,5 +253,12 @@ export const useClinicaOperations = () => {
     createLeadMutation,
     createEtapaMutation,
     createTagMutation,
+    updateClinicaMutation,
   };
+};
+
+// Hook específico para atualizar clínica (para compatibilidade)
+export const useUpdateClinica = () => {
+  const { updateClinicaMutation } = useClinicaOperations();
+  return updateClinicaMutation;
 };

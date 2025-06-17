@@ -29,39 +29,39 @@ export const SettingsPage = () => {
   const [editedData, setEditedData] = useState<any>({});
   
   // Dados da clínica do contexto (isolado por RLS)
-  const { clinica, loading: clinicaLoading } = useClinica();
+  const { clinicaAtiva, isLoading: clinicaLoading } = useClinica();
   const updateClinicaMutation = useUpdateClinica();
 
   // Inicializar dados de edição quando a clínica carregar
   React.useEffect(() => {
-    if (clinica && !isEditing) {
+    if (clinicaAtiva && !isEditing) {
       setEditedData({
-        nome: clinica.nome || '',
-        razao_social: clinica.razao_social || '',
-        email: clinica.email || '',
-        telefone: clinica.telefone || '',
-        cnpj: clinica.cnpj || '',
-        endereco: clinica.endereco || '',
-        cidade: clinica.cidade || '',
-        estado: clinica.estado || '',
-        cep: clinica.cep || '',
-        complemento: clinica.complemento || '',
+        nome: clinicaAtiva.nome || '',
+        razao_social: clinicaAtiva.razao_social || '',
+        email: clinicaAtiva.email || '',
+        telefone: clinicaAtiva.telefone || '',
+        cnpj: clinicaAtiva.cnpj || '',
+        endereco: clinicaAtiva.endereco || '',
+        cidade: clinicaAtiva.cidade || '',
+        estado: clinicaAtiva.estado || '',
+        cep: clinicaAtiva.cep || '',
+        complemento: clinicaAtiva.complemento || '',
       });
     }
-  }, [clinica, isEditing]);
+  }, [clinicaAtiva, isEditing]);
 
   // Função para salvar alterações
   const handleSave = async () => {
     try {
       console.log('💾 Salvando dados da clínica:', editedData);
       
-      if (!clinica?.id) {
+      if (!clinicaAtiva?.id) {
         toast.error('Erro: Dados da clínica não encontrados');
         return;
       }
 
       await updateClinicaMutation.mutateAsync({
-        id: clinica.id,
+        id: clinicaAtiva.id,
         ...editedData,
       });
 
@@ -75,18 +75,18 @@ export const SettingsPage = () => {
 
   // Função para cancelar edição
   const handleCancel = () => {
-    if (clinica) {
+    if (clinicaAtiva) {
       setEditedData({
-        nome: clinica.nome || '',
-        razao_social: clinica.razao_social || '',
-        email: clinica.email || '',
-        telefone: clinica.telefone || '',
-        cnpj: clinica.cnpj || '',
-        endereco: clinica.endereco || '',
-        cidade: clinica.cidade || '',
-        estado: clinica.estado || '',
-        cep: clinica.cep || '',
-        complemento: clinica.complemento || '',
+        nome: clinicaAtiva.nome || '',
+        razao_social: clinicaAtiva.razao_social || '',
+        email: clinicaAtiva.email || '',
+        telefone: clinicaAtiva.telefone || '',
+        cnpj: clinicaAtiva.cnpj || '',
+        endereco: clinicaAtiva.endereco || '',
+        cidade: clinicaAtiva.cidade || '',
+        estado: clinicaAtiva.estado || '',
+        cep: clinicaAtiva.cep || '',
+        complemento: clinicaAtiva.complemento || '',
       });
     }
     setIsEditing(false);
@@ -103,7 +103,7 @@ export const SettingsPage = () => {
     );
   }
 
-  if (!clinica) {
+  if (!clinicaAtiva) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
@@ -257,7 +257,7 @@ export const SettingsPage = () => {
       <ClinicServicesManager />
 
       {/* Horários de Funcionamento */}
-      <BusinessHoursSettings />
+      <BusinessHoursSettings clinicaId={clinicaAtiva.id} />
 
       {/* Configurações de IA */}
       <AISettingsForm />
