@@ -54,14 +54,14 @@ export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
 
   // Função para salvar lead (wrapper para integrar com modal)
   const handleSaveLead = async (leadData: any) => {
-    await leadActions.handleSaveLead(leadData, modalControls.selectedLead);
+    await leadActions.handleSaveLead(leadData);
     modalControls.closeLeadModal();
   };
 
   // Função para abrir histórico
   const handleOpenHistory = async (lead: Lead) => {
     const consultas = await leadActions.handleOpenHistory(lead);
-    modalControls.openHistoryModal(lead, consultas);
+    modalControls.openHistoryModal(lead, consultas || []);
   };
 
   // Função para salvar etapa (wrapper para integrar com modal)
