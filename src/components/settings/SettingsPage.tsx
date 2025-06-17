@@ -10,7 +10,7 @@ import { BusinessHoursSettings } from './BusinessHoursSettings';
 import { AISettingsForm } from './AISettingsForm';
 import { TagManager } from '@/components/tags/TagManager';
 import { useClinica } from '@/contexts/ClinicaContext';
-import { useUpdateClinica } from '@/hooks/useClinicaOperations';
+import { useUpdateClinica } from '@/hooks/useClinicaData';
 
 /**
  * Página de configurações da clínica
