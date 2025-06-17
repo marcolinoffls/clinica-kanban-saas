@@ -27,20 +27,7 @@ import { Button } from '@/components/ui/button';
 
 export const KanbanBoard = () => {
   // Estados dos modais
-  const {
-    isLeadModalOpen,
-    isEtapaModalOpen,
-    isMoveLeadsModalOpen,
-    selectedLead,
-    selectedEtapa,
-    selectedEtapaForMove,
-    openLeadModal,
-    closeLeadModal,
-    openEtapaModal,
-    closeEtapaModal,
-    openMoveLeadsModal,
-    closeMoveLeadsModal
-  } = useKanbanModals();
+  const modals = useKanbanModals();
 
   // Hooks para dados
   const { data: etapas = [], isLoading: etapasLoading } = useEtapas();
@@ -54,11 +41,7 @@ export const KanbanBoard = () => {
     isSaving 
   } = useKanbanLeadActions();
   
-  const {
-    handleSaveEtapa,
-    handleDeleteEtapa,
-    isSavingEtapa
-  } = useKanbanEtapaActions();
+  const etapaActions = useKanbanEtapaActions();
 
   const { handleColumnDragEnd } = useKanbanColumnDrag();
 
@@ -131,7 +114,7 @@ export const KanbanBoard = () => {
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-semibold text-gray-900">Pipeline de Vendas</h2>
           <Button
-            onClick={() => openEtapaModal()}
+            onClick={() => modals.openEtapaModal()}
             className="flex items-center gap-2"
           >
             <Plus size={16} />
@@ -147,12 +130,12 @@ export const KanbanBoard = () => {
             {etapas.map((etapa) => (
               <KanbanColumn
                 key={etapa.id}
-                etapa={etapa}
+                column={etapa}
                 leads={leads.filter(lead => lead.etapa_kanban_id === etapa.id)}
-                onEditEtapa={() => openEtapaModal(etapa)}
-                onEditLead={(lead) => openLeadModal(lead)}
-                onAddLead={() => openLeadModal(null, etapa.id)}
-                onMoveLeads={() => openMoveLeadsModal(etapa)}
+                onEditEtapa={() => modals.openEtapaModal(etapa)}
+                onEditLead={(lead) => modals.openLeadModal(lead)}
+                onAddLead={() => modals.openLeadModal(null, etapa.id)}
+                onMoveLeads={() => modals.openMoveLeadsModal(etapa)}
                 isDragging={isDragging}
               />
             ))}
@@ -162,32 +145,31 @@ export const KanbanBoard = () => {
 
       {/* Modais */}
       <LeadModal
-        isOpen={isLeadModalOpen}
-        onClose={closeLeadModal}
-        lead={selectedLead}
+        isOpen={modals.isLeadModalOpen}
+        onClose={modals.closeLeadModal}
+        lead={modals.selectedLead}
         etapas={etapas}
-        tags={tags}
         onSave={handleSaveLead}
-        onDelete={selectedLead ? () => handleDeleteLead(selectedLead.id) : undefined}
+        onDelete={modals.selectedLead ? () => handleDeleteLead(modals.selectedLead.id) : undefined}
         isLoading={isSaving}
       />
 
       <EtapaModal
-        isOpen={isEtapaModalOpen}
-        onClose={closeEtapaModal}
-        etapa={selectedEtapa}
-        onSave={handleSaveEtapa}
-        onDelete={selectedEtapa ? () => handleDeleteEtapa(selectedEtapa.id) : undefined}
-        isLoading={isSavingEtapa}
+        isOpen={modals.isEtapaModalOpen}
+        onClose={modals.closeEtapaModal}
+        etapa={modals.editingEtapa}
+        onSave={(nome: string) => etapaActions.handleSaveEtapa(nome)}
+        onDelete={modals.editingEtapa ? () => etapaActions.handleDeleteEtapa(modals.editingEtapa) : undefined}
+        isLoading={etapaActions.isSaving}
       />
 
-      {selectedEtapaForMove && (
+      {modals.selectedEtapaForMove && (
         <MoveLeadsModal
-          isOpen={isMoveLeadsModalOpen}
-          onClose={closeMoveLeadsModal}
-          sourceEtapa={selectedEtapaForMove}
-          targetEtapas={etapas.filter(e => e.id !== selectedEtapaForMove.id)}
-          leads={leads.filter(lead => lead.etapa_kanban_id === selectedEtapaForMove.id)}
+          isOpen={modals.isMoveLeadsModalOpen}
+          onClose={modals.closeMoveLeadsModal}
+          etapa={modals.selectedEtapaForMove}
+          targetEtapas={etapas.filter(e => e.id !== modals.selectedEtapaForMove.id)}
+          leads={leads.filter(lead => lead.etapa_kanban_id === modals.selectedEtapaForMove.id)}
           onSave={handleSaveLead}
         />
       )}
