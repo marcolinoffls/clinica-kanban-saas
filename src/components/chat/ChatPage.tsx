@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Search, Phone, Video, MessageSquare } from 'lucide-react';
+import { Search, Phone, Video, MessageSquare, Instagram } from 'lucide-react';
 import { MessageInput } from './MessageInput';
 import { ChatWindow } from './ChatWindow';
 import { LeadInfoSidebar } from './LeadInfoSidebar';
@@ -28,6 +28,8 @@ import { toast } from 'sonner';
  * - Webhook para notificações
  * - Estados de carregamento para uploads
  * - Botão de follow-up manual integrado
+ * - Ordenação de contatos por última mensagem (NOVO)
+ * - Ícones de origem do lead (WhatsApp/Instagram) (NOVO)
  */
 
 interface ChatPageProps {
@@ -66,6 +68,32 @@ const formatPhoneNumber = (phone: string | null | undefined): string => {
   return phone;
 };
 
+/**
+ * Função para determinar o ícone da origem do lead
+ */
+const getOrigemIcon = (origem: string | null | undefined) => {
+  if (!origem) return null;
+  
+  const origemLower = origem.toLowerCase();
+  if (origemLower.includes('whatsapp')) {
+    return (
+      <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+        <MessageSquare size={10} className="text-white" />
+      </div>
+    );
+  }
+  
+  if (origemLower.includes('instagram')) {
+    return (
+      <div className="absolute bottom-1 right-1 w-4 h-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+        <Instagram size={10} className="text-white" />
+      </div>
+    );
+  }
+  
+  return null;
+};
+
 export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const { clinicaId } = useClinicaData(); // Obtém o ID da clínica diretamente
 
@@ -93,6 +121,9 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  // Estado para armazenar última mensagem de cada lead (NOVO)
+  const [ultimasMensagens, setUltimasMensagens] = useState<Record<string, string>>({});
+
   // Novos estados para os modais
   const [isAgendamentoModalOpen, setIsAgendamentoModalOpen] = useState(false);
   const [isHistoricoModalOpen, setIsHistoricoModalOpen] = useState(false);
@@ -112,6 +143,67 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     }
   });
 
+  // Função para buscar última mensagem de cada lead (NOVO)
+  const buscarUltimasMensagens = async () => {
+    if (!clinicaId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('chat_mensagens')
+        .select('lead_id, created_at')
+        .eq('clinica_id', clinicaId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao buscar últimas mensagens:', error);
+        return;
+      }
+
+      // Criar um mapa com a data da última mensagem de cada lead
+      const ultimasMap: Record<string, string> = {};
+      data?.forEach((msg) => {
+        if (!ultimasMap[msg.lead_id]) {
+          ultimasMap[msg.lead_id] = msg.created_at;
+        }
+      });
+
+      setUltimasMensagens(ultimasMap);
+    } catch (error) {
+      console.error('Erro ao buscar últimas mensagens:', error);
+    }
+  };
+
+  // Configurar subscription para atualizações em tempo real das mensagens (NOVO)
+  useEffect(() => {
+    if (!clinicaId) return;
+
+    buscarUltimasMensagens();
+
+    const channel = supabase
+      .channel('chat-messages-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_mensagens',
+          filter: `clinica_id=eq.${clinicaId}`
+        },
+        (payload) => {
+          const novaMensagem = payload.new as any;
+          setUltimasMensagens(prev => ({
+            ...prev,
+            [novaMensagem.lead_id]: novaMensagem.created_at
+          }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [clinicaId]);
+
   useEffect(() => {
     if (selectedLeadId) {
       setSelectedConversation(selectedLeadId);
@@ -124,11 +216,20 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     }
   }, [selectedConversation, mensagensNaoLidas, marcarMensagensComoLidas]);
 
-  const leadsComMensagens = leads.filter(lead =>
-    (lead.nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.telefone?.includes(searchTerm) ||
-    (lead.email || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filtrar e ordenar leads por última mensagem (ATUALIZADO)
+  const leadsComMensagens = leads
+    .filter(lead =>
+      (lead.nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.telefone?.includes(searchTerm) ||
+      (lead.email || '').toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      // Ordenar por data da última mensagem, mais recente primeiro
+      const dataA = ultimasMensagens[a.id] || a.data_ultimo_contato || a.updated_at;
+      const dataB = ultimasMensagens[b.id] || b.data_ultimo_contato || b.updated_at;
+      
+      return new Date(dataB).getTime() - new Date(dataA).getTime();
+    });
 
   const validarClinicaId = (clinicaId: string | null | undefined): clinicaId is string => {
     if (!clinicaId) {
@@ -147,14 +248,11 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
    */
   const handleFileUploadAndSend = async (file: File) => {
     if (!selectedConversation) {
-      // Usando alert como placeholder, idealmente use toast.error()
       alert('Por favor, selecione uma conversa antes de enviar uma mídia.');
       console.error('[ChatPage] Tentativa de upload sem conversa selecionada.');
       return;
     }
   
-    // CORREÇÃO: Usar a variável 'clinicaId' obtida do hook useClinicaData.
-    // A variável 'clinicaIdFromHook' não existia e causava um erro.
     if (!clinicaId) {
       alert('ID da clínica não está disponível. Não é possível fazer upload.');
       console.error('[ChatPage] clinicaId não disponível para upload.');
@@ -181,7 +279,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
         const errorMessage = functionError?.message || uploadResponse?.error || 'Falha ao obter URL da mídia do MinIO.';
         console.error('[ChatPage] Erro ao invocar send-crm-media-to-minio ou URL não retornada:', functionError, uploadResponse);
         setUploadError(errorMessage);
-        alert(`Erro no upload: ${errorMessage}`); // Substitua por toast.error()
+        alert(`Erro no upload: ${errorMessage}`);
         setIsUploadingMedia(false);
         return;
       }
@@ -202,15 +300,15 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       // Agora, chame handleSendMessage com os dados da mídia
       await handleSendMessage({
         type: determinedFileType,
-        content: file.name, // Usar nome do arquivo como 'conteúdo' para mídias. Você pode adicionar um campo de legenda no futuro.
+        content: file.name,
         anexoUrl: publicUrl,
-        aiEnabled: aiEnabled // Usa o estado atual da IA da conversa
+        aiEnabled: aiEnabled
       });
   
     } catch (e: any) {
       console.error("[ChatPage] Erro durante o processo de upload da mídia pelo CRM:", e);
       setUploadError(e.message || 'Erro desconhecido durante o upload.');
-      alert(`Erro no upload: ${e.message || 'Erro desconhecido'}`); // Substitua por toast.error()
+      alert(`Erro no upload: ${e.message || 'Erro desconhecido'}`);
     } finally {
       setIsUploadingMedia(false);
     }
@@ -387,6 +485,9 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           {leadsComMensagens.length > 0 ? (
             leadsComMensagens.map((lead) => {
               const mensagensNaoLidasCount = mensagensNaoLidas[lead.id] || 0;
+              // Usar a data da última mensagem do estado ou fallback para data_ultimo_contato
+              const ultimaMensagemData = ultimasMensagens[lead.id] || lead.data_ultimo_contato || lead.updated_at;
+              
               return (
                 <div
                   key={lead.id}
@@ -396,13 +497,16 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Avatar className="w-12 h-12">
-                      {/* AJUSTE: Adicionado fallback para o caso de o nome do lead ser nulo */}
-                      <AvatarImage src={lead.avatar_url || undefined} alt={`Avatar de ${lead.nome || 'Lead'}`} />
-                      <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
-                        {lead.nome ? lead.nome.charAt(0).toUpperCase() : '?'}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div className="relative">
+                      <Avatar className="w-12 h-12">
+                        <AvatarImage src={lead.avatar_url || undefined} alt={`Avatar de ${lead.nome || 'Lead'}`} />
+                        <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
+                          {lead.nome ? lead.nome.charAt(0).toUpperCase() : '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      {/* Ícone da origem do lead (NOVO) */}
+                      {getOrigemIcon(lead.origem_lead)}
+                    </div>
 
                     {mensagensNaoLidasCount > 0 && (
                       <div className="absolute top-2 left-11 bg-green-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
@@ -415,11 +519,10 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                         <h4 className={`font-medium truncate ${
                           mensagensNaoLidasCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-900'
                         }`}>
-                          {/* AJUSTE: Adicionado fallback para o caso de o nome do lead ser nulo */}
                           {lead.nome || 'Lead sem nome'}
                         </h4>
                         <span className="text-xs text-gray-500 flex-shrink-0">
-                          {formatTime(lead.data_ultimo_contato || lead.updated_at)}
+                          {formatTime(ultimaMensagemData)}
                         </span>
                       </div>
                       <p className={`text-sm truncate mt-1 ${
@@ -453,16 +556,18 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
             {/* Header da conversa com botão de follow-up */}
             <div className="bg-white border-b border-gray-200 p-4 flex justify-between items-center flex-shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                <Avatar className="w-10 h-10">
-                  {/* AJUSTE: Adicionado fallback para o caso de o nome do lead ser nulo */}
-                  <AvatarImage src={selectedLead.avatar_url || undefined} alt={`Avatar de ${selectedLead.nome || 'Lead'}`} />
-                  <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
-                    {selectedLead.nome ? selectedLead.nome.charAt(0).toUpperCase() : '?'}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative">
+                  <Avatar className="w-10 h-10">
+                    <AvatarImage src={selectedLead.avatar_url || undefined} alt={`Avatar de ${selectedLead.nome || 'Lead'}`} />
+                    <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
+                      {selectedLead.nome ? selectedLead.nome.charAt(0).toUpperCase() : '?'}
+                    </AvatarFallback>
+                  </Avatar>
+                  {/* Ícone da origem no header também (NOVO) */}
+                  {getOrigemIcon(selectedLead.origem_lead)}
+                </div>
                 <div className="min-w-0">
                   <h3 className="font-semibold text-gray-900 truncate">
-                    {/* AJUSTE: Adicionado fallback para o caso de o nome do lead ser nulo */}
                     {selectedLead.nome || 'Lead sem nome'}
                   </h3>
                   <p className="text-sm text-gray-500 truncate">
@@ -510,13 +615,13 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                   content: messageInput, 
                   aiEnabled: aiEnabled 
                 })}
-                onFileSelect={handleFileUploadAndSend} // Passando a nova função de upload
-                loading={sendingMessage || isUploadingMedia} // Considerando ambos os estados de loading
+                onFileSelect={handleFileUploadAndSend}
+                loading={sendingMessage || isUploadingMedia}
                 respostasProntas={respostasProntas}
                 aiEnabled={aiEnabled}
                 onToggleAI={toggleAI}
                 isAIInitializing={isInitializing || isUpdating}
-                leadId={selectedConversation} // Passando o ID do lead para o MessageInput
+                leadId={selectedConversation}
               />
             </div>
           </>
@@ -562,19 +667,16 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
         </>
       )}
 
-      {/* NOVO: Modal para adicionar contato, renderizado fora do {selectedLead && ...} para não depender dele */}
+      {/* NOVO: Modal para adicionar contato */}
       {isAddContactModalOpen && leadSourceForModal && (
         <LeadModal
             isOpen={isAddContactModalOpen}
             onClose={handleCloseContactModal}
-            // Pré-preenche o formulário com dados do lead do Instagram, mas sem ID para forçar a criação.
             lead={{
               nome: leadSourceForModal.nome,
               email: leadSourceForModal.email,
               servico_interesse: leadSourceForModal.servico_interesse,
-              // Deixa o telefone em branco para ser preenchido pelo usuário.
               telefone: '',
-              // Muda a origem para indicar que veio do WhatsApp, mas originado pelo Instagram.
               origem_lead: 'WhatsApp (via Instagram)',
             }}
             etapas={etapas}

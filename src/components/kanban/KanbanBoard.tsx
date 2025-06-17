@@ -1,239 +1,196 @@
 
-import React from 'react';
-import { Plus } from 'lucide-react';
-import { KanbanColumn as KanbanColumnComponent } from './KanbanColumn';
+import React, { useState, useEffect } from 'react';
+import { DragDropContext, DropResult } from '@hello-pangea/dnd';
+import { KanbanColumn } from './KanbanColumn';
 import { LeadModal } from './LeadModal';
-import { ConsultasHistoryModal } from './ConsultasHistoryModal';
 import { EtapaModal } from './EtapaModal';
 import { MoveLeadsModal } from './MoveLeadsModal';
-import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useKanbanModals } from '@/hooks/useKanbanModals';
 import { useKanbanLeadActions } from '@/hooks/useKanbanLeadActions';
 import { useKanbanEtapaActions } from '@/hooks/useKanbanEtapaActions';
 import { useKanbanColumnDrag } from '@/hooks/useKanbanColumnDrag';
-import { Etapa } from '@/hooks/useEtapasData';
-import { Lead } from '@/hooks/useLeadsData';
+import { useEtapas } from '@/hooks/useEtapasData';
+import { useLeads } from '@/hooks/useLeadsData';
+import { useTags } from '@/hooks/useTagsData';
+import { Plus, Settings } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 /**
- * Componente principal do Kanban para gerenciamento de leads
+ * Componente principal do quadro Kanban
  * 
- * Este componente foi refatorado para ser mais modular, delegando
- * responsabilidades específicas para hooks especializados:
- * - useKanbanModals: controle de modais
- * - useKanbanLeadActions: ações de leads
- * - useKanbanEtapaActions: ações de etapas
- * - useKanbanColumnDrag: drag and drop de colunas
+ * Funcionalidades:
+ * - Drag and drop de leads entre etapas
+ * - Gerenciamento de etapas e leads
+ * - Modais para criação/edição
+ * - Reordenação de colunas
  */
 
-// Exporta o tipo Lead para compatibilidade
-export type { Lead };
+export const KanbanBoard = () => {
+  // Estados dos modais
+  const {
+    isLeadModalOpen,
+    isEtapaModalOpen,
+    isMoveLeadsModalOpen,
+    selectedLead,
+    selectedEtapa,
+    selectedEtapaForMove,
+    openLeadModal,
+    closeLeadModal,
+    openEtapaModal,
+    closeEtapaModal,
+    openMoveLeadsModal,
+    closeMoveLeadsModal
+  } = useKanbanModals();
 
-export interface IKanbanColumn extends Etapa {
-  title: string;
-  leadIds: string[];
-}
+  // Hooks para dados
+  const { data: etapas = [], isLoading: etapasLoading } = useEtapas();
+  const { data: leads = [], isLoading: leadsLoading } = useLeads();
+  const { data: tags = [] } = useTags();
 
-interface KanbanBoardProps {
-  onNavigateToChat?: (leadId: string) => void;
-}
-
-const ETAPA_COLORS = [
-  'bg-blue-500', 'bg-green-500', 'bg-yellow-500',
-  'bg-purple-500', 'bg-red-500', 'bg-indigo-500', 'bg-pink-500'
-];
-
-export const KanbanBoard = ({ onNavigateToChat }: KanbanBoardProps) => {
-  // Hooks personalizados para diferentes responsabilidades
-  const modalControls = useKanbanModals();
-  const leadActions = useKanbanLeadActions();
-  const etapaActions = useKanbanEtapaActions();
-  const columnDrag = useKanbanColumnDrag();
-
-  // Dados principais
-  const { etapas = [], leads = [], tags = [], loading } = useSupabaseData();
-
-  // Função para salvar lead (wrapper para integrar com modal)
-  const handleSaveLead = async (leadData: any) => {
-    await leadActions.handleSaveLead(leadData);
-    modalControls.closeLeadModal();
-  };
-
-  // Função para abrir histórico
-  const handleOpenHistory = async (lead: Lead) => {
-    const consultas = await leadActions.handleOpenHistory(lead);
-    if (consultas) {
-      modalControls.openHistoryModal(lead, consultas);
-    }
-  };
-
-  // Função para salvar etapa (wrapper para integrar com modal)
-  const handleSaveEtapa = async (nome: string) => {
-    await etapaActions.handleSaveEtapa(nome, modalControls.editingEtapa, etapas);
-    modalControls.closeEtapaModal();
-  };
-
-  // Função para excluir etapa
-  const handleDeleteEtapa = async (etapaParaDeletar: IKanbanColumn) => {
-    const result = await etapaActions.handleDeleteEtapa(etapaParaDeletar, leads);
-    
-    if (result?.needsMoveLeads && result.etapaToDelete) {
-      modalControls.openMoveLeadsModal(result.etapaToDelete, result.etapaToDelete.leadsCount || 0);
-    }
-  };
-
-  // Função para mover leads e deletar etapa
-  const handleMoveLeadsAndDeleteEtapa = async (targetEtapaId: string) => {
-    if (!modalControls.etapaToDelete?.id) return;
-    
-    await etapaActions.handleMoveLeadsAndDeleteEtapa(
-      targetEtapaId, 
-      modalControls.etapaToDelete, 
-      leads
-    );
-    modalControls.closeMoveLeadsModal();
-  };
+  // Hooks para ações
+  const { 
+    handleSaveLead, 
+    handleDeleteLead, 
+    isSaving 
+  } = useKanbanLeadActions();
   
-  // Função para converter Etapa em IKanbanColumn
-  const convertEtapaToKanbanColumn = (etapa: Etapa): IKanbanColumn => {
-    const currentLeads = Array.isArray(leads) ? leads : [];
-    const leadsDaEtapa = currentLeads.filter(lead => lead.etapa_kanban_id === etapa.id);
-    return {
-      ...etapa,
-      title: etapa.nome,
-      leadIds: leadsDaEtapa.map(lead => lead.id),
-    };
+  const {
+    handleSaveEtapa,
+    handleDeleteEtapa,
+    isSavingEtapa
+  } = useKanbanEtapaActions();
+
+  const { handleColumnDragEnd } = useKanbanColumnDrag();
+
+  // Estado para controlar se está processando drag
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Função para lidar com o fim do drag and drop
+  const onDragEnd = async (result: DropResult) => {
+    const { destination, source, type } = result;
+
+    // Se não há destino, cancelar
+    if (!destination) {
+      setIsDragging(false);
+      return;
+    }
+
+    // Se a posição não mudou, cancelar
+    if (
+      destination.droppableId === source.droppableId &&
+      destination.index === source.index
+    ) {
+      setIsDragging(false);
+      return;
+    }
+
+    try {
+      setIsDragging(true);
+
+      if (type === 'COLUMN') {
+        // Reordenar colunas
+        await handleColumnDragEnd(result);
+      } else {
+        // Mover lead entre etapas
+        const leadId = result.draggableId;
+        const sourceEtapaId = source.droppableId;
+        const destinationEtapaId = destination.droppableId;
+        
+        if (sourceEtapaId !== destinationEtapaId) {
+          const lead = leads.find(l => l.id === leadId);
+          const targetEtapa = etapas.find(e => e.id === destinationEtapaId);
+          
+          if (lead && targetEtapa) {
+            await handleSaveLead({
+              ...lead,
+              etapa_kanban_id: destinationEtapaId
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erro no drag and drop:', error);
+    } finally {
+      setIsDragging(false);
+    }
   };
 
-  if (loading) {
+  // Verificar se está carregando
+  if (etapasLoading || leadsLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando dados do CRM...</p>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="h-full">
-      {/* Header com título e botões de ação */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Gerenciamento de Leads</h2>
-          <p className="text-gray-600 mt-1">Acompanhe o progresso dos seus leads no funil de vendas</p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            onClick={modalControls.openCreateEtapaModal}
-            className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+    <div className="h-full flex flex-col">
+      {/* Header com botão de nova etapa */}
+      <div className="flex-shrink-0 p-4 border-b border-gray-200 bg-white">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-semibold text-gray-900">Pipeline de Vendas</h2>
+          <Button
+            onClick={() => openEtapaModal()}
+            className="flex items-center gap-2"
           >
-            <Plus size={18} /> Nova Etapa
-          </button>
-          <button
-            onClick={modalControls.openCreateLeadModal}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            + Novo Lead
-          </button>
+            <Plus size={16} />
+            Nova Etapa
+          </Button>
         </div>
       </div>
 
-      {/* Container das colunas do Kanban */}
-      <div className="flex gap-6 overflow-x-auto pb-6 min-h-[calc(100vh-200px)] items-start">
-        {Array.isArray(etapas) && etapas
-          .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
-          .map((etapa: Etapa, index) => {
-            const kanbanColumn = convertEtapaToKanbanColumn(etapa);
-            const leadsDaEtapa = Array.isArray(leads)
-              ? leads.filter(lead => lead.etapa_kanban_id === etapa.id)
-              : [];
-            const corDaEtapa = ETAPA_COLORS[index % ETAPA_COLORS.length];
-
-            return (
-              <div
+      {/* Área do Kanban com scroll horizontal */}
+      <div className="flex-1 overflow-x-auto overflow-y-hidden">
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div className="flex gap-4 p-4 min-w-max h-full">
+            {etapas.map((etapa) => (
+              <KanbanColumn
                 key={etapa.id}
-                draggable
-                onDragStart={(e) => columnDrag.handleColumnDragStart(e, etapa.id)}
-                onDragEnd={columnDrag.handleColumnDragEnd}
-                onDragOver={(e) => columnDrag.handleColumnDragOver(e, etapa.id)}
-                onDragLeave={columnDrag.handleColumnDragLeave}
-                onDrop={(e) => columnDrag.handleColumnDrop(e, etapa.id, etapas)}
-                className={`h-full flex flex-col transition-all duration-200 cursor-grab 
-                            ${columnDrag.draggedColumnId === etapa.id ? 'opacity-40 scale-95' : ''}
-                            ${columnDrag.columnDragOverTargetId === etapa.id && columnDrag.draggedColumnId !== etapa.id ? 'outline-2 outline-blue-500 outline-dashed rounded-xl' : ''} 
-                          `}
-                data-etapa-draggable-id={etapa.id}
-              >
-                <KanbanColumnComponent
-                  column={kanbanColumn}
-                  leads={leadsDaEtapa}
-                  corEtapa={corDaEtapa}
-                  onEditLead={modalControls.openEditLeadModal}
-                  onDropLeadInColumn={leadActions.handleDropLeadInColumn}
-                  onOpenHistory={handleOpenHistory}
-                  onOpenChat={leadActions.handleOpenChat}
-                  onEditEtapa={() => modalControls.openEditEtapaModal(kanbanColumn)}
-                  onDeleteEtapa={() => handleDeleteEtapa(kanbanColumn)}
-                  isColumnDragOverTarget={columnDrag.columnDragOverTargetId === etapa.id && columnDrag.draggedColumnId !== etapa.id && !!columnDrag.draggedColumnId}
-                />
-              </div>
-            );
-        })}
-        
-        {/* Estado vazio quando não há etapas */}
-        {(!Array.isArray(etapas) || etapas.length === 0) && (
-          <div className="w-full flex items-center justify-center py-20">
-            <div className="text-center">
-              <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <Plus size={32} className="text-gray-400" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma etapa criada</h3>
-              <p className="text-gray-600 mb-4">Crie sua primeira etapa para começar a organizar seus leads.</p>
-              <button
-                onClick={modalControls.openCreateEtapaModal}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Criar Primeira Etapa
-              </button>
-            </div>
+                etapa={etapa}
+                leads={leads.filter(lead => lead.etapa_kanban_id === etapa.id)}
+                onEditEtapa={() => openEtapaModal(etapa)}
+                onEditLead={(lead) => openLeadModal(lead)}
+                onAddLead={() => openLeadModal(null, etapa.id)}
+                onMoveLeads={() => openMoveLeadsModal(etapa)}
+                isDragging={isDragging}
+              />
+            ))}
           </div>
-        )}
+        </DragDropContext>
       </div>
 
       {/* Modais */}
       <LeadModal
-        isOpen={modalControls.isLeadModalOpen}
-        onClose={modalControls.closeLeadModal}
-        lead={modalControls.selectedLead}
-        etapas={Array.isArray(etapas) ? etapas : []}
+        isOpen={isLeadModalOpen}
+        onClose={closeLeadModal}
+        lead={selectedLead}
+        etapas={etapas}
+        tags={tags}
         onSave={handleSaveLead}
-        onOpenHistory={modalControls.selectedLead ? () => handleOpenHistory(modalControls.selectedLead!) : undefined}
+        onDelete={selectedLead ? () => handleDeleteLead(selectedLead.id) : undefined}
+        isLoading={isSaving}
       />
-      
-      <ConsultasHistoryModal
-        isOpen={modalControls.isHistoryModalOpen}
-        onClose={modalControls.closeHistoryModal}
-        lead={modalControls.selectedLead}
-        consultas={modalControls.consultasLead}
-      />
-      
+
       <EtapaModal
-        isOpen={modalControls.isEtapaModalOpen}
-        onClose={modalControls.closeEtapaModal}
+        isOpen={isEtapaModalOpen}
+        onClose={closeEtapaModal}
+        etapa={selectedEtapa}
         onSave={handleSaveEtapa}
-        etapa={modalControls.editingEtapa}
-        etapasExistentes={Array.isArray(etapas) ? etapas : []}
+        onDelete={selectedEtapa ? () => handleDeleteEtapa(selectedEtapa.id) : undefined}
+        isLoading={isSavingEtapa}
       />
-      
-      <MoveLeadsModal
-        isOpen={modalControls.isMoveLeadsModalOpen}
-        onClose={modalControls.closeMoveLeadsModal}
-        onConfirm={handleMoveLeadsAndDeleteEtapa}
-        etapaToDelete={modalControls.etapaToDelete}
-        leadsCount={modalControls.etapaToDelete?.leadsCount || 0}
-        etapasDisponiveis={Array.isArray(etapas) ? etapas.filter(e => e.id !== modalControls.etapaToDelete?.id) : []}
-      />
+
+      {selectedEtapaForMove && (
+        <MoveLeadsModal
+          isOpen={isMoveLeadsModalOpen}
+          onClose={closeMoveLeadsModal}
+          sourceEtapa={selectedEtapaForMove}
+          targetEtapas={etapas.filter(e => e.id !== selectedEtapaForMove.id)}
+          leads={leads.filter(lead => lead.etapa_kanban_id === selectedEtapaForMove.id)}
+          onSave={handleSaveLead}
+        />
+      )}
     </div>
   );
 };
