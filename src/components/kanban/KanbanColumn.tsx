@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Edit2, Trash2 } from 'lucide-react';
-import { Lead, IKanbanColumn } from './KanbanBoard';
+import { Lead } from '@/hooks/useLeadsData';
 import { LeadCard } from './LeadCard';
 
 interface KanbanColumnProps {
@@ -15,6 +15,13 @@ interface KanbanColumnProps {
   onEditEtapa: () => void;
   onDeleteEtapa: () => void;
   isColumnDragOverTarget?: boolean;
+}
+interface IKanbanColumn {
+  id: string;
+  nome: string;
+  title?: string;
+  cor?: string;
+  ordem?: number;
 }
 
 /**

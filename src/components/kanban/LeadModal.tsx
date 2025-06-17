@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, User, Phone, Mail, MessageSquare, Building, Stethoscope, Workflow } from 'lucide-react';
-import { Lead } from './KanbanBoard';
+import { Lead } from '@/hooks/useLeadsData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';

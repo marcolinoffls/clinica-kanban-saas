@@ -1,6 +1,13 @@
 
-import { IKanbanColumn, Lead } from '@/components/kanban/KanbanBoard';
-import { useUpdateEtapa, useDeleteEtapa, CreateEtapaData, Etapa } from '@/hooks/useEtapasData';
+import { Lead } from '@/hooks/useLeadsData';
+
+interface IKanbanColumn {
+  id: string;
+  nome: string;
+  title?: string;
+  cor?: string;
+  ordem?: number;
+}import { useUpdateEtapa, useDeleteEtapa, CreateEtapaData, Etapa } from '@/hooks/useEtapasData';
 import { useClinicaOperations } from '@/hooks/useClinicaOperations';
 import { useMoveLeadToStage } from '@/hooks/useLeadsData';
 import { toast } from 'sonner';
