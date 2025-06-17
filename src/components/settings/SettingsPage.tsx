@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Save, Users, Bell, Shield, CreditCard, Settings, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -5,6 +6,7 @@ import { toast } from 'sonner';
 import { PasswordInput } from '@/components/ui/password-input';
 import { ClinicServicesManager } from './ClinicServicesManager';
 import { BusinessHoursSettings } from './BusinessHoursSettings';
+import { useClinica } from '@/contexts/ClinicaContext';
 
 /**
  * Página de Configurações
@@ -19,6 +21,10 @@ import { BusinessHoursSettings } from './BusinessHoursSettings';
  * 
  * Todas as configurações são persistidas no Supabase
  * e aplicadas em tempo real no sistema.
+ * 
+ * IMPORTANTE: Agora usa o contexto da clínica para garantir que 
+ * apenas dados da clínica do usuário logado sejam exibidos,
+ * independente se o usuário é administrador ou não.
  */
 
 // Lista completa de estados brasileiros para o seletor
@@ -42,7 +48,9 @@ const brazilianStates = [
 export const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('clinic');
   const [loading, setLoading] = useState(false);
-  const [clinicaId, setClinicaId] = useState<string | null>(null);
+  
+  // Usar o contexto da clínica para obter dados da clínica do usuário logado
+  const { clinicaAtiva, clinicaId, isLoading: clinicaLoading } = useClinica();
   
   // Estados para os formulários de configuração - adicionados novos campos de endereço
   const [clinicData, setClinicData] = useState({
@@ -50,12 +58,12 @@ export const SettingsPage = () => {
     phone: '',
     email: '',
     address: '',
-    complemento: '', // Novo campo para complemento
+    complemento: '',
     city: '',
     state: 'SP',
     zipCode: '',
-    webhook_usuario: '', // Campo para webhook
-    evolution_instance_name: '' // Campo para instância Evolution API
+    webhook_usuario: '',
+    evolution_instance_name: ''
   });
 
   const [notificationSettings, setNotificationSettings] = useState({
@@ -65,96 +73,57 @@ export const SettingsPage = () => {
     leadAlerts: true
   });
 
-  // Carregar dados da clínica ao montar o componente
+  // Carregar dados da clínica quando o contexto carrega os dados
   useEffect(() => {
-    carregarDadosClinica();
-  }, []);
-
-  // Função para carregar dados da clínica - atualizada para buscar os novos campos
-  const carregarDadosClinica = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('clinicas')
-        .select('*')
-        .limit(1)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Erro ao carregar dados da clínica:', error);
-        return;
-      }
-
-      if (data) {
-        setClinicaId(data.id);
-        // Usamos 'as any' para que o TypeScript permita acessar os novos campos
-        // que podem não estar nos tipos gerados automaticamente.
-        const clinicDataTyped = data as any;
-        setClinicData({
-          name: clinicDataTyped.nome || '',
-          phone: clinicDataTyped.telefone || '',
-          email: clinicDataTyped.email || '',
-          address: clinicDataTyped.endereco || '',
-          complemento: clinicDataTyped.complemento || '', // Carrega o complemento
-          city: clinicDataTyped.cidade || '', // Carrega a cidade
-          state: clinicDataTyped.estado || 'SP', // Carrega o estado
-          zipCode: clinicDataTyped.cep || '', // Carrega o CEP
-          webhook_usuario: clinicDataTyped.webhook_usuario || '',
-          evolution_instance_name: clinicDataTyped.evolution_instance_name || '' // Carregar ID da instância Evolution
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao carregar configurações:', error);
+    if (clinicaAtiva) {
+      console.log('[SettingsPage] Carregando dados da clínica do contexto:', clinicaAtiva);
+      setClinicData({
+        name: clinicaAtiva.nome || '',
+        phone: clinicaAtiva.telefone || '',
+        email: clinicaAtiva.email || '',
+        address: clinicaAtiva.endereco || '',
+        complemento: clinicaAtiva.complemento || '',
+        city: clinicaAtiva.cidade || '',
+        state: clinicaAtiva.estado || 'SP',
+        zipCode: clinicaAtiva.cep || '',
+        webhook_usuario: clinicaAtiva.webhook_usuario || '',
+        evolution_instance_name: clinicaAtiva.evolution_instance_name || ''
+      });
     }
-  };
+  }, [clinicaAtiva]);
 
-  // Função para salvar configurações da clínica - atualizada para salvar os novos campos
+  // Função para salvar configurações da clínica - atualizada para usar o ID do contexto
   const salvarConfiguracoes = async () => {
+    if (!clinicaId) {
+      toast.error('ID da clínica não encontrado. Faça login novamente.');
+      return;
+    }
+
     try {
       setLoading(true);
+      console.log('[SettingsPage] Salvando configurações para clínica:', clinicaId);
 
-      if (clinicaId) {
-        // Atualizar clínica existente
-        // Usamos 'as any' para contornar a verificação de tipo do Supabase
-        const { error } = await supabase
-          .from('clinicas')
-          .update({
-            nome: clinicData.name,
-            telefone: clinicData.phone,
-            email: clinicData.email,
-            endereco: clinicData.address,
-            complemento: clinicData.complemento,
-            cidade: clinicData.city,
-            estado: clinicData.state,
-            cep: clinicData.zipCode,
-            webhook_usuario: clinicData.webhook_usuario,
-            evolution_instance_name: clinicData.evolution_instance_name,
-            updated_at: new Date().toISOString()
-          } as any)
-          .eq('id', clinicaId);
+      // Atualizar clínica usando o ID do contexto
+      const { error } = await supabase
+        .from('clinicas')
+        .update({
+          nome: clinicData.name,
+          telefone: clinicData.phone,
+          email: clinicData.email,
+          endereco: clinicData.address,
+          complemento: clinicData.complemento,
+          cidade: clinicData.city,
+          estado: clinicData.state,
+          cep: clinicData.zipCode,
+          webhook_usuario: clinicData.webhook_usuario,
+          evolution_instance_name: clinicData.evolution_instance_name,
+          updated_at: new Date().toISOString()
+        } as any)
+        .eq('id', clinicaId);
 
-        if (error) throw error;
-      } else {
-        // Criar nova clínica
-        // Usamos 'as any' para contornar a verificação de tipo do Supabase
-        const { data, error } = await supabase
-          .from('clinicas')
-          .insert({
-            nome: clinicData.name,
-            telefone: clinicData.phone,
-            email: clinicData.email,
-            endereco: clinicData.address,
-            complemento: clinicData.complemento,
-            cidade: clinicData.city,
-            estado: clinicData.state,
-            cep: clinicData.zipCode,
-            webhook_usuario: clinicData.webhook_usuario,
-            evolution_instance_name: clinicData.evolution_instance_name,
-          } as any)
-          .select()
-          .single();
-
-        if (error) throw error;
-        if (data) setClinicaId(data.id);
+      if (error) {
+        console.error('[SettingsPage] Erro ao salvar:', error);
+        throw error;
       }
 
       toast.success('Configurações salvas com sucesso!');
@@ -169,12 +138,36 @@ export const SettingsPage = () => {
   // Tabs de navegação (adicionando nova aba "Horário")
   const tabs = [
     { id: 'clinic', label: 'Clínica', icon: Shield },
-    { id: 'horario', label: 'Horário', icon: Clock }, // Nova aba de Horário
+    { id: 'horario', label: 'Horário', icon: Clock },
     { id: 'services', label: 'Serviços', icon: Settings },
     { id: 'users', label: 'Usuários', icon: Users },
     { id: 'notifications', label: 'Notificações', icon: Bell },
     { id: 'integrations', label: 'Integrações', icon: CreditCard }
   ];
+
+  // Mostrar loading enquanto carrega os dados da clínica
+  if (clinicaLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando configurações...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Se não há clínica ativa, mostrar mensagem de erro
+  if (!clinicaAtiva) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Erro ao carregar dados da clínica.</p>
+          <p className="text-gray-600">Faça login novamente ou entre em contato com o suporte.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full">
@@ -279,7 +272,6 @@ export const SettingsPage = () => {
                   />
                 </div>
 
-                {/* NOVO CAMPO: Complemento */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Complemento
@@ -317,7 +309,6 @@ export const SettingsPage = () => {
                   />
                 </div>
 
-                {/* CAMPO ATUALIZADO: Estado com todos os estados brasileiros */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Estado
@@ -333,7 +324,6 @@ export const SettingsPage = () => {
                   </select>
                 </div>
 
-                {/* Campo para usuário do webhook */}
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Usuário do Webhook
@@ -506,7 +496,6 @@ export const SettingsPage = () => {
                     </button>
                   </div>
                   
-                  {/* Campo para ID da Instância Evolution API com funcionalidade de senha */}
                   <div className="mt-4 pt-4 border-t border-gray-100">
                     <PasswordInput
                       label="ID da Instância Evolution API"

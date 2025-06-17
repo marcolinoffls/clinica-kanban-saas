@@ -91,8 +91,8 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
     );
     
     if (exactMatch) {
-      console.log('✅ Apelido exato encontrado:', exactMatch.alias);
-      return exactMatch.alias;
+      console.log('✅ Apelido exato encontrado:', exactMatch.ad_alias);
+      return exactMatch.ad_alias;
     }
     
     // Buscar por correspondência parcial
@@ -102,8 +102,8 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
     );
     
     if (partialMatch) {
-      console.log('✅ Apelido parcial encontrado:', partialMatch.alias);
-      return partialMatch.alias;
+      console.log('✅ Apelido parcial encontrado:', partialMatch.ad_alias);
+      return partialMatch.ad_alias;
     }
     
     console.log('❌ Nenhum apelido encontrado');

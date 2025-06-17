@@ -1,214 +1,176 @@
 
-/**
- * Hook para gerenciar ações dos leads no Kanban
- * 
- * O que faz:
- * - Gerencia abertura/fechamento de modais
- * - Controla criação e edição de leads
- * - Controla exclusão de leads
- * 
- * Onde é usado:
- * - Componente KanbanBoard para ações dos leads
- * 
- * Como se conecta:
- * - Usa React Query para mutações
- * - Interage com tabela leads do Supabase
- * - Usa context de clínica para filtrar dados
- */
-
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { useClinica } from '@/contexts/ClinicaContext';
+import { Lead } from './useLeadsData';
+import { useUpdateLead, useDeleteLead } from './useSupabaseLeads';
 import { toast } from 'sonner';
 
-interface Lead {
-  id: string;
-  nome: string | null;
-  telefone: string | null;
-  email: string | null;
-  etapa_kanban_id: string | null;
-  clinica_id: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-  anotacoes: string | null;
-  origem_lead: string | null;
-  servico_interesse: string | null;
-  convertido: boolean | null;
-  data_ultimo_contato: string | null;
-  ltv: number | null;
-  tag_id: string | null;
-  tag_id_alias: string | null;
-  avatar_url: string | null;
-  status_conversao: string | null;
-  anuncio: string | null;
-  ad_name: string | null;
-  ad_ink: string | null;
-  notes: string | null;
-  data_ultimo_followup: string | null;
-  follow_up_pausado: boolean | null;
-  ai_conversation_enabled: boolean | null;
-  nome_clinica: string | null;
-  id_direct: string | null;
-  meu_id_direct: string | null;
-  name: string | null;
-  phone: string | null;
-}
+/**
+ * Hook para gerenciar ações de leads no Kanban
+ * 
+ * Fornece funcionalidades para:
+ * - Abrir/fechar modais de lead
+ * - Salvar alterações no lead
+ * - Deletar leads
+ * - Navegar para chat
+ * - Abrir histórico de consultas
+ * - Gerenciar drag and drop
+ * 
+ * Integra com outros hooks para operações CRUD no Supabase
+ */
 
-interface NewLeadData {
-  nome: string;
-  telefone?: string;
-  email?: string;
-  etapa_kanban_id: string;
-  origem_lead?: string;
-  servico_interesse?: string;
-  anotacoes?: string;
-}
-
-export const useKanbanLeadActions = () => {
-  const { clinicaId } = useClinica();
-  const queryClient = useQueryClient();
+interface UseKanbanLeadActionsReturn {
+  // Estados dos modais
+  isLeadModalOpen: boolean;
+  selectedLead: Lead | null;
+  newLeadEtapaId: string;
   
-  // Estados para controle dos modais
+  // Ações dos modais
+  openNewLeadModal: (etapaId: string) => void;
+  openEditLeadModal: (lead: Lead) => void;
+  closeLeadModal: () => void;
+  
+  // Ações do lead
+  handleSaveLead: (leadData: Partial<Lead>) => Promise<void>;
+  handleDeleteLead: (leadId: string) => Promise<void>;
+  handleOpenChat: (lead: Lead) => void;
+  handleOpenHistory: (lead: Lead) => void;
+  handleDropLeadInColumn: (leadId: string, targetEtapaId: string) => Promise<void>;
+  
+  // Estados de loading
+  isSaving: boolean;
+  isDeleting: boolean;
+}
+
+export const useKanbanLeadActions = (): UseKanbanLeadActionsReturn => {
+  // Estados locais para controle dos modais
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [newLeadEtapaId, setNewLeadEtapaId] = useState<string | null>(null);
-
+  const [newLeadEtapaId, setNewLeadEtapaId] = useState('');
+  
+  // Hooks para operações CRUD
+  const updateLeadMutation = useUpdateLead();
+  const deleteLeadMutation = useDeleteLead();
+  
   // Função para abrir modal de novo lead
   const openNewLeadModal = (etapaId: string) => {
+    console.log('[useKanbanLeadActions] Abrindo modal para novo lead na etapa:', etapaId);
     setNewLeadEtapaId(etapaId);
     setSelectedLead(null);
     setIsLeadModalOpen(true);
   };
-
+  
   // Função para abrir modal de edição de lead
   const openEditLeadModal = (lead: Lead) => {
+    console.log('[useKanbanLeadActions] Abrindo modal para editar lead:', lead.id);
     setSelectedLead(lead);
-    setNewLeadEtapaId(null);
+    setNewLeadEtapaId('');
     setIsLeadModalOpen(true);
   };
-
+  
   // Função para fechar modal
   const closeLeadModal = () => {
+    console.log('[useKanbanLeadActions] Fechando modal de lead');
     setIsLeadModalOpen(false);
     setSelectedLead(null);
-    setNewLeadEtapaId(null);
+    setNewLeadEtapaId('');
   };
-
-  // Mutation para criar novo lead
-  const createLeadMutation = useMutation({
-    mutationFn: async (leadData: NewLeadData) => {
-      if (!clinicaId) {
-        throw new Error('ID da clínica não encontrado');
-      }
-
-      const { data, error } = await supabase
-        .from('leads')
-        .insert({
-          ...leadData,
-          clinica_id: clinicaId,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Erro ao criar lead:', error);
-        throw error;
-      }
-
-      return data;
-    },
-    onSuccess: () => {
-      // Invalidar queries relacionadas para atualizar a UI
-      queryClient.invalidateQueries({ queryKey: ['leads', clinicaId] });
-      queryClient.invalidateQueries({ queryKey: ['etapas-leads', clinicaId] });
-      toast.success('Lead criado com sucesso!');
-      closeLeadModal();
-    },
-    onError: (error: any) => {
-      console.error('Erro ao criar lead:', error);
-      toast.error('Erro ao criar lead. Tente novamente.');
-    },
-  });
-
-  // Mutation para atualizar lead
-  const updateLeadMutation = useMutation({
-    mutationFn: async ({ leadId, updates }: { leadId: string; updates: Partial<Lead> }) => {
-      const { data, error } = await supabase
-        .from('leads')
-        .update(updates)
-        .eq('id', leadId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Erro ao atualizar lead:', error);
-        throw error;
-      }
-
-      return data;
-    },
-    onSuccess: () => {
-      // Invalidar queries relacionadas para atualizar a UI
-      queryClient.invalidateQueries({ queryKey: ['leads', clinicaId] });
-      queryClient.invalidateQueries({ queryKey: ['etapas-leads', clinicaId] });
-      toast.success('Lead atualizado com sucesso!');
-      closeLeadModal();
-    },
-    onError: (error: any) => {
-      console.error('Erro ao atualizar lead:', error);
-      toast.error('Erro ao atualizar lead. Tente novamente.');
-    },
-  });
-
-  // Mutation para deletar lead
-  const deleteLeadMutation = useMutation({
-    mutationFn: async (leadId: string) => {
-      const { error } = await supabase
-        .from('leads')
-        .delete()
-        .eq('id', leadId);
-
-      if (error) {
-        console.error('Erro ao deletar lead:', error);
-        throw error;
-      }
-    },
-    onSuccess: () => {
-      // Invalidar queries relacionadas para atualizar a UI
-      queryClient.invalidateQueries({ queryKey: ['leads', clinicaId] });
-      queryClient.invalidateQueries({ queryKey: ['etapas-leads', clinicaId] });
-      toast.success('Lead deletado com sucesso!');
-    },
-    onError: (error: any) => {
-      console.error('Erro ao deletar lead:', error);
-      toast.error('Erro ao deletar lead. Tente novamente.');
-    },
-  });
-
+  
   // Função para salvar lead (criar ou atualizar)
-  const saveLead = (leadData: NewLeadData | Lead) => {
-    if (selectedLead) {
-      // Editando lead existente
-      updateLeadMutation.mutate({
-        leadId: selectedLead.id,
-        updates: leadData,
-      });
-    } else {
-      // Criando novo lead
-      createLeadMutation.mutate(leadData as NewLeadData);
+  const handleSaveLead = async (leadData: Partial<Lead>) => {
+    try {
+      console.log('[useKanbanLeadActions] Salvando lead com dados:', leadData);
+      
+      // Se há um lead selecionado, é uma atualização
+      if (selectedLead) {
+        const updateData = {
+          id: selectedLead.id,
+          nome: leadData.nome,
+          telefone: leadData.telefone,
+          email: leadData.email,
+          ltv: leadData.ltv,
+          origem_lead: leadData.origem_lead,
+          servico_interesse: leadData.servico_interesse,
+          anotacoes: leadData.anotacoes,
+          etapa_kanban_id: leadData.etapa_kanban_id || selectedLead.etapa_kanban_id,
+          clinica_id: selectedLead.clinica_id
+        };
+        
+        await updateLeadMutation.mutateAsync(updateData);
+        toast.success('Lead atualizado com sucesso!');
+      } else {
+        // Caso contrário, é um novo lead
+        console.log('[useKanbanLeadActions] Criando novo lead - funcionalidade a ser implementada');
+        toast.error('Criação de novo lead ainda não implementada');
+      }
+      
+      closeLeadModal();
+    } catch (error) {
+      console.error('[useKanbanLeadActions] Erro ao salvar lead:', error);
+      toast.error('Erro ao salvar lead. Tente novamente.');
     }
   };
-
+  
   // Função para deletar lead
-  const deleteLead = (leadId: string) => {
-    if (window.confirm('Tem certeza que deseja deletar este lead?')) {
-      deleteLeadMutation.mutate(leadId);
+  const handleDeleteLead = async (leadId: string) => {
+    try {
+      console.log('[useKanbanLeadActions] Deletando lead:', leadId);
+      await deleteLeadMutation.mutateAsync(leadId);
+      toast.success('Lead excluído com sucesso!');
+      closeLeadModal();
+    } catch (error) {
+      console.error('[useKanbanLeadActions] Erro ao deletar lead:', error);
+      toast.error('Erro ao excluir lead. Tente novamente.');
     }
   };
-
+  
+  // Função para abrir chat com o lead
+  const handleOpenChat = (lead: Lead) => {
+    console.log('[useKanbanLeadActions] Abrindo chat para lead:', lead.id);
+    // Implementar navegação para chat
+    window.open(`/chat?lead=${lead.id}`, '_blank');
+  };
+  
+  // Função para abrir histórico de consultas
+  const handleOpenHistory = (lead: Lead) => {
+    console.log('[useKanbanLeadActions] Abrindo histórico para lead:', lead.id);
+    // Implementar modal de histórico
+    toast.info('Histórico de consultas - funcionalidade em desenvolvimento');
+  };
+  
+  // Função para mover lead entre colunas via drag and drop
+  const handleDropLeadInColumn = async (leadId: string, targetEtapaId: string) => {
+    try {
+      console.log('[useKanbanLeadActions] Movendo lead', leadId, 'para etapa', targetEtapaId);
+      
+      // Buscar dados do lead atual para preservar outras informações
+      const leadToUpdate = selectedLead || { id: leadId };
+      
+      const updateData = {
+        id: leadId,
+        etapa_kanban_id: targetEtapaId,
+        // Preservar outros campos se disponíveis
+        ...(selectedLead && {
+          nome: selectedLead.nome,
+          telefone: selectedLead.telefone,
+          email: selectedLead.email,
+          ltv: selectedLead.ltv,
+          origem_lead: selectedLead.origem_lead,
+          servico_interesse: selectedLead.servico_interesse,
+          anotacoes: selectedLead.anotacoes,
+          clinica_id: selectedLead.clinica_id
+        })
+      };
+      
+      await updateLeadMutation.mutateAsync(updateData);
+      toast.success('Lead movido com sucesso!');
+    } catch (error) {
+      console.error('[useKanbanLeadActions] Erro ao mover lead:', error);
+      toast.error('Erro ao mover lead. Tente novamente.');
+    }
+  };
+  
   return {
-    // Estados
+    // Estados dos modais
     isLeadModalOpen,
     selectedLead,
     newLeadEtapaId,
@@ -218,13 +180,15 @@ export const useKanbanLeadActions = () => {
     openEditLeadModal,
     closeLeadModal,
     
-    // Ações de CRUD
-    saveLead,
-    deleteLead,
+    // Ações do lead
+    handleSaveLead,
+    handleDeleteLead,
+    handleOpenChat,
+    handleOpenHistory,
+    handleDropLeadInColumn,
     
     // Estados de loading
-    isCreating: createLeadMutation.isPending,
-    isUpdating: updateLeadMutation.isPending,
-    isDeleting: deleteLeadMutation.isPending,
+    isSaving: updateLeadMutation.isPending,
+    isDeleting: deleteLeadMutation.isPending
   };
 };
