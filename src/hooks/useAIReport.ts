@@ -201,9 +201,7 @@ export const useAIReport = () => {
     pendingReports,
     completedReports,
     failedReports,
-    isLoa
-
-Reports,
+    isLoadingReports,
 
     // Ações
     createReport,
