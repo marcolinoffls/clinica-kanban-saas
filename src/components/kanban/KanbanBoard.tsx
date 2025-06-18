@@ -220,7 +220,7 @@ const KanbanBoard: React.FC = () => {
       console.log('🔄 Movendo lead:', leadId, 'de', fromEtapaId, 'para', toEtapaId);
       
       // Usar a função do hook para mover o lead
-      await leadActions.handleDropLeadInColumn(leadId, fromEtapaId, toEtapaId);
+      await leadActions.handleDropLeadInColumn(leadId, toEtapaId);
       
       console.log('✅ Lead movido com sucesso');
       
@@ -498,7 +498,6 @@ const KanbanBoard: React.FC = () => {
                               column={etapa}
                               leads={leadsEtapa}
                               corEtapa={etapa.cor || 'bg-blue-500'}
-                              isDragging={isDragging}
                               isDropping={snapshot.isDraggingOver}
                               
                               // Handlers para ações de lead

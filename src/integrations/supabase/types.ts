@@ -158,6 +158,66 @@ export type Database = {
           },
         ]
       }
+      ai_reports: {
+        Row: {
+          clinica_id: string
+          created_at: string
+          delivery_method: string
+          end_date: string
+          error_message: string | null
+          id: string
+          phone_number: string | null
+          report_content: string | null
+          report_pdf_url: string | null
+          start_date: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          clinica_id: string
+          created_at?: string
+          delivery_method?: string
+          end_date: string
+          error_message?: string | null
+          id?: string
+          phone_number?: string | null
+          report_content?: string | null
+          report_pdf_url?: string | null
+          start_date: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          clinica_id?: string
+          created_at?: string
+          delivery_method?: string
+          end_date?: string
+          error_message?: string | null
+          id?: string
+          phone_number?: string | null
+          report_content?: string | null
+          report_pdf_url?: string | null
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_reports_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_reports_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       buffer: {
         Row: {
           created_at: string
