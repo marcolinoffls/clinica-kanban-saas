@@ -1,24 +1,26 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { create, verify } from 'https://deno.land/x/djwt@v2.7/mod.ts';
 
 /**
- * Edge Function para Geração de Relatórios de IA
+ * Edge Function Otimizada para Geração de Relatórios de IA
  * 
  * O que faz:
- * - Recebe requisições do frontend para gerar relatórios
- * - Coleta todos os dados relevantes da clínica no período especificado
- * - Compila os dados e envia para o webhook do n8n para processamento
- * - Atualiza o status do relatório conforme o processamento
+ * - Valida autenticação via JWT usando EVOLUTION_API_KEY
+ * - Recebe payload mínimo do frontend
+ * - Envia dados essenciais para o webhook do n8n
+ * - Delega coleta de dados para o n8n (mais eficiente)
+ * - Atualiza status em caso de erro
  * 
  * Onde é chamada:
- * - Pelo hook useAIReport quando o usuário solicita um novo relatório
+ * - Pelo hook useCreateAIReport quando usuário solicita relatório
  * 
  * Como funciona:
- * - Valida a autenticação via JWT
- * - Busca dados de leads, mensagens, agendamentos e clínica
- * - Envia tudo para o n8n via webhook
- * - Retorna resposta rápida para o frontend
+ * - Validação JWT rápida
+ * - Payload mínimo para n8n
+ * - Resposta rápida para o frontend
+ * - n8n faz o trabalho pesado de coleta e análise de dados
  */
 
 const corsHeaders = {
@@ -26,12 +28,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ReportRequest {
+interface ReportRequestPayload {
   clinica_id: string;
   start_date: string;
   end_date: string;
-  delivery_method: 'system' | 'whatsapp';
-  phone_number?: string;
+  delivery_method: 'in_app' | 'whatsapp';
+  recipient_phone_number?: string;
   report_request_id: string;
 }
 
@@ -42,31 +44,60 @@ serve(async (req) => {
   }
 
   try {
-    // Verificar autenticação
+    // 1. Validar autenticação via JWT
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('Token de autorização não fornecido');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new Error('Token de autorização não fornecido ou inválido');
     }
 
-    // Criar cliente Supabase com service role
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const token = authHeader.replace('Bearer ', '');
+    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+    
+    if (!evolutionApiKey) {
+      throw new Error('EVOLUTION_API_KEY não configurada');
+    }
 
-    // Parse do body da requisição
-    const requestData: ReportRequest = await req.json();
-    console.log('📊 Processando requisição de relatório:', requestData);
+    // Verificar JWT usando EVOLUTION_API_KEY como segredo
+    try {
+      await verify(token, evolutionApiKey, "HS256");
+    } catch (jwtError) {
+      console.error('❌ JWT inválido ou expirado:', jwtError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Token JWT inválido ou expirado'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 403
+        }
+      );
+    }
+
+    // 2. Parse do payload de entrada
+    const requestData: ReportRequestPayload = await req.json();
+    console.log('📊 Processando requisição otimizada de relatório:', requestData);
 
     const { 
       clinica_id, 
       start_date, 
       end_date, 
       delivery_method, 
-      phone_number, 
+      recipient_phone_number, 
       report_request_id 
     } = requestData;
 
-    // Atualizar status do relatório para 'processing'
+    // Validar campos obrigatórios
+    if (!clinica_id || !start_date || !end_date || !delivery_method || !report_request_id) {
+      throw new Error('Campos obrigatórios faltando no payload');
+    }
+
+    // 3. Criar cliente Supabase para possíveis updates de status
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // 4. Atualizar status do relatório para 'processing'
     await supabase
       .from('ai_reports')
       .update({ status: 'processing' })
@@ -74,126 +105,46 @@ serve(async (req) => {
 
     console.log('🔄 Status atualizado para processing');
 
-    // 1. Buscar dados da clínica
-    const { data: clinica, error: clinicaError } = await supabase
-      .from('clinicas')
-      .select('*')
-      .eq('id', clinica_id)
-      .single();
-
-    if (clinicaError || !clinica) {
-      throw new Error(`Clínica não encontrada: ${clinicaError?.message}`);
-    }
-
-    console.log('🏥 Dados da clínica coletados:', clinica.nome);
-
-    // 2. Buscar leads do período
-    const { data: leads, error: leadsError } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('clinica_id', clinica_id)
-      .gte('created_at', start_date)
-      .lte('created_at', end_date);
-
-    if (leadsError) {
-      throw new Error(`Erro ao buscar leads: ${leadsError.message}`);
-    }
-
-    console.log(`📋 ${leads?.length || 0} leads coletados`);
-
-    // 3. Buscar mensagens dos leads
-    const leadIds = leads?.map(lead => lead.id) || [];
-    let mensagens = [];
-    
-    if (leadIds.length > 0) {
-      const { data: mensagensData, error: mensagensError } = await supabase
-        .from('chat_mensagens')
-        .select('*')
-        .in('lead_id', leadIds)
-        .gte('created_at', start_date)
-        .lte('created_at', end_date);
-
-      if (mensagensError) {
-        console.warn('Aviso ao buscar mensagens:', mensagensError.message);
-      } else {
-        mensagens = mensagensData || [];
-      }
-    }
-
-    console.log(`💬 ${mensagens.length} mensagens coletadas`);
-
-    // 4. Buscar agendamentos do período
-    const { data: agendamentos, error: agendamentosError } = await supabase
-      .from('agendamentos')
-      .select('*')
-      .eq('clinica_id', clinica_id)
-      .gte('created_at', start_date)
-      .lte('created_at', end_date);
-
-    if (agendamentosError) {
-      console.warn('Aviso ao buscar agendamentos:', agendamentosError.message);
-    }
-
-    console.log(`📅 ${agendamentos?.length || 0} agendamentos coletados`);
-
-    // 5. Buscar aliases de anúncios
-    const { data: adAliases, error: aliasesError } = await supabase
-      .from('ad_aliases')
-      .select('*')
-      .eq('clinica_id', clinica_id);
-
-    if (aliasesError) {
-      console.warn('Aviso ao buscar aliases:', aliasesError.message);
-    }
-
-    console.log(`🏷️ ${adAliases?.length || 0} aliases coletados`);
-
-    // 6. Preparar payload para o n8n
-    const webhookPayload = {
-      // Metadados da requisição
+    // 5. Preparar payload mínimo para o n8n
+    const n8nPayload = {
+      // IDs e metadados essenciais
       report_request_id,
       clinica_id,
       start_date,
       end_date,
       delivery_method,
-      phone_number,
+      recipient_phone_number,
       
-      // Dados coletados
-      clinica_data: clinica,
-      leads_data: leads || [],
-      mensagens_data: mensagens,
-      agendamentos_data: agendamentos || [],
-      ad_aliases_data: adAliases || [],
+      // Timestamp do processamento
+      processing_started_at: new Date().toISOString(),
       
-      // Estatísticas básicas
-      stats: {
-        total_leads: leads?.length || 0,
-        total_mensagens: mensagens.length,
-        total_agendamentos: agendamentos?.length || 0,
-        leads_convertidos: leads?.filter(lead => lead.convertido).length || 0,
-        periodo_analise: {
-          inicio: start_date,
-          fim: end_date
-        }
-      }
+      // Origem da requisição
+      source: 'edge-function-optimized'
     };
 
-    console.log('📤 Enviando dados para o n8n...');
+    console.log('📤 Enviando payload mínimo para o n8n...');
 
-    // 7. Gerar JWT para autenticação no n8n
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-    const jwtToken = evolutionApiKey; // Usando a mesma chave por simplicidade
+    // 6. Gerar JWT para autenticação no n8n
+    const jwtForN8n = await create(
+      { alg: "HS256", typ: "JWT" },
+      { 
+        iss: "supabase-edge-function",
+        exp: Math.floor(Date.now() / 1000) + (60 * 60), // 1 hora
+        data: { report_request_id, clinica_id }
+      },
+      evolutionApiKey
+    );
 
-    // 8. Enviar para o webhook do n8n
+    // 7. Enviar para o webhook do n8n
     const webhookUrl = 'https://webhooks.marcolinofernades.site/webhook/relatorio-crm-sistema';
     
     const webhookResponse = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${jwtToken}`
+        'Authorization': `Bearer ${jwtForN8n}`
       },
-      body: JSON.stringify(webhookPayload)
+      body: JSON.stringify(n8nPayload)
     });
 
     if (!webhookResponse.ok) {
@@ -204,13 +155,13 @@ serve(async (req) => {
     const webhookResult = await webhookResponse.json();
     console.log('✅ Webhook n8n respondeu:', webhookResult);
 
-    // 9. Retornar resposta de sucesso
+    // 8. Retornar resposta rápida de sucesso
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Relatório enviado para processamento',
+        message: 'Relatório enviado para processamento no n8n',
         report_id: report_request_id,
-        stats: webhookPayload.stats
+        n8n_response: webhookResult
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -219,12 +170,12 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('❌ Erro na Edge Function:', error);
+    console.error('❌ Erro na Edge Function otimizada:', error);
 
     // Tentar atualizar o status para failed se temos o report_id
     try {
-      const requestData = await req.json();
-      if (requestData.report_request_id) {
+      const requestBody = await req.clone().json();
+      if (requestBody.report_request_id) {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
         const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -232,10 +183,9 @@ serve(async (req) => {
         await supabase
           .from('ai_reports')
           .update({ 
-            status: 'failed', 
-            error_message: error.message 
+            status: 'failed'
           })
-          .eq('id', requestData.report_request_id);
+          .eq('id', requestBody.report_request_id);
       }
     } catch (updateError) {
       console.error('Erro ao atualizar status de falha:', updateError);
@@ -245,7 +195,7 @@ serve(async (req) => {
       JSON.stringify({
         success: false,
         error: error.message,
-        details: 'Erro interno da função'
+        details: 'Erro na Edge Function otimizada'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

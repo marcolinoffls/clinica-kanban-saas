@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useClinica } from '@/contexts/ClinicaContext';
 import { toast } from 'sonner';
-import type { CreateReportData } from '@/types/aiReports';
+import type { CreateReportData, ReportRequestPayload } from '@/types/aiReports';
 
 /**
  * Hook para criação de relatórios de IA
@@ -11,7 +11,7 @@ import type { CreateReportData } from '@/types/aiReports';
  * O que faz:
  * - Gerencia o processo de criação de novos relatórios
  * - Cria registro na tabela ai_reports
- * - Chama a Edge Function para processamento
+ * - Chama a Edge Function otimizada que envia payload mínimo para o n8n
  * - Gerencia estados de loading e erro
  * - Exibe toasts de feedback para o usuário
  * 
@@ -36,10 +36,10 @@ export const useCreateAIReport = (refetchReports: () => void) => {
         .from('ai_reports')
         .insert({
           clinica_id: clinicaId,
-          start_date: reportData.start_date.toISOString(),
-          end_date: reportData.end_date.toISOString(),
+          period_start: reportData.period_start.toISOString(),
+          period_end: reportData.period_end.toISOString(),
           delivery_method: reportData.delivery_method,
-          phone_number: reportData.phone_number,
+          whatsapp_phone_number: reportData.recipient_phone_number,
           status: 'pending'
         })
         .select()
@@ -52,16 +52,19 @@ export const useCreateAIReport = (refetchReports: () => void) => {
 
       console.log('✅ Registro do relatório criado:', reportRecord.id);
 
-      // 2. Chamar a Edge Function para processar o relatório
+      // 2. Preparar payload mínimo para a Edge Function
+      const payload: ReportRequestPayload = {
+        clinica_id: clinicaId,
+        start_date: reportData.period_start.toISOString(),
+        end_date: reportData.period_end.toISOString(),
+        delivery_method: reportData.delivery_method,
+        recipient_phone_number: reportData.recipient_phone_number,
+        report_request_id: reportRecord.id
+      };
+
+      // 3. Chamar a Edge Function otimizada
       const { data: functionResponse, error: functionError } = await supabase.functions.invoke('generate-ai-report', {
-        body: {
-          clinica_id: clinicaId,
-          start_date: reportData.start_date.toISOString(),
-          end_date: reportData.end_date.toISOString(),
-          delivery_method: reportData.delivery_method,
-          phone_number: reportData.phone_number,
-          report_request_id: reportRecord.id
-        }
+        body: payload
       });
 
       if (functionError) {
@@ -71,8 +74,7 @@ export const useCreateAIReport = (refetchReports: () => void) => {
         await supabase
           .from('ai_reports')
           .update({ 
-            status: 'failed', 
-            error_message: functionError.message 
+            status: 'failed'
           })
           .eq('id', reportRecord.id);
         
@@ -83,7 +85,7 @@ export const useCreateAIReport = (refetchReports: () => void) => {
       return reportRecord;
     },
     onSuccess: (data) => {
-      toast.success('Relatório solicitado com sucesso! Aguarde o processamento.');
+      toast.success('Relatório solicitado com sucesso! O processamento foi iniciado no n8n.');
       refetchReports();
     },
     onError: (error) => {

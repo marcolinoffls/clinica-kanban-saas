@@ -18,9 +18,10 @@ import { useClinica } from '@/contexts/ClinicaContext';
  * 
  * O que faz:
  * - Permite selecionar período para análise usando TimeRangeFilter
- * - Oferece opções de entrega (sistema ou WhatsApp)
+ * - Oferece opções de entrega (no app ou WhatsApp)
  * - Valida e confirma o número de telefone para envio via WhatsApp
  * - Dispara a criação do relatório através do hook useAIReport
+ * - Usa o telefone da clínica como padrão para WhatsApp
  * 
  * Onde é usado:
  * - Aberto a partir do botão "Gerar Relatório" no Dashboard
@@ -35,10 +36,10 @@ interface AIReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreateReport: (data: {
-    start_date: Date;
-    end_date: Date;
-    delivery_method: 'system' | 'whatsapp';
-    phone_number?: string;
+    period_start: Date;
+    period_end: Date;
+    delivery_method: 'in_app' | 'whatsapp';
+    recipient_phone_number?: string;
   }) => void;
   isCreating: boolean;
 }
@@ -52,7 +53,7 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
   const { clinicaId } = useClinica();
   
   // Estados locais do modal
-  const [deliveryMethod, setDeliveryMethod] = useState<'system' | 'whatsapp'>('system');
+  const [deliveryMethod, setDeliveryMethod] = useState<'in_app' | 'whatsapp'>('in_app');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState<{
     start: Date | null;
@@ -104,11 +105,16 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
       return;
     }
 
+    // Para WhatsApp, usar o número informado ou o da clínica como fallback
+    const recipientPhone = deliveryMethod === 'whatsapp' 
+      ? (phoneNumber.trim() || clinica?.telefone || null)
+      : null;
+
     const reportData = {
-      start_date: selectedPeriod.start,
-      end_date: selectedPeriod.end,
+      period_start: selectedPeriod.start,
+      period_end: selectedPeriod.end,
       delivery_method: deliveryMethod,
-      phone_number: deliveryMethod === 'whatsapp' ? phoneNumber : undefined
+      recipient_phone_number: recipientPhone
     };
 
     console.log('📊 Criando relatório com dados:', reportData);
@@ -117,7 +123,7 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
 
   // Validar se pode criar o relatório
   const canCreateReport = selectedPeriod.start && selectedPeriod.end && 
-    (deliveryMethod === 'system' || (deliveryMethod === 'whatsapp' && phoneNumber.trim().length > 0));
+    (deliveryMethod === 'in_app' || (deliveryMethod === 'whatsapp' && (phoneNumber.trim().length > 0 || clinica?.telefone)));
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -167,12 +173,12 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
 
                 <RadioGroup 
                   value={deliveryMethod} 
-                  onValueChange={(value: 'system' | 'whatsapp') => setDeliveryMethod(value)}
+                  onValueChange={(value: 'in_app' | 'whatsapp') => setDeliveryMethod(value)}
                   className="space-y-3"
                 >
                   <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
-                    <RadioGroupItem value="system" id="system" />
-                    <Label htmlFor="system" className="flex-1 cursor-pointer">
+                    <RadioGroupItem value="in_app" id="in_app" />
+                    <Label htmlFor="in_app" className="flex-1 cursor-pointer">
                       <div>
                         <div className="font-medium">Visualizar no sistema</div>
                         <div className="text-sm text-gray-600">
@@ -226,8 +232,9 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
               <div className="space-y-1">
                 <h4 className="font-medium text-blue-900">Sobre os Relatórios de IA</h4>
                 <p className="text-sm text-blue-800">
-                  Nosso sistema analisará todos os dados do período selecionado (leads, conversas, agendamentos) 
-                  e gerará insights inteligentes sobre performance, tendências e oportunidades de melhoria.
+                  A IA analisará todos os dados do período selecionado e gerará insights 
+                  inteligentes sobre performance, tendências e oportunidades de melhoria.
+                  O processamento é feito pelo n8n para máxima eficiência.
                 </p>
                 <p className="text-sm text-blue-700 font-medium">
                   ⏱️ Tempo de processamento: 2-5 minutos
@@ -250,7 +257,7 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
             {isCreating ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Gerando...
+                Processando...
               </>
             ) : (
               <>

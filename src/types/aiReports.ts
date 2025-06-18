@@ -10,27 +10,37 @@
 export interface AIReport {
   id: string;
   clinica_id: string;
-  start_date: string;
-  end_date: string;
-  delivery_method: 'system' | 'whatsapp';
+  period_start: string;
+  period_end: string;
+  delivery_method: 'in_app' | 'whatsapp';
   status: 'pending' | 'processing' | 'completed' | 'failed';
   report_content?: string;
   report_pdf_url?: string;
-  phone_number?: string;
-  error_message?: string;
+  whatsapp_phone_number?: string;
+  generated_at?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface CreateReportData {
-  start_date: Date;
-  end_date: Date;
-  delivery_method: 'system' | 'whatsapp';
-  phone_number?: string;
+  period_start: Date;
+  period_end: Date;
+  delivery_method: 'in_app' | 'whatsapp';
+  recipient_phone_number?: string;
 }
 
 export interface PeriodSelection {
   start: Date | null;
   end: Date | null;
   filterName: string;
+}
+
+// Payload mínimo para a Edge Function
+export interface ReportRequestPayload {
+  clinica_id: string;
+  start_date: string;
+  end_date: string;
+  delivery_method: 'in_app' | 'whatsapp';
+  recipient_phone_number?: string;
+  report_request_id: string;
 }
