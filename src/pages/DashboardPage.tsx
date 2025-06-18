@@ -12,9 +12,10 @@ import { useAIReport } from '@/hooks/useAIReport';
  * Esta página encapsula o componente Dashboard existente
  * para permitir navegação via rotas distintas.
  * 
- * Funcionalidades adicionadas:
+ * Funcionalidades:
  * - Botão para gerar relatórios de análise de IA
  * - Modal para configuração e criação de relatórios
+ * - Possibilidade de cancelar relatórios em andamento
  */
 const DashboardPage = () => {
   const {
@@ -22,8 +23,11 @@ const DashboardPage = () => {
     openModal,
     closeModal,
     createReport,
+    cancelReport,
     isCreatingReport,
-    pendingReports
+    isCancellingReport,
+    pendingReports,
+    currentProcessingReport
   } = useAIReport();
 
   return (
@@ -52,7 +56,7 @@ const DashboardPage = () => {
           <Button
             onClick={openModal}
             className="bg-blue-600 hover:bg-blue-700 text-white"
-            disabled={isCreatingReport}
+            disabled={isCreatingReport || isCancellingReport}
           >
             <FileBarChart className="w-4 h-4 mr-2" />
             Gerar Relatório IA
@@ -68,7 +72,10 @@ const DashboardPage = () => {
         isOpen={isModalOpen}
         onClose={closeModal}
         onCreateReport={createReport}
+        onCancelReport={cancelReport}
         isCreating={isCreatingReport}
+        isCancelling={isCancellingReport}
+        currentProcessingReport={currentProcessingReport}
       />
     </div>
   );

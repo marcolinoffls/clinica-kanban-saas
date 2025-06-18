@@ -2,6 +2,7 @@
 import { useClinica } from '@/contexts/ClinicaContext';
 import { useAIReportsData } from './useAIReportsData';
 import { useCreateAIReport } from './useCreateAIReport';
+import { useCancelAIReport } from './useCancelAIReport';
 import { useAIReportModal } from './useAIReportModal';
 import type { CreateReportData } from '@/types/aiReports';
 
@@ -11,7 +12,7 @@ import type { CreateReportData } from '@/types/aiReports';
  * O que faz:
  * - Orquestra todos os hooks relacionados a relatórios
  * - Fornece uma interface unificada para componentes
- * - Combina funcionalidades de modal, dados e criação
+ * - Combina funcionalidades de modal, dados, criação e cancelamento
  * 
  * Onde é usado:
  * - No DashboardPage para permitir a criação de relatórios
@@ -20,7 +21,7 @@ import type { CreateReportData } from '@/types/aiReports';
  * Como se conecta:
  * - Usa o contexto ClinicaContext para obter o ID da clínica
  * - Conecta-se à tabela ai_reports no Supabase
- * - Chama a Edge Function generate-ai-report
+ * - Chama as Edge Functions generate-ai-report e reset-ai-report-status
  */
 export const useAIReport = () => {
   const { clinicaId } = useClinica();
@@ -47,6 +48,14 @@ export const useAIReport = () => {
   // Criar relatórios
   const { createReport, isCreating } = useCreateAIReport(refetchReports);
 
+  // Cancelar relatórios
+  const { cancelReport, isCancelling } = useCancelAIReport(refetchReports);
+
+  // Encontrar o relatório em processamento atual
+  const currentProcessingReport = pendingReports.find(report => 
+    report.status === 'pending' || report.status === 'processing'
+  );
+
   return {
     // Estados do modal
     isModalOpen,
@@ -64,12 +73,17 @@ export const useAIReport = () => {
     failedReports,
     isLoadingReports,
 
-    // Ações
+    // Ações de criação
     createReport: (reportData: CreateReportData) => createReport(reportData),
     isCreatingReport: isCreating,
-    refetchReports,
 
-    // Dados da clínica
+    // Ações de cancelamento
+    cancelReport: (reportId: string) => cancelReport(reportId),
+    isCancellingReport: isCancelling,
+    currentProcessingReport,
+
+    // Utilitários
+    refetchReports,
     clinicaId
   };
 };

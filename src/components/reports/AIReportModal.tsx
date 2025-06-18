@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, FileText, Send, Calendar, Clock } from 'lucide-react';
+import { X, FileText, Send, Calendar, Clock, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -21,13 +21,14 @@ import { useClinica } from '@/contexts/ClinicaContext';
  * - Oferece opções de entrega (no app ou WhatsApp)
  * - Valida e confirma o número de telefone para envio via WhatsApp
  * - Dispara a criação do relatório através do hook useAIReport
+ * - Permite cancelar relatórios em andamento
  * - Usa o telefone da clínica como padrão para WhatsApp
  * 
  * Onde é usado:
  * - Aberto a partir do botão "Gerar Relatório" no Dashboard
  * 
  * Como se conecta:
- * - Usa o hook useAIReport para gerenciar a lógica de criação
+ * - Usa o hook useAIReport para gerenciar a lógica de criação e cancelamento
  * - Reutiliza o TimeRangeFilter do painel administrativo
  * - Busca dados da clínica para obter o telefone padrão
  */
@@ -41,14 +42,23 @@ interface AIReportModalProps {
     delivery_method: 'in_app' | 'whatsapp';
     recipient_phone_number?: string;
   }) => void;
+  onCancelReport?: (reportId: string) => void;
   isCreating: boolean;
+  isCancelling?: boolean;
+  currentProcessingReport?: {
+    id: string;
+    status: string;
+  } | null;
 }
 
 export const AIReportModal: React.FC<AIReportModalProps> = ({
   isOpen,
   onClose,
   onCreateReport,
-  isCreating
+  onCancelReport,
+  isCreating,
+  isCancelling = false,
+  currentProcessingReport = null
 }) => {
   const { clinicaId } = useClinica();
   
@@ -107,8 +117,8 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
 
     // Para WhatsApp, usar o número informado ou o da clínica como fallback
     const recipientPhone = deliveryMethod === 'whatsapp' 
-      ? (phoneNumber.trim() || clinica?.telefone || null)
-      : null;
+      ? (phoneNumber.trim() || clinica?.telefone || undefined)
+      : undefined;
 
     const reportData = {
       period_start: selectedPeriod.start,
@@ -121,9 +131,20 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
     onCreateReport(reportData);
   };
 
+  // Handler para cancelar relatório
+  const handleCancelReport = () => {
+    if (currentProcessingReport && onCancelReport) {
+      console.log('🚫 Cancelando relatório:', currentProcessingReport.id);
+      onCancelReport(currentProcessingReport.id);
+    }
+  };
+
   // Validar se pode criar o relatório
   const canCreateReport = selectedPeriod.start && selectedPeriod.end && 
     (deliveryMethod === 'in_app' || (deliveryMethod === 'whatsapp' && (phoneNumber.trim().length > 0 || clinica?.telefone)));
+
+  // Verificar se há relatório em processamento
+  const hasProcessingReport = currentProcessingReport && (isCreating || currentProcessingReport.status === 'processing');
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -136,6 +157,46 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Alerta de relatório em processamento */}
+          {hasProcessingReport && (
+            <Card className="border-amber-200 bg-amber-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-amber-600"></div>
+                    <div>
+                      <h4 className="font-medium text-amber-900">Relatório em Processamento</h4>
+                      <p className="text-sm text-amber-700">
+                        Um relatório está sendo gerado pelo n8n. Você pode cancelar para fazer uma nova requisição.
+                      </p>
+                    </div>
+                  </div>
+                  {onCancelReport && (
+                    <Button
+                      onClick={handleCancelReport}
+                      disabled={isCancelling}
+                      variant="outline"
+                      size="sm"
+                      className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                    >
+                      {isCancelling ? (
+                        <>
+                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-amber-600 mr-2"></div>
+                          Cancelando...
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-3 h-3 mr-2" />
+                          Cancelar
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Seleção de Período */}
           <Card>
             <CardContent className="pt-6">
@@ -246,12 +307,12 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
 
         {/* Botões de ação */}
         <div className="flex justify-end gap-3 pt-4">
-          <Button variant="outline" onClick={onClose} disabled={isCreating}>
+          <Button variant="outline" onClick={onClose} disabled={isCreating || isCancelling}>
             Cancelar
           </Button>
           <Button 
             onClick={handleCreateReport}
-            disabled={!canCreateReport || isCreating}
+            disabled={!canCreateReport || isCreating || hasProcessingReport}
             className="bg-blue-600 hover:bg-blue-700"
           >
             {isCreating ? (

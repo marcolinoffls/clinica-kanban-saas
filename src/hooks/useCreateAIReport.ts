@@ -36,10 +36,10 @@ export const useCreateAIReport = (refetchReports: () => void) => {
         .from('ai_reports')
         .insert({
           clinica_id: clinicaId,
-          period_start: reportData.period_start.toISOString(),
-          period_end: reportData.period_end.toISOString(),
+          start_date: reportData.period_start.toISOString(),
+          end_date: reportData.period_end.toISOString(),
           delivery_method: reportData.delivery_method,
-          whatsapp_phone_number: reportData.recipient_phone_number,
+          phone_number: reportData.recipient_phone_number,
           status: 'pending'
         })
         .select()
@@ -74,7 +74,8 @@ export const useCreateAIReport = (refetchReports: () => void) => {
         await supabase
           .from('ai_reports')
           .update({ 
-            status: 'failed'
+            status: 'failed',
+            error_message: functionError.message || 'Erro na Edge Function'
           })
           .eq('id', reportRecord.id);
         

@@ -10,14 +10,14 @@
 export interface AIReport {
   id: string;
   clinica_id: string;
-  period_start: string;
-  period_end: string;
+  start_date: string;
+  end_date: string;
   delivery_method: 'in_app' | 'whatsapp';
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
   report_content?: string;
   report_pdf_url?: string;
-  whatsapp_phone_number?: string;
-  generated_at?: string;
+  phone_number?: string;
+  error_message?: string;
   created_at: string;
   updated_at: string;
 }
@@ -43,4 +43,10 @@ export interface ReportRequestPayload {
   delivery_method: 'in_app' | 'whatsapp';
   recipient_phone_number?: string;
   report_request_id: string;
+}
+
+// Payload para cancelar relatório
+export interface CancelReportPayload {
+  report_id: string;
+  clinica_id: string;
 }

@@ -37,7 +37,21 @@ export const useAIReportsData = () => {
         throw error;
       }
 
-      return data as AIReport[];
+      // Mapear campos da tabela para o tipo AIReport
+      return data.map(item => ({
+        id: item.id,
+        clinica_id: item.clinica_id,
+        period_start: item.start_date,
+        period_end: item.end_date,
+        delivery_method: item.delivery_method as 'in_app' | 'whatsapp',
+        status: item.status as 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled',
+        report_content: item.report_content,
+        report_pdf_url: item.report_pdf_url,
+        whatsapp_phone_number: item.phone_number,
+        error_message: item.error_message,
+        created_at: item.created_at,
+        updated_at: item.updated_at
+      } as AIReport));
     },
     enabled: !!clinicaId,
     staleTime: 30 * 1000, // 30 segundos
@@ -53,7 +67,7 @@ export const useAIReportsData = () => {
   );
 
   const failedReports = reports.filter(report => 
-    report.status === 'failed'
+    report.status === 'failed' || report.status === 'cancelled'
   );
 
   return {
