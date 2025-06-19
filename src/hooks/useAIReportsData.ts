@@ -41,13 +41,13 @@ export const useAIReportsData = () => {
       return data.map(item => ({
         id: item.id,
         clinica_id: item.clinica_id,
-        period_start: item.start_date,
-        period_end: item.end_date,
+        start_date: item.start_date,  // Corrigido: usar start_date ao invés de period_start
+        end_date: item.end_date,      // Corrigido: usar end_date ao invés de period_end
         delivery_method: item.delivery_method as 'in_app' | 'whatsapp',
         status: item.status as 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled',
         report_content: item.report_content,
         report_pdf_url: item.report_pdf_url,
-        whatsapp_phone_number: item.phone_number,
+        phone_number: item.phone_number,
         error_message: item.error_message,
         created_at: item.created_at,
         updated_at: item.updated_at

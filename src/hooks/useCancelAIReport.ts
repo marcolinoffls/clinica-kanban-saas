@@ -36,9 +36,19 @@ export const useCancelAIReport = (refetchReports: () => void) => {
         clinica_id: clinicaId
       };
 
+      // Obter o token JWT do usuário atual
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error('Usuário não autenticado');
+      }
+
       // Chamar a Edge Function para cancelar o relatório
       const { data: functionResponse, error: functionError } = await supabase.functions.invoke('reset-ai-report-status', {
-        body: payload
+        body: payload,
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
       });
 
       if (functionError) {
