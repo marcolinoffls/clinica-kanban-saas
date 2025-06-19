@@ -8,6 +8,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * O que faz:
  * - Valida autenticação via JWT do Supabase Auth
  * - Recebe payload mínimo do frontend
+ * - Converte datas para o fuso horário de São Paulo
  * - Envia dados essenciais para o webhook do n8n
  * - Delega coleta de dados para o n8n (mais eficiente)
  * - Atualiza status em caso de erro
@@ -17,6 +18,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * 
  * Como funciona:
  * - Validação JWT usando Supabase Auth
+ * - Conversão de datas para timezone de São Paulo
  * - Payload mínimo para n8n
  * - Resposta rápida para o frontend
  * - n8n faz o trabalho pesado de coleta e análise de dados
@@ -34,6 +36,39 @@ interface ReportRequestPayload {
   delivery_method: 'in_app' | 'whatsapp';
   recipient_phone_number?: string;
   report_request_id: string;
+}
+
+/**
+ * Converte uma data UTC para o fuso horário de São Paulo
+ * @param utcDateString - Data em formato ISO string UTC
+ * @returns Data convertida para o timezone de São Paulo
+ */
+function convertToSaoPauloTimezone(utcDateString: string): string {
+  const utcDate = new Date(utcDateString);
+  
+  // Criar formatador para o timezone de São Paulo
+  const formatter = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+
+  // Obter as partes da data formatada
+  const parts = formatter.formatToParts(utcDate);
+  const partsObj = parts.reduce((acc, part) => {
+    acc[part.type] = part.value;
+    return acc;
+  }, {} as Record<string, string>);
+
+  // Construir a string no formato ISO com timezone de São Paulo
+  const saoPauloDateString = `${partsObj.year}-${partsObj.month}-${partsObj.day}T${partsObj.hour}:${partsObj.minute}:${partsObj.second}-03:00`;
+  
+  return saoPauloDateString;
 }
 
 serve(async (req) => {
@@ -101,13 +136,24 @@ serve(async (req) => {
 
     console.log('🔄 Status atualizado para processing');
 
-    // 5. Preparar payload mínimo para o n8n
+    // 5. Converter datas para fuso horário de São Paulo
+    const startDateSaoPaulo = convertToSaoPauloTimezone(start_date);
+    const endDateSaoPaulo = convertToSaoPauloTimezone(end_date);
+
+    console.log('🕐 Datas convertidas para São Paulo:', {
+      original_start: start_date,
+      sao_paulo_start: startDateSaoPaulo,
+      original_end: end_date,
+      sao_paulo_end: endDateSaoPaulo
+    });
+
+    // 6. Preparar payload mínimo para o n8n com datas no fuso de São Paulo
     const n8nPayload = {
       // IDs e metadados essenciais
       report_request_id,
       clinica_id,
-      start_date,
-      end_date,
+      start_date: startDateSaoPaulo,  // Data convertida para São Paulo
+      end_date: endDateSaoPaulo,      // Data convertida para São Paulo
       delivery_method,
       recipient_phone_number,
       
@@ -115,12 +161,15 @@ serve(async (req) => {
       processing_started_at: new Date().toISOString(),
       
       // Origem da requisição
-      source: 'edge-function-optimized'
+      source: 'edge-function-optimized',
+      
+      // Informação sobre o timezone
+      timezone: 'America/Sao_Paulo'
     };
 
-    console.log('📤 Enviando payload mínimo para o n8n...');
+    console.log('📤 Enviando payload mínimo para o n8n com timezone de São Paulo...');
 
-    // 6. Enviar para o webhook do n8n
+    // 7. Enviar para o webhook do n8n
     const webhookUrl = 'https://webhooks.marcolinofernades.site/webhook/relatorio-crm-sistema';
     
     const webhookResponse = await fetch(webhookUrl, {
@@ -140,13 +189,17 @@ serve(async (req) => {
     const webhookResult = await webhookResponse.json();
     console.log('✅ Webhook n8n respondeu:', webhookResult);
 
-    // 7. Retornar resposta rápida de sucesso
+    // 8. Retornar resposta rápida de sucesso
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Relatório enviado para processamento no n8n',
         report_id: report_request_id,
-        n8n_response: webhookResult
+        n8n_response: webhookResult,
+        timezone_info: {
+          original_dates: { start_date, end_date },
+          sao_paulo_dates: { start_date: startDateSaoPaulo, end_date: endDateSaoPaulo }
+        }
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
