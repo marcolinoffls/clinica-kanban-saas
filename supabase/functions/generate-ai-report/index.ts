@@ -1,13 +1,12 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { create, verify } from 'https://deno.land/x/djwt@v2.7/mod.ts';
 
 /**
  * Edge Function Otimizada para Geração de Relatórios de IA
  * 
  * O que faz:
- * - Valida autenticação via JWT usando EVOLUTION_API_KEY
+ * - Valida autenticação via JWT do Supabase Auth
  * - Recebe payload mínimo do frontend
  * - Envia dados essenciais para o webhook do n8n
  * - Delega coleta de dados para o n8n (mais eficiente)
@@ -17,7 +16,7 @@ import { create, verify } from 'https://deno.land/x/djwt@v2.7/mod.ts';
  * - Pelo hook useCreateAIReport quando usuário solicita relatório
  * 
  * Como funciona:
- * - Validação JWT rápida
+ * - Validação JWT usando Supabase Auth
  * - Payload mínimo para n8n
  * - Resposta rápida para o frontend
  * - n8n faz o trabalho pesado de coleta e análise de dados
@@ -44,28 +43,28 @@ serve(async (req) => {
   }
 
   try {
-    // 1. Validar autenticação via JWT
+    // 1. Criar cliente Supabase para validação de usuário
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // 2. Validar autenticação via JWT do usuário
     const authHeader = req.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new Error('Token de autorização não fornecido ou inválido');
+      throw new Error('Token de autorização não fornecido');
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
     
-    if (!evolutionApiKey) {
-      throw new Error('EVOLUTION_API_KEY não configurada');
-    }
-
-    // Verificar JWT usando EVOLUTION_API_KEY como segredo
-    try {
-      await verify(token, evolutionApiKey, "HS256");
-    } catch (jwtError) {
-      console.error('❌ JWT inválido ou expirado:', jwtError);
+    // Verificar o token JWT usando o cliente Supabase
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      console.error('❌ Erro de autenticação:', authError);
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Token JWT inválido ou expirado'
+          error: 'Token de autenticação inválido'
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -74,7 +73,9 @@ serve(async (req) => {
       );
     }
 
-    // 2. Parse do payload de entrada
+    console.log('✅ Usuário autenticado:', user.id);
+
+    // 3. Parse do payload de entrada
     const requestData: ReportRequestPayload = await req.json();
     console.log('📊 Processando requisição otimizada de relatório:', requestData);
 
@@ -91,11 +92,6 @@ serve(async (req) => {
     if (!clinica_id || !start_date || !end_date || !delivery_method || !report_request_id) {
       throw new Error('Campos obrigatórios faltando no payload');
     }
-
-    // 3. Criar cliente Supabase para possíveis updates de status
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // 4. Atualizar status do relatório para 'processing'
     await supabase
@@ -124,25 +120,14 @@ serve(async (req) => {
 
     console.log('📤 Enviando payload mínimo para o n8n...');
 
-    // 6. Gerar JWT para autenticação no n8n
-    const jwtForN8n = await create(
-      { alg: "HS256", typ: "JWT" },
-      { 
-        iss: "supabase-edge-function",
-        exp: Math.floor(Date.now() / 1000) + (60 * 60), // 1 hora
-        data: { report_request_id, clinica_id }
-      },
-      evolutionApiKey
-    );
-
-    // 7. Enviar para o webhook do n8n
+    // 6. Enviar para o webhook do n8n
     const webhookUrl = 'https://webhooks.marcolinofernades.site/webhook/relatorio-crm-sistema';
     
     const webhookResponse = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${jwtForN8n}`
+        'Authorization': `Bearer ${token}` // Usar o token do usuário diretamente
       },
       body: JSON.stringify(n8nPayload)
     });
@@ -155,7 +140,7 @@ serve(async (req) => {
     const webhookResult = await webhookResponse.json();
     console.log('✅ Webhook n8n respondeu:', webhookResult);
 
-    // 8. Retornar resposta rápida de sucesso
+    // 7. Retornar resposta rápida de sucesso
     return new Response(
       JSON.stringify({
         success: true,
@@ -183,7 +168,8 @@ serve(async (req) => {
         await supabase
           .from('ai_reports')
           .update({ 
-            status: 'failed'
+            status: 'failed',
+            error_message: error.message
           })
           .eq('id', requestBody.report_request_id);
       }

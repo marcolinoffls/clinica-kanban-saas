@@ -20,17 +20,10 @@ export const KanbanBoard = () => {
   const kanbanData = useEtapasKanban();
   const dragHook = useKanbanColumnDrag();
 
-  // Extrair dados do hook useEtapasKanban
-  const etapas = kanbanData?.etapas || kanbanData?.data || [];
-  const leadsPorEtapa = kanbanData?.leadsPorEtapa || {};
+  // Verificar se kanbanData retorna o formato esperado
+  const etapas = kanbanData?.data || [];
   const isLoading = kanbanData?.isLoading || false;
-  const updateLead = kanbanData?.updateLead;
-  const deleteEtapa = kanbanData?.deleteEtapa;
-  const updateEtapa = kanbanData?.updateEtapa;
-  const refetchEtapas = kanbanData?.refetchEtapas || kanbanData?.refetch;
-
-  // Extrair handleDragEnd do hook de drag
-  const handleDragEnd = dragHook?.handleDragEnd;
+  const refetch = kanbanData?.refetch;
 
   if (isLoading) {
     return (
@@ -55,18 +48,13 @@ export const KanbanBoard = () => {
 
   return (
     <div className="h-full">
-      <DragDropContext onDragEnd={handleDragEnd || (() => {})}>
+      <DragDropContext onDragEnd={() => {}}>
         <div className="flex gap-6 overflow-x-auto pb-6 h-full">
           {etapas.map((etapa) => (
-            <KanbanColumn
-              key={etapa.id}
-              etapa={etapa}
-              leads={leadsPorEtapa[etapa.id] || []}
-              onUpdateLead={updateLead ? (lead) => updateLead(lead.id, lead) : () => {}}
-              onDeleteEtapa={deleteEtapa ? () => deleteEtapa(etapa.id) : () => {}}
-              onUpdateEtapa={updateEtapa ? () => updateEtapa(etapa.id, etapa) : () => {}}
-              onRefresh={refetchEtapas || (() => {})}
-            />
+            <div key={etapa.id} className="min-w-80 bg-gray-50 rounded-lg p-4">
+              <h3 className="font-semibold mb-4">{etapa.nome}</h3>
+              <p className="text-sm text-gray-500">Etapa do Kanban</p>
+            </div>
           ))}
         </div>
       </DragDropContext>
