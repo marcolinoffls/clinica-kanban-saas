@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Phone, Mail, User, MessageSquare, Tag, Briefcase, DollarSign, Check, X, Plus, Edit, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -86,23 +85,8 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
   const { services, addService } = useClinicServices();
   const updateLeadMutation = useUpdateLead();
 
-  // Hook para buscar apelidos de anúncios
-  const { data: adAliases = [] } = useQuery({
-    queryKey: ['ad-aliases'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('ad_aliases')
-        .select('*');
-      
-      if (error) {
-        console.error('❌ Erro ao buscar apelidos:', error);
-        return [];
-      }
-      
-      console.log('✅ Apelidos carregados da tabela:', data);
-      return data || [];
-    },
-  });
+  // Hook para buscar apelidos de anúncios - CORRIGIDO para usar o hook adequado
+  const { getAliasForAd } = useAdAliases();
 
   // Query para buscar histórico de consultas (simulado)
   const { data: consultasHistorico = [] } = useQuery({
@@ -128,40 +112,6 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
       ];
     },
   });
-  
-  const getAliasForAd = (adName: string): string | null => {
-    if (!adName || !adAliases.length) {
-      console.log('⚠️ Sem nome do anúncio ou sem apelidos');
-      return null;
-    }
-    
-    console.log('🔍 Procurando apelido para:', adName);
-    console.log('🔍 Apelidos disponíveis:', adAliases);
-    
-    // Buscar por correspondência exata
-    const exactMatch = adAliases.find((alias: any) => 
-      alias.ad_name_original === adName
-    );
-    
-    if (exactMatch) {
-      console.log('✅ Apelido exato encontrado:', exactMatch.ad_alias);
-      return exactMatch.ad_alias;
-    }
-    
-    // Buscar por correspondência parcial
-    const partialMatch = adAliases.find((alias: any) => 
-      alias.ad_name_original.includes(adName) || 
-      adName.includes(alias.ad_name_original)
-    );
-    
-    if (partialMatch) {
-      console.log('✅ Apelido parcial encontrado:', partialMatch.ad_alias);
-      return partialMatch.ad_alias;
-    }
-    
-    console.log('❌ Nenhum apelido encontrado');
-    return null;
-  };
 
   // Resetar o estado de edição sempre que o lead mudar
   useEffect(() => {
