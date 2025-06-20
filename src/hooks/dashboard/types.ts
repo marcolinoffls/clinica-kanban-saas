@@ -33,4 +33,37 @@ export interface DashboardMetrics {
    * NOVO CAMPO: Variação percentual para os leads com ad_name.
    */
   variacaoLeadsAdName: number;
+  
+  /**
+   * NOVOS CAMPOS: Métricas de tempo médio de resposta
+   */
+  tempoMedioResposta: {
+    // Tempo médio geral em minutos
+    tempoMedioMinutos: number;
+    // Tempo médio formatado para exibição (ex: "2h 15min")
+    tempoMedioFormatado: string;
+    // Classificação de performance (excelente, bom, regular, ruim)
+    classificacao: 'excelente' | 'bom' | 'regular' | 'ruim';
+    // Dados detalhados para análises
+    detalhes: {
+      // Apenas respostas humanas
+      tempoMedioHumano: number;
+      tempoMedioHumanoFormatado: string;
+      // Apenas respostas da IA
+      tempoMedioIA: number;
+      tempoMedioIAFormatado: string;
+      // Durante horário comercial
+      tempoMedioComercial: number;
+      tempoMedioComercialFormatado: string;
+      // Distribuição por faixas de tempo
+      distribuicao: {
+        ate30min: number;
+        de30mina1h: number;
+        de1ha4h: number;
+        acimaDe4h: number;
+      };
+    };
+    // Variação em relação ao período anterior
+    variacao: number;
+  };
 }
