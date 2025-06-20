@@ -1,7 +1,7 @@
 
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useLeads, Lead, useDeleteLead, useUpdateLead } from '@/hooks/useLeadsData';
+import { useLeads, Lead, useDeleteLead, useUpdateLead, useCreateLead } from '@/hooks/useLeadsData';
 import { useTags } from '@/hooks/useTagsData';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { FilterState, SortField, SortOrder } from '@/components/clients/types';
@@ -28,6 +28,7 @@ export const useClientsPage = () => {
   const { etapas = [] } = useSupabaseData();
   const deleteLeadMutation = useDeleteLead();
   const updateLeadMutation = useUpdateLead();
+  const createLeadMutation = useCreateLead();
 
   // Estados locais
   const [searchQuery, setSearchQuery] = useState('');
@@ -105,7 +106,12 @@ export const useClientsPage = () => {
     setSortOrder(sortField === field && sortOrder === 'asc' ? 'desc' : 'asc');
   };
 
-  const handleAddLead = () => navigate('/pipeline');
+  // CORRIGIDO: Função para abrir modal de novo lead ao invés de redirecionar
+  const handleAddLead = () => {
+    console.log('🆕 Abrindo modal para criar novo lead na página de contatos');
+    setSelectedLeadForEdit(null);
+    setIsLeadModalOpen(true);
+  };
 
   const handleClearFilters = () => {
     setFilters({ tag: '', origem: '', servico: '', dataInicio: undefined, dataFim: undefined });
@@ -128,15 +134,25 @@ export const useClientsPage = () => {
     }
   };
 
+  // CORRIGIDO: Função para salvar lead - tanto criar quanto editar
   const handleSaveLead = async (leadData: any) => {
-    if (!selectedLeadForEdit) return;
-    // Corrigido: usar as propriedades diretas ao invés de um objeto 'data'
-    await updateLeadMutation.mutateAsync({ 
-      id: selectedLeadForEdit.id, 
-      ...leadData 
-    });
-    setIsLeadModalOpen(false);
-    setSelectedLeadForEdit(null);
+    try {
+      if (selectedLeadForEdit) {
+        // Editando lead existente
+        await updateLeadMutation.mutateAsync({ 
+          id: selectedLeadForEdit.id, 
+          ...leadData 
+        });
+      } else {
+        // Criando novo lead
+        await createLeadMutation.mutateAsync(leadData);
+      }
+      setIsLeadModalOpen(false);
+      setSelectedLeadForEdit(null);
+    } catch (error) {
+      console.error('Erro ao salvar lead:', error);
+      throw error; // Permite que o modal trate o erro
+    }
   };
 
   const hasActiveFilters = Boolean(filters.tag || filters.origem || filters.servico || filters.dataInicio || filters.dataFim || searchQuery);
