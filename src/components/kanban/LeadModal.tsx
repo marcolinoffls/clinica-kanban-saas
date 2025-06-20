@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { useClinicServices } from '@/hooks/useClinicServices';
 
 /**
  * Modal aprimorado para criação e edição de leads
@@ -16,8 +15,6 @@ import { useClinicServices } from '@/hooks/useClinicServices';
  * - Seleção de etapa inicial do kanban ao criar lead
  * - Interface melhorada para seleção de etapa
  * - Suporte para pré-preenchimento de dados na criação de um novo lead (Partial<Lead>)
- * - Carregamento de serviços cadastrados da clínica
- * - Origem do lead como campo opcional
  */
 
 interface LeadModalProps {
@@ -43,10 +40,21 @@ const origensLead = [
   'Outros'
 ];
 
-export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory }: LeadModalProps) => {
-  // Hook para carregar serviços da clínica
-  const { services: servicosClinica, isLoading: loadingServices } = useClinicServices();
+// Opções para serviços de interesse
+const servicosInteresse = [
+  'Consulta de Avaliação',
+  'Implantes Dentários',
+  'Ortodontia',
+  'Clareamento Dental',
+  'Limpeza e Profilaxia',
+  'Restaurações',
+  'Próteses',
+  'Cirurgia Oral',
+  'Endodontia',
+  'Periodontia'
+];
 
+export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory }: LeadModalProps) => {
   // Estados do formulário com nova etapa
   const [formData, setFormData] = useState({
     nome: '',
@@ -111,7 +119,9 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory
       newErrors.telefone = 'Telefone é obrigatório';
     }
     
-    // Origem do lead agora é opcional - removida a validação
+    if (!formData.origem_lead) {
+      newErrors.origem_lead = 'Origem do lead é obrigatória';
+    }
     
     if (!formData.servico_interesse) {
       newErrors.servico_interesse = 'Serviço de interesse é obrigatório';
@@ -262,16 +272,16 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory
                   {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
                 </div>
 
-                {/* Origem do Lead - Agora opcional */}
+                {/* Origem do Lead */}
                 <div>
                   <Label htmlFor="origem" className="text-sm font-medium text-gray-700">
-                    Origem do Lead
+                    Origem do Lead <span className="text-red-500">*</span>
                   </Label>
                   <div className="relative mt-1">
                     <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                     <Select value={formData.origem_lead} onValueChange={(value) => handleInputChange('origem_lead', value)}>
-                      <SelectTrigger className="pl-10">
-                        <SelectValue placeholder="Selecione a origem (opcional)" />
+                      <SelectTrigger className={`pl-10 ${errors.origem_lead ? 'border-red-300' : ''}`}>
+                        <SelectValue placeholder="Selecione a origem" />
                       </SelectTrigger>
                       <SelectContent>
                         {origensLead.map((origem) => (
@@ -285,7 +295,7 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory
                   {errors.origem_lead && <p className="text-red-500 text-xs mt-1">{errors.origem_lead}</p>}
                 </div>
 
-                {/* Serviço de Interesse - Agora usando serviços da clínica */}
+                {/* Serviço de Interesse */}
                 <div>
                   <Label htmlFor="servico" className="text-sm font-medium text-gray-700">
                     Serviço de Interesse <span className="text-red-500">*</span>
@@ -297,30 +307,15 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory
                         <SelectValue placeholder="Selecione o serviço" />
                       </SelectTrigger>
                       <SelectContent>
-                        {loadingServices ? (
-                          <SelectItem value="loading" disabled>
-                            Carregando serviços...
+                        {servicosInteresse.map((servico) => (
+                          <SelectItem key={servico} value={servico}>
+                            {servico}
                           </SelectItem>
-                        ) : servicosClinica.length > 0 ? (
-                          servicosClinica.map((servico) => (
-                            <SelectItem key={servico.id} value={servico.nome_servico}>
-                              {servico.nome_servico}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="no-services" disabled>
-                            Nenhum serviço cadastrado
-                          </SelectItem>
-                        )}
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                   {errors.servico_interesse && <p className="text-red-500 text-xs mt-1">{errors.servico_interesse}</p>}
-                  {!loadingServices && servicosClinica.length === 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Configure os serviços da clínica em Configurações para ter opções aqui
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
@@ -406,7 +401,7 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory
             <Button
               type="button"
               variant="outline"
-              onClick={on Close}
+              onClick={onClose}
               disabled={isLoading}
             >
               Cancelar
