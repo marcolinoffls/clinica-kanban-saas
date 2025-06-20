@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare, Instagram } from 'lucide-react';
 import { MessageInput } from './MessageInput';
-import ChatWindow from './ChatWindow';
+import { ChatWindow } from './ChatWindow';
 import { LeadInfoSidebar } from './LeadInfoSidebar';
 import { FollowupButton } from '@/components/followup/FollowupButton';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
