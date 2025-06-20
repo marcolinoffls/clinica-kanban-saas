@@ -1,202 +1,100 @@
 
 /**
- * Componente para controlar acesso a recursos baseado no plano
+ * Componente para controlar acesso a funcionalidades baseado no plano
  * 
  * Este componente:
- * - Verifica se o usuário tem acesso ao recurso
- * - Mostra conteúdo ou mensagem de upgrade
- * - Oferece modal contextual para upgrade
- * - Pode bloquear ou apenas alertar sobre limites
+ * - Verifica se o usuário tem acesso a uma funcionalidade específica
+ * - Exibe um fallback quando o acesso é negado
+ * - Permite override para Admin
+ * - Integra com o sistema de planos e trial
  * 
- * Usado em toda aplicação para controlar funcionalidades
- * premium e incentivar upgrades de plano.
+ * Usado para proteger funcionalidades premium em toda a aplicação
  */
 
 import { ReactNode } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useFeatureAccess } from '@/hooks/useSubscription';
+import { AlertTriangle, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Lock, Crown, Zap } from 'lucide-react';
-import { useFeatureAccess, useTrialStatus } from '@/hooks/useSubscription';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface FeatureGuardProps {
-  feature: keyof Pick<typeof useFeatureAccess, 'ai_chat' | 'kanban' | 'basic_reports' | 'advanced_reports' | 'follow_up' | 'integrations' | 'priority_support'>;
+  feature: keyof FeatureAccess;
   children: ReactNode;
   fallback?: ReactNode;
   showUpgrade?: boolean;
-  blockAccess?: boolean;
 }
 
 export const FeatureGuard = ({ 
   feature, 
   children, 
   fallback, 
-  showUpgrade = true, 
-  blockAccess = true 
+  showUpgrade = true 
 }: FeatureGuardProps) => {
   const featureAccess = useFeatureAccess();
-  const trialStatus = useTrialStatus();
-
-  // Verificar se tem acesso ao recurso
-  const hasAccess = featureAccess[feature];
-
-  // Se tem acesso, mostrar conteúdo normalmente
-  if (hasAccess) {
-    return <>{children}</>;
-  }
-
-  // Se não deve bloquear acesso, mostrar conteúdo com aviso
-  if (!blockAccess) {
+  
+  // Se ainda está carregando dados do plano
+  if (!featureAccess) {
     return (
-      <div className="relative">
-        {/* Banner de upgrade sobreposto */}
-        <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-t-lg p-2">
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-2">
-              <Crown className="w-4 h-4 text-yellow-600" />
-              <span className="text-yellow-800">Recurso Premium</span>
-            </div>
-            {showUpgrade && (
-              <Button size="sm" variant="outline" className="h-6 text-xs">
-                Fazer Upgrade
-              </Button>
-            )}
-          </div>
-        </div>
-        <div className="pt-12">
-          {children}
-        </div>
+      <div className="flex items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
-  // Fallback customizado se fornecido
+  // Verificar se tem acesso à funcionalidade
+  const hasAccess = featureAccess[feature];
+
+  // Se tem acesso, mostrar o conteúdo
+  if (hasAccess) {
+    return <>{children}</>;
+  }
+
+  // Se foi fornecido um fallback customizado
   if (fallback) {
     return <>{fallback}</>;
   }
 
-  // Tela de bloqueio padrão
-  return (
-    <Card className="border-dashed border-2">
-      <CardContent className="p-8 text-center">
-        <div className="max-w-md mx-auto">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-8 h-8 text-gray-400" />
-          </div>
-          
-          <h3 className="text-lg font-semibold mb-2">Recurso Premium</h3>
-          <p className="text-gray-600 mb-4">
-            Este recurso está disponível apenas nos planos pagos.
-            {trialStatus.isInTrial && !trialStatus.hasExpired && (
-              <span className="block mt-2 text-sm">
-                Você ainda tem {trialStatus.daysRemaining} dias de trial restantes.
-              </span>
-            )}
-          </p>
-
-          <div className="flex flex-col gap-2 mb-4">
-            <Badge variant="outline" className="justify-center">
-              <Crown className="w-4 h-4 mr-2" />
-              Plano Básico ou Superior
-            </Badge>
-          </div>
-
-          {showUpgrade && (
-            <div className="space-y-2">
-              <Button className="w-full">
-                <Zap className="w-4 h-4 mr-2" />
-                Fazer Upgrade Agora
-              </Button>
-              <Button variant="outline" size="sm" className="w-full">
-                Ver Planos Disponíveis
-              </Button>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-// Hook de conveniência para verificar acesso rapidamente
-export const useHasFeature = (feature: keyof ReturnType<typeof useFeatureAccess>) => {
-  const featureAccess = useFeatureAccess();
-  return featureAccess[feature];
-};
-
-// Componente para verificar limites numéricos
-interface LimitGuardProps {
-  limit: 'max_leads' | 'max_users' | 'max_mensagens_mes';
-  currentUsage: number;
-  children: ReactNode;
-  warningThreshold?: number; // % do limite para mostrar aviso
-}
-
-export const LimitGuard = ({ 
-  limit, 
-  currentUsage, 
-  children, 
-  warningThreshold = 80 
-}: LimitGuardProps) => {
-  const featureAccess = useFeatureAccess();
-  const maxAllowed = featureAccess[limit];
-
-  // Se não há limite, liberar acesso
-  if (!maxAllowed) {
-    return <>{children}</>;
-  }
-
-  const usagePercentage = (currentUsage / maxAllowed) * 100;
-  const isOverLimit = currentUsage >= maxAllowed;
-  const isNearLimit = usagePercentage >= warningThreshold;
-
-  // Se ultrapassou o limite, bloquear
-  if (isOverLimit) {
+  // Fallback padrão com opção de upgrade
+  if (showUpgrade) {
     return (
-      <Card className="border-red-200 bg-red-50">
-        <CardContent className="p-6 text-center">
-          <div className="text-red-600 mb-4">
-            <Lock className="w-12 h-12 mx-auto mb-2" />
-            <h3 className="text-lg font-semibold">Limite Atingido</h3>
-            <p>
-              Você atingiu o limite de {maxAllowed.toLocaleString()} 
-              {limit === 'max_leads' && ' leads'}
-              {limit === 'max_users' && ' usuários'}
-              {limit === 'max_mensagens_mes' && ' mensagens por mês'}
-            </p>
+      <Card className="border-amber-200 bg-amber-50">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center text-amber-800">
+            <Crown className="w-5 h-5 mr-2" />
+            Funcionalidade Premium
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="default" className="border-amber-300 bg-amber-50">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-amber-800">
+              Esta funcionalidade está disponível apenas nos planos pagos. 
+              Faça upgrade para acessar todos os recursos.
+            </AlertDescription>
+          </Alert>
+          
+          <div className="mt-4 flex gap-2">
+            <Button variant="outline" size="sm" className="border-amber-300 text-amber-700 hover:bg-amber-100">
+              Ver Planos
+            </Button>
+            <Button size="sm" className="bg-amber-600 hover:bg-amber-700">
+              <Crown className="w-4 h-4 mr-2" />
+              Fazer Upgrade
+            </Button>
           </div>
-          <Button variant="destructive">
-            Fazer Upgrade para Continuar
-          </Button>
         </CardContent>
       </Card>
     );
   }
 
-  // Se próximo do limite, mostrar aviso
-  if (isNearLimit) {
-    return (
-      <div className="space-y-4">
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Crown className="w-5 h-5 text-yellow-600" />
-                <span className="text-sm font-medium text-yellow-800">
-                  Próximo do limite: {currentUsage}/{maxAllowed} ({Math.round(usagePercentage)}%)
-                </span>
-              </div>
-              <Button size="sm" variant="outline">
-                Upgrade
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-        {children}
-      </div>
-    );
-  }
-
-  // Uso normal
-  return <>{children}</>;
+  // Fallback minimalista sem botão de upgrade
+  return (
+    <Alert variant="default" className="border-gray-300">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertDescription>
+        Esta funcionalidade não está disponível no seu plano atual.
+      </AlertDescription>
+    </Alert>
+  );
 };

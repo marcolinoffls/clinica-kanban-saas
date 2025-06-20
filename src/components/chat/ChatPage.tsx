@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare, Instagram } from 'lucide-react';
 import { MessageInput } from './MessageInput';
@@ -10,7 +11,7 @@ import { useClinicaData } from '@/hooks/useClinicaData';
 import { useAIConversationControl } from '@/hooks/useAIConversationControl';
 import { useUpdateLeadAiConversationStatus, useCreateLead } from '@/hooks/useLeadsData';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Lead } from '@/hooks/useLeadsData';
+import { Lead } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
 import { HistoricoConsultasModal } from './HistoricoConsultasModal';
@@ -145,6 +146,14 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const updateLeadAiStatusMutation = useUpdateLeadAiConversationStatus();
   const createLeadMutation = useCreateLead();
 
+  // Hook para controle de IA
+  const { 
+    aiEnabled, 
+    toggleAI, 
+    isInitializing, 
+    isUpdating 
+  } = useAIConversationControl(selectedLeadId || '');
+
   const [selectedConversation, setSelectedConversation] = useState<string | null>(selectedLeadId || null);
   const [messageInput, setMessageInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -162,6 +171,9 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const [isHistoricoModalOpen, setIsHistoricoModalOpen] = useState(false);
   const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
   const [leadSourceForModal, setLeadSourceForModal] = useState<Lead | null>(null);
+
+  // Lead selecionado baseado na conversa atual
+  const selectedLead = leads.find(lead => lead.id === selectedConversation);
 
   // NOVO: Recarregar dados quando clínica selecionada muda
   useEffect(() => {
@@ -218,7 +230,8 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
    */
   const handleFileUploadAndSend = async (file: File) => {
     if (!selectedConversation) {
-      alert('Por favor, selecione uma conversa antes de enviar uma mídia.');
+      alert('Por favor, sel
+ecione uma conversa antes de enviar uma mídia.');
       console.error('[ChatPage] Tentativa de upload sem conversa selecionada.');
       return;
     }
@@ -476,7 +489,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
             </div>
           )}
           
-          {/* ... keep existing code (renderização da lista de leads) */}
+          {/* Lista de leads com conversas */}
           {leadsComMensagens.length > 0 ? (
             leadsComMensagens.map((lead) => {
               const mensagensNaoLidasCount = mensagensNaoLidas[lead.id] || 0;
