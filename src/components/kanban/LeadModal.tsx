@@ -406,7 +406,7 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory
             <Button
               type="button"
               variant="outline"
-              onClick={on Close}
+              onClick={onClose}
               disabled={isLoading}
             >
               Cancelar
