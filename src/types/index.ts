@@ -1,157 +1,144 @@
 
-/**
- * Tipos centralizados da aplicação
- * 
- * Este arquivo centraliza todas as interfaces e tipos utilizados
- * em toda a aplicação, evitando duplicação e erros de importação.
- */
+// Tipos centralizados do sistema
 
-// Interface principal do Lead (usada em toda aplicação)
-export interface Lead {
-  id: string;
-  nome: string | null;
-  telefone: string | null;
-  email: string | null;
-  etapa_kanban_id: string | null;
-  tag_id: string | null;
-  anotacoes: string | null;
-  origem_lead: string | null;
-  servico_interesse: string | null;
-  status_conversao: string | null;
-  convertido: boolean | null;
-  ltv: number | null;
-  data_ultimo_contato: string | null;
-  clinica_id: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-  follow_up_pausado: boolean | null;
-  data_ultimo_followup: string | null;
-  ai_conversation_enabled: boolean | null;
-  // Campos adicionais para compatibilidade
-  etapa_id: string | null;
-  avatar_url: string | null;
-  nome_clinica: string | null;
-  ad_name: string | null;
-  // Campos do Instagram/Direct
-  name: string | null;
-  phone: string | null;
-  notes: string | null;
-  anuncio: string | null;
-  id_direct: string | null;
-  meu_id_direct: string | null;
-  ad_ink: string | null;
-  tag_id_alias: string | null;
-}
-
-// Interface para criação de Lead
-export interface CreateLeadData {
-  nome?: string;
-  telefone?: string;
-  email?: string;
-  etapa_kanban_id?: string;
-  tag_id?: string;
-  anotacoes?: string;
-  origem_lead?: string;
-  servico_interesse?: string;
-  clinica_id: string;
-  follow_up_pausado?: boolean;
-  ai_conversation_enabled?: boolean;
-  ad_name?: string;
-}
-
-// Interface para atualização de Lead
-export interface UpdateLeadData extends Partial<CreateLeadData> {
-  id: string;
-  data_ultimo_followup?: string;
-}
-
-// Interface da Etapa Kanban
-export interface Etapa {
-  id: string;
-  nome: string;
-  ordem: number;
-  clinica_id: string | null;
-  created_at: string | null;
-}
-
-// Interface para criação de Etapa
-export interface CreateEtapaData {
-  nome: string;
-  ordem: number;
-  clinica_id: string;
-}
-
-// Interface para atualização de Etapa
-export interface UpdateEtapaData extends Partial<CreateEtapaData> {
-  id: string;
-}
-
-// Interfaces do Sistema de Planos
+// Interface para planos de assinatura
 export interface Plan {
   id: string;
   name: string;
   display_name: string;
-  description: string | null;
+  description: string;
   price_monthly: number;
   price_yearly: number;
-  max_leads: number | null;
-  max_users: number | null;
-  max_mensagens_mes: number | null;
-  features: Record<string, any>;
-  stripe_price_id_monthly: string | null;
-  stripe_price_id_yearly: string | null;
+  max_users: number;
+  max_leads: number;
+  max_mensagens_mes: number;
+  features: Record<string, any>; // Alterado de Json para Record<string, any>
   active: boolean;
-  trial_days: number;
   created_at: string;
   updated_at: string;
 }
 
+// Status de assinatura
+export type SubscriptionStatus = 'trial' | 'active' | 'canceled' | 'past_due' | 'unpaid';
+
+// Interface para assinaturas
 export interface Subscription {
   id: string;
   clinica_id: string;
   plan_id: string;
-  status: 'trial' | 'active' | 'canceled' | 'past_due' | 'unpaid';
-  stripe_subscription_id: string | null;
-  stripe_customer_id: string | null;
-  trial_start: string | null;
-  trial_end: string | null;
-  current_period_start: string | null;
-  current_period_end: string | null;
+  status: SubscriptionStatus; // Usando o tipo específico
+  current_period_start: string;
+  current_period_end: string;
+  trial_end: string;
   canceled_at: string | null;
   ended_at: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  created_at: string;
+  updated_at: string;
+  plans: Plan;
+}
+
+// Enum para acesso a funcionalidades
+export enum FeatureAccess {
+  GRANTED = 'granted',
+  DENIED = 'denied',
+  TRIAL = 'trial'
+}
+
+// Interface para leads
+export interface Lead {
+  id: string;
+  nome: string;
+  email?: string | null;
+  telefone?: string | null;
+  origem_lead?: string | null;
+  servico_interesse?: string | null;
+  anotacoes?: string | null;
+  data_ultimo_contato?: string | null;
+  convertido: boolean;
+  clinica_id: string;
+  etapa_id: string; // Campo obrigatório que estava faltando
+  tag_ids?: string[] | null;
+  avatar_url?: string | null;
+  anuncio?: string | null;
+  ad_name?: string | null;
+  ad_ink?: string | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  utm_term?: string | null;
+  utm_content?: string | null;
+  ai_conversation_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  nome_clinica?: string; // Para exibição Admin
+  etapas_kanban?: {
+    id: string;
+    nome: string;
+    cor: string;
+    ordem: number;
+  };
+}
+
+// Interface para etapas
+export interface Etapa {
+  id: string;
+  nome: string;
+  cor: string;
+  ordem: number;
+  clinica_id: string;
   created_at: string;
   updated_at: string;
 }
 
-export interface SubscriptionHistory {
+// Interface para tags
+export interface Tag {
   id: string;
-  subscription_id: string;
-  old_plan_id: string | null;
-  new_plan_id: string;
-  change_reason: string | null;
-  changed_by: string | null;
+  nome: string;
+  cor: string;
+  clinica_id: string;
   created_at: string;
+  updated_at: string;
 }
 
-// Interface para controle de recursos por plano
-export interface FeatureAccess {
-  ai_chat: boolean;
-  kanban: boolean;
-  basic_reports: boolean;
-  advanced_reports: boolean;
-  follow_up: boolean;
-  integrations: boolean;
-  priority_support: boolean;
-  // Limites numéricos
-  max_leads: number | null;
-  max_users: number | null;
-  max_mensagens_mes: number | null;
+// Interface para mensagens de chat
+export interface ChatMessage {
+  id: string;
+  lead_id: string;
+  clinica_id: string;
+  conteudo: string;
+  enviado_por: 'usuario' | 'lead' | 'ia';
+  tipo: 'texto' | 'imagem' | 'audio' | 'arquivo';
+  anexo_url?: string | null;
+  lida: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
-// Status do trial
-export interface TrialStatus {
-  isInTrial: boolean;
-  daysRemaining: number;
-  trialEndDate: Date | null;
-  hasExpired: boolean;
+// Interface para respostas prontas
+export interface RespostaPronta {
+  id: string;
+  titulo: string;
+  conteudo: string;
+  categoria?: string | null;
+  ativo: boolean;
+  clinica_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Interface para dados de mensagem no chat
+export interface MessageData {
+  type: string;
+  content: string;
+  anexoUrl?: string;
+  aiEnabled?: boolean;
+}
+
+// Interface para clínica básica (usado no seletor de Admin)
+export interface ClinicaBasica {
+  id: string;
+  nome: string;
+  status: string;
 }

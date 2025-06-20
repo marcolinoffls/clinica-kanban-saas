@@ -1,4 +1,3 @@
-
 /**
  * Componente para controlar acesso a funcionalidades baseado no plano
  * 
@@ -17,6 +16,7 @@ import { AlertTriangle, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FeatureAccess } from '@/types';
 
 interface FeatureGuardProps {
   feature: keyof FeatureAccess;
