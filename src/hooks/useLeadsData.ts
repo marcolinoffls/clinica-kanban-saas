@@ -1,8 +1,9 @@
+
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Lead } from '@/types';
 import { toast } from 'sonner';
 import { useClinicaData } from './useClinicaData';
+import type { Lead, CreateLeadData, UpdateLeadData } from '@/types';
 
 /**
  * Hook para criar um novo lead
@@ -69,7 +70,7 @@ export const useUpdateLeadAiConversationStatus = () => {
     mutationFn: async ({ leadId, enabled }: { leadId: string; enabled: boolean }) => {
       const { data, error } = await supabase
         .from('leads')
-        .update({ ai_enabled: enabled })
+        .update({ ai_conversation_enabled: enabled })
         .eq('id', leadId)
         .select()
         .single();
@@ -91,23 +92,15 @@ export const useUpdateLeadAiConversationStatus = () => {
 };
 
 /**
- * MODIFICADO: Hook principal para buscar leads
- * 
- * Agora aceita um parâmetro opcional clinicaIdFilter para filtrar leads por clínica:
- * - Se clinicaIdFilter for fornecido: busca leads apenas dessa clínica
- * - Se clinicaIdFilter for null: busca leads de todas as clínicas (modo Admin)
- * - Se clinicaIdFilter for undefined: usa o comportamento padrão (clinica do usuário)
+ * Hook principal para buscar leads
  */
 export const useLeads = (clinicaIdFilter?: string | null) => {
   const { clinicaId } = useClinicaData();
   
-  // Determinar qual clinica_id usar para a query
   const effectiveClinicaId = (() => {
     if (clinicaIdFilter !== undefined) {
-      // Se foi passado um filtro explícito
-      return clinicaIdFilter; // null para "todas", string para clínica específica
+      return clinicaIdFilter;
     } else {
-      // Comportamento padrão: usar clínica do usuário
       return clinicaId;
     }
   })();
@@ -127,11 +120,9 @@ export const useLeads = (clinicaIdFilter?: string | null) => {
         `)
         .order('updated_at', { ascending: false });
 
-      // Aplicar filtro de clínica se especificado
       if (effectiveClinicaId !== null) {
         query = query.eq('clinica_id', effectiveClinicaId);
       }
-      // Se effectiveClinicaId for null, não aplica filtro (busca todas as clínicas)
 
       const { data, error } = await query;
 
@@ -143,7 +134,67 @@ export const useLeads = (clinicaIdFilter?: string | null) => {
       console.log(`[useLeads] ✅ ${data?.length || 0} leads encontrados`);
       return data || [];
     },
-    enabled: effectiveClinicaId !== undefined, // Só executa se tiver clinica definida ou null explícito
-    staleTime: 30000, // 30 segundos
+    enabled: effectiveClinicaId !== undefined,
+    staleTime: 30000,
   });
 };
+
+/**
+ * Hook para deletar lead
+ */
+export const useDeleteLead = () => {
+  return useMutation({
+    mutationFn: async (leadId: string) => {
+      const { error } = await supabase
+        .from('leads')
+        .delete()
+        .eq('id', leadId);
+
+      if (error) {
+        console.error('Erro ao deletar lead:', error);
+        throw new Error(error.message);
+      }
+    },
+    onSuccess: () => {
+      toast.success('Lead deletado com sucesso!');
+    },
+    onError: (error: any) => {
+      toast.error(`Erro ao deletar lead: ${error.message}`);
+    },
+  });
+};
+
+/**
+ * Hook para mover lead para outra etapa
+ */
+export const useMoveLeadToStage = () => {
+  return useMutation({
+    mutationFn: async ({ leadId, etapaId }: { leadId: string; etapaId: string }) => {
+      const { data, error } = await supabase
+        .from('leads')
+        .update({ 
+          etapa_kanban_id: etapaId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', leadId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Erro ao mover lead:', error);
+        throw new Error(error.message);
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Lead movido com sucesso!');
+    },
+    onError: (error: any) => {
+      toast.error(`Erro ao mover lead: ${error.message}`);
+    },
+  });
+};
+
+// Exportar tipos para compatibilidade
+export type { Lead, CreateLeadData, UpdateLeadData };
