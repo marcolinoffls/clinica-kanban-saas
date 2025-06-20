@@ -6,6 +6,7 @@ import { DashboardCharts } from './DashboardCharts';
 import { DashboardInsights } from './DashboardInsights';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useLeads } from '@/hooks/useSupabaseLeads';
+import { ResponseTimeCard } from './ResponseTimeCard';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 
 /**
@@ -88,9 +89,22 @@ export const Dashboard = () => {
         currentFilter={currentFilter}
       />
 
-      {/* Grid de cartões de métricas */}
-      <DashboardMetrics dashboardData={dashboardData} />
-
+      {/* Grid de cartões de métricas com ResponseTime */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Métricas principais */}
+        <div className="col-span-1 md:col-span-2 lg:col-span-3">
+          <DashboardMetrics dashboardData={dashboardData} />
+        </div>
+        
+        {/* Card de Tempo de Resposta */}
+        {dashboardData?.tempoMedioResposta && (
+          <div className="col-span-1">
+            <ResponseTimeCard 
+              tempoMedioResposta={dashboardData.tempoMedioResposta}
+            />
+          </div>
+        )}
+      </div>
       {/* Seção de gráficos */}
       <DashboardCharts 
         dashboardData={dashboardData}
