@@ -1,4 +1,3 @@
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -32,26 +31,47 @@ export interface CreateTagData {
 }
 
 // Hook para buscar todas as tags da clínica do usuário
-export const useTags = () => {
-  return useQuery({
-    queryKey: ['tags'],
-    queryFn: async (): Promise<Tag[]> => {
-      console.log('🔍 Buscando tags da clínica do usuário...');
+export const useTags = (clinicaIdFilter?: string | null) => {
+  const { clinicaId } = useClinicaData();
+  
+  // Determinar qual clinica_id usar para a query
+  const effectiveClinicaId = (() => {
+    if (clinicaIdFilter !== undefined) {
+      return clinicaIdFilter;
+    } else {
+      return clinicaId;
+    }
+  })();
 
-      const { data, error } = await supabase
+  console.log('[useTags] Filtro de clínica:', { clinicaIdFilter, clinicaId, effectiveClinicaId });
+
+  return useQuery({
+    queryKey: ['tags', effectiveClinicaId],
+    queryFn: async () => {
+      console.log('[useTags] Buscando tags para clínica:', effectiveClinicaId || 'todas');
+      
+      let query = supabase
         .from('tags')
         .select('*')
-        .order('nome', { ascending: true });
+        .order('nome');
 
-      if (error) {
-        console.error('❌ Erro ao buscar tags:', error);
-        throw new Error(`Erro ao buscar tags: ${error.message}`);
+      // Aplicar filtro de clínica se especificado
+      if (effectiveClinicaId !== null) {
+        query = query.eq('clinica_id', effectiveClinicaId);
       }
 
-      console.log(`✅ ${data?.length || 0} tags encontradas`);
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('[useTags] Erro ao buscar tags:', error);
+        throw error;
+      }
+
+      console.log(`[useTags] ✅ ${data?.length || 0} tags encontradas`);
       return data || [];
     },
-    staleTime: 30000, // Cache por 30 segundos
+    enabled: effectiveClinicaId !== undefined,
+    staleTime: 60000, // 1 minuto
   });
 };
 

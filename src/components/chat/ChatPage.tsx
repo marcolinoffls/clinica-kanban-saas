@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare, Instagram } from 'lucide-react';
 import { MessageInput } from './MessageInput';
@@ -17,19 +16,28 @@ import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgen
 import { HistoricoConsultasModal } from './HistoricoConsultasModal';
 import { LeadModal } from '@/components/kanban/LeadModal';
 import { toast } from 'sonner';
+import { useAuthUser } from '@/hooks/useAuthUser';
+import { useAllClinicas } from '@/hooks/useAllClinicas';
+import { ClinicSelector } from './ClinicSelector';
 
 /**
  * Página principal do chat com funcionalidades de mídia
  * 
- * Funcionalidades:
+ * NOVA FUNCIONALIDADE - Seleção de clínicas para Admin:
+ * - Admin pode visualizar conversas de qualquer clínica
+ * - Usuários normais veem apenas sua própria clínica
+ * - Filtro dinâmico de leads baseado na clínica selecionada
+ * - Interface condicional baseada no tipo de usuário
+ * 
+ * Funcionalidades existentes:
  * - Chat de texto tradicional
  * - Upload e envio de imagens e áudios via MinIO
  * - Integração com IA
  * - Webhook para notificações
  * - Estados de carregamento para uploads
  * - Botão de follow-up manual integrado
- * - Ordenação de contatos por última mensagem (NOVO)
- * - Ícones de origem do lead (WhatsApp/Instagram) (NOVO)
+ * - Ordenação de contatos por última mensagem
+ * - Ícones de origem do lead (WhatsApp/Instagram)
  */
 
 interface ChatPageProps {
@@ -95,8 +103,33 @@ const getOrigemIcon = (origem: string | null | undefined) => {
 };
 
 export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
-  const { clinicaId } = useClinicaData(); // Obtém o ID da clínica diretamente
+  // NOVO: Hooks para controle de Admin e seleção de clínicas
+  const { isAdmin } = useAuthUser();
+  const { clinicas, loading: loadingClinicas } = useAllClinicas();
+  const [selectedClinicaId, setSelectedClinicaId] = useState<string>('all');
 
+  // Hook original para dados da clínica do usuário
+  const { clinicaId } = useClinicaData();
+
+  // Determinar qual clinica_id usar baseado no tipo de usuário e seleção
+  const effectiveClinicaId = (() => {
+    if (isAdmin()) {
+      // Admin: usar clínica selecionada ou null para "todas"
+      return selectedClinicaId === 'all' ? null : selectedClinicaId;
+    } else {
+      // Usuário normal: usar sempre sua própria clínica
+      return clinicaId;
+    }
+  })();
+
+  console.log('[ChatPage] Controle de clínica:', {
+    isAdmin: isAdmin(),
+    selectedClinicaId,
+    clinicaId,
+    effectiveClinicaId
+  });
+
+  // MODIFICADO: useSupabaseData agora recebe clinica_id filtrado
   const {
     leads,
     etapas,
@@ -106,7 +139,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     mensagensNaoLidas,
     marcarMensagensComoLidas,
     loading
-  } = useSupabaseData();
+  } = useSupabaseData(effectiveClinicaId);
 
   const { enviarWebhook } = useWebhook();
   const updateLeadAiStatusMutation = useUpdateLeadAiConversationStatus();
@@ -121,7 +154,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // Estado para armazenar última mensagem de cada lead (NOVO)
+  // Estado para armazenar última mensagem de cada lead
   const [ultimasMensagens, setUltimasMensagens] = useState<Record<string, string>>({});
 
   // Novos estados para os modais
@@ -130,79 +163,16 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
   const [leadSourceForModal, setLeadSourceForModal] = useState<Lead | null>(null);
 
-  const selectedLead = leads.find(l => l.id === selectedConversation) || null;
-
-  const { aiEnabled, toggleAI, isInitializing, isUpdating } = useAIConversationControl({
-    selectedLead,
-    updateLeadAiConversationStatus: async (params: { leadId: string; aiEnabled: boolean }) => {
-      // Converter parâmetros para o formato esperado pelo hook
-      return await updateLeadAiStatusMutation.mutateAsync({
-        leadId: params.leadId,
-        enabled: params.aiEnabled
-      });
-    }
-  });
-
-  // Função para buscar última mensagem de cada lead (NOVO)
-  const buscarUltimasMensagens = async () => {
-    if (!clinicaId) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('chat_mensagens')
-        .select('lead_id, created_at')
-        .eq('clinica_id', clinicaId)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Erro ao buscar últimas mensagens:', error);
-        return;
-      }
-
-      // Criar um mapa com a data da última mensagem de cada lead
-      const ultimasMap: Record<string, string> = {};
-      data?.forEach((msg) => {
-        if (!ultimasMap[msg.lead_id]) {
-          ultimasMap[msg.lead_id] = msg.created_at;
-        }
-      });
-
-      setUltimasMensagens(ultimasMap);
-    } catch (error) {
-      console.error('Erro ao buscar últimas mensagens:', error);
-    }
-  };
-
-  // Configurar subscription para atualizações em tempo real das mensagens (NOVO)
+  // NOVO: Recarregar dados quando clínica selecionada muda
   useEffect(() => {
-    if (!clinicaId) return;
-
-    buscarUltimasMensagens();
-
-    const channel = supabase
-      .channel('chat-messages-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_mensagens',
-          filter: `clinica_id=eq.${clinicaId}`
-        },
-        (payload) => {
-          const novaMensagem = payload.new as any;
-          setUltimasMensagens(prev => ({
-            ...prev,
-            [novaMensagem.lead_id]: novaMensagem.created_at
-          }));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [clinicaId]);
+    if (isAdmin()) {
+      console.log(`[ChatPage] Admin mudou seleção de clínica para: ${selectedClinicaId}`);
+      // Limpar conversa selecionada ao trocar de clínica
+      setSelectedConversation(null);
+      // Limpar termo de busca
+      setSearchTerm('');
+    }
+  }, [selectedClinicaId, isAdmin]);
 
   useEffect(() => {
     if (selectedLeadId) {
@@ -450,12 +420,14 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     setLeadSourceForModal(null);
   };
 
-  if (loading) {
+  if (loading || (isAdmin() && loadingClinicas)) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-500">Carregando conversas...</p>
+          <p className="text-gray-500">
+            {isAdmin() ? 'Carregando sistema admin...' : 'Carregando conversas...'}
+          </p>
         </div>
       </div>
     );
@@ -467,7 +439,20 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       <div className="w-80 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
         {/* Header da lista */}
         <div className="p-4 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-xl font-semibold text-gray-900 mb-3">Conversas</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-3">
+            {isAdmin() ? 'Conversas - Admin' : 'Conversas'}
+          </h2>
+          
+          {/* NOVO: Seletor de clínicas para Admin */}
+          {isAdmin() && (
+            <ClinicSelector
+              selectedClinicaId={selectedClinicaId}
+              onClinicaChange={setSelectedClinicaId}
+              clinicas={clinicas}
+              loading={loadingClinicas}
+            />
+          )}
+          
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
             <input
@@ -482,10 +467,19 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
         {/* Lista de conversas com rolagem própria */}
         <div className="flex-1 overflow-y-auto">
+          {/* MODIFICADO: Adicionar indicador quando Admin está visualizando "todas" */}
+          {isAdmin() && selectedClinicaId === 'all' && leads.length > 0 && (
+            <div className="p-2 bg-blue-50 border-b border-blue-100">
+              <p className="text-xs text-blue-600 text-center">
+                📊 Visualizando todas as clínicas ({leads.length} conversas)
+              </p>
+            </div>
+          )}
+          
+          {/* ... keep existing code (renderização da lista de leads) */}
           {leadsComMensagens.length > 0 ? (
             leadsComMensagens.map((lead) => {
               const mensagensNaoLidasCount = mensagensNaoLidas[lead.id] || 0;
-              // Usar a data da última mensagem do estado ou fallback para data_ultimo_contato
               const ultimaMensagemData = ultimasMensagens[lead.id] || lead.data_ultimo_contato || lead.updated_at;
               
               return (
@@ -504,7 +498,6 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                           {lead.nome ? lead.nome.charAt(0).toUpperCase() : '?'}
                         </AvatarFallback>
                       </Avatar>
-                      {/* Ícone da origem do lead (NOVO) */}
                       {getOrigemIcon(lead.origem_lead)}
                     </div>
 
@@ -520,6 +513,12 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                           mensagensNaoLidasCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-900'
                         }`}>
                           {lead.nome || 'Lead sem nome'}
+                          {/* NOVO: Mostrar nome da clínica para Admin visualizando "todas" */}
+                          {isAdmin() && selectedClinicaId === 'all' && lead.nome_clinica && (
+                            <span className="ml-2 text-xs text-gray-500 font-normal">
+                              ({lead.nome_clinica})
+                            </span>
+                          )}
                         </h4>
                         <span className="text-xs text-gray-500 flex-shrink-0">
                           {formatTime(ultimaMensagemData)}
@@ -543,7 +542,12 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           ) : (
             <div className="p-8 text-center">
               <MessageSquare size={32} className="text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Nenhuma conversa encontrada</p>
+              <p className="text-gray-500">
+                {isAdmin() && selectedClinicaId === 'all' 
+                  ? 'Nenhuma conversa encontrada em todas as clínicas'
+                  : 'Nenhuma conversa encontrada'
+                }
+              </p>
             </div>
           )}
         </div>
@@ -563,12 +567,17 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                       {selectedLead.nome ? selectedLead.nome.charAt(0).toUpperCase() : '?'}
                     </AvatarFallback>
                   </Avatar>
-                  {/* Ícone da origem no header também (NOVO) */}
                   {getOrigemIcon(selectedLead.origem_lead)}
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-semibold text-gray-900 truncate">
                     {selectedLead.nome || 'Lead sem nome'}
+                    {/* NOVO: Mostrar clínica no header para Admin */}
+                    {isAdmin() && selectedLead.nome_clinica && (
+                      <span className="ml-2 text-sm text-gray-500 font-normal">
+                        - {selectedLead.nome_clinica}
+                      </span>
+                    )}
                   </h3>
                   <p className="text-sm text-gray-500 truncate">
                     {formatPhoneNumber(selectedLead.telefone)}
@@ -635,7 +644,10 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                 Selecione uma conversa
               </h3>
               <p className="text-gray-500">
-                Escolha uma conversa para começar a mensagear
+                {isAdmin() 
+                  ? 'Escolha uma conversa para começar a mensagear (modo Admin)'
+                  : 'Escolha uma conversa para começar a mensagear'
+                }
               </p>
             </div>
           </div>
