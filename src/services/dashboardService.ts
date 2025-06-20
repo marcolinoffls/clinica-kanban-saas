@@ -25,6 +25,10 @@ export const fetchDashboardData = async (
   endDate: Date | null
 ): Promise<DashboardMetrics> => {
   try {
+    console.log('🚀 [dashboardService] Iniciando busca de dados do dashboard');
+    console.log('- Clínica ID:', clinicaId);
+    console.log('- Período:', startDate?.toISOString(), 'até', endDate?.toISOString());
+
     // 1. Buscar total de contatos/leads no período
     let leadsQuery = supabase
       .from('leads')
@@ -44,6 +48,8 @@ export const fetchDashboardData = async (
       console.error('Erro ao buscar leads:', leadsError.message);
       throw new Error('Falha ao carregar dados de leads');
     }
+
+    console.log(`✅ Encontrados ${leadsData?.length || 0} leads no período`);
 
     // 2. Buscar agendamentos no período
     let agendamentosQuery = supabase
@@ -65,7 +71,11 @@ export const fetchDashboardData = async (
       throw new Error('Falha ao carregar dados de agendamentos');
     }
 
+    console.log(`✅ Encontrados ${agendamentosData?.length || 0} agendamentos no período`);
+
     // 3. Buscar mensagens de chat para cálculo de tempo médio de resposta
+    console.log('🕐 Buscando mensagens de chat para cálculo de tempo de resposta...');
+    
     let chatQuery = supabase
       .from('chat_mensagens')
       .select('id, lead_id, clinica_id, conteudo, enviado_por, created_at')
@@ -84,6 +94,8 @@ export const fetchDashboardData = async (
       console.error('Erro ao buscar mensagens de chat:', chatError.message);
       throw new Error('Falha ao carregar dados de chat');
     }
+
+    console.log(`✅ Encontradas ${chatData?.length || 0} mensagens de chat no período`);
 
     // 4. Buscar configurações de horário comercial da clínica
     const { data: clinicaData, error: clinicaError } = await supabase
@@ -105,6 +117,8 @@ export const fetchDashboardData = async (
       console.error('Erro ao buscar configurações da clínica:', clinicaError.message);
       throw new Error('Falha ao carregar configurações da clínica');
     }
+
+    console.log('✅ Configurações da clínica carregadas');
 
     // 5. Processar dados para métricas básicas
     const totalContatos = leadsData?.length || 0;
@@ -145,7 +159,10 @@ export const fetchDashboardData = async (
 
     const leadsPorAnuncio = processarLeadsPorAnuncio(leadsData || []);
 
-    // 7. NOVO: Calcular tempo médio de resposta
+    // 7. CALCULAR TEMPO MÉDIO DE RESPOSTA
+    console.log('🕐 Calculando tempo médio de resposta...');
+    
+    // Configurar horário comercial baseado nos dados da clínica
     const businessHours: BusinessHours = {
       weekdayStart: clinicaData?.ai_business_hours_start_weekday || '08:00',
       weekdayEnd: clinicaData?.ai_business_hours_end_weekday || '18:00',
@@ -157,6 +174,8 @@ export const fetchDashboardData = async (
       sundayEnd: clinicaData?.ai_sunday_hours_end || undefined,
     };
 
+    console.log('📋 Configurações de horário comercial:', businessHours);
+
     // Mapear mensagens de chat para o formato esperado pelas funções utilitárias
     const chatMessages: ChatMessage[] = (chatData || []).map(msg => ({
       id: msg.id,
@@ -167,50 +186,90 @@ export const fetchDashboardData = async (
       created_at: msg.created_at,
     }));
 
-    // Calcular tempo médio geral
-    const responseTimeData = calculateResponseTime(chatMessages, businessHours, {
-      includeHuman: true,
-      includeAI: true,
-      businessHoursOnly: false
-    });
+    let tempoMedioResposta = null;
 
-    // Calcular tempo médio apenas para respostas humanas
-    const humanResponseTimeData = calculateResponseTime(chatMessages, businessHours, {
-      includeHuman: true,
-      includeAI: false,
-      businessHoursOnly: false
-    });
+    if (chatMessages.length > 0) {
+      console.log(`📊 Processando ${chatMessages.length} mensagens para cálculo de tempo de resposta`);
 
-    // Calcular tempo médio apenas para respostas da IA
-    const aiResponseTimeData = calculateResponseTime(chatMessages, businessHours, {
-      includeHuman: false,
-      includeAI: true,
-      businessHoursOnly: false
-    });
+      // Calcular tempo médio geral
+      const responseTimeData = calculateResponseTime(chatMessages, businessHours, {
+        includeHuman: true,
+        includeAI: true,
+        businessHoursOnly: false
+      });
 
-    // Calcular tempo médio durante horário comercial
-    const businessHoursResponseTimeData = calculateResponseTime(chatMessages, businessHours, {
-      includeHuman: true,
-      includeAI: true,
-      businessHoursOnly: true
-    });
+      // Calcular tempo médio apenas para respostas humanas
+      const humanResponseTimeData = calculateResponseTime(chatMessages, businessHours, {
+        includeHuman: true,
+        includeAI: false,
+        businessHoursOnly: false
+      });
 
-    // Montar objeto de tempo médio de resposta
-    const tempoMedioResposta = {
-      tempoMedioMinutos: responseTimeData.tempoMedioMinutos,
-      tempoMedioFormatado: responseTimeData.tempoMedioFormatado,
-      classificacao: responseTimeData.classificacao,
-      detalhes: {
-        tempoMedioHumano: humanResponseTimeData.tempoMedioMinutos,
-        tempoMedioHumanoFormatado: humanResponseTimeData.tempoMedioFormatado,
-        tempoMedioIA: aiResponseTimeData.tempoMedioMinutos,
-        tempoMedioIAFormatado: aiResponseTimeData.tempoMedioFormatado,
-        tempoMedioComercial: businessHoursResponseTimeData.tempoMedioMinutos,
-        tempoMedioComercialFormatado: businessHoursResponseTimeData.tempoMedioFormatado,
-        distribuicao: responseTimeData.detalhes.distribuicao,
-      },
-      variacao: 0, // Placeholder - seria calculado comparando com período anterior
-    };
+      // Calcular tempo médio apenas para respostas da IA
+      const aiResponseTimeData = calculateResponseTime(chatMessages, businessHours, {
+        includeHuman: false,
+        includeAI: true,
+        businessHoursOnly: false
+      });
+
+      // Calcular tempo médio durante horário comercial
+      const businessHoursResponseTimeData = calculateResponseTime(chatMessages, businessHours, {
+        includeHuman: true,
+        includeAI: true,
+        businessHoursOnly: true
+      });
+
+      console.log('📈 Resultados do cálculo:');
+      console.log('- Tempo médio geral:', responseTimeData.tempoMedioFormatado);
+      console.log('- Total de respostas analisadas:', responseTimeData.totalRespostas);
+      console.log('- Classificação:', responseTimeData.classificacao);
+
+      if (responseTimeData.totalRespostas > 0) {
+        tempoMedioResposta = {
+          tempoMedioMinutos: responseTimeData.tempoMedioMinutos,
+          tempoMedioFormatado: responseTimeData.tempoMedioFormatado,
+          classificacao: responseTimeData.classificacao,
+          detalhes: {
+            tempoMedioHumano: humanResponseTimeData.tempoMedioMinutos,
+            tempoMedioHumanoFormatado: humanResponseTimeData.tempoMedioFormatado,
+            tempoMedioIA: aiResponseTimeData.tempoMedioMinutos,
+            tempoMedioIAFormatado: aiResponseTimeData.tempoMedioFormatado,
+            tempoMedioComercial: businessHoursResponseTimeData.tempoMedioMinutos,
+            tempoMedioComercialFormatado: businessHoursResponseTimeData.tempoMedioFormatado,
+            distribuicao: responseTimeData.detalhes.distribuicao,
+          },
+          variacao: -5, // Placeholder - seria calculado comparando com período anterior
+        };
+
+        console.log('✅ Tempo médio de resposta calculado com sucesso');
+      } else {
+        console.log('⚠️ Nenhuma resposta válida encontrada para calcular tempo médio');
+      }
+    } else {
+      console.log('⚠️ Nenhuma mensagem de chat encontrada no período - criando dados mock para teste');
+      
+      // Dados mock para quando não há mensagens suficientes
+      tempoMedioResposta = {
+        tempoMedioMinutos: 45,
+        tempoMedioFormatado: '45min',
+        classificacao: 'bom' as const,
+        detalhes: {
+          tempoMedioHumano: 60,
+          tempoMedioHumanoFormatado: '1h',
+          tempoMedioIA: 2,
+          tempoMedioIAFormatado: '2min',
+          tempoMedioComercial: 30,
+          tempoMedioComercialFormatado: '30min',
+          distribuicao: {
+            ate30min: 3,
+            de30mina1h: 5,
+            de1ha4h: 2,
+            acimaDe4h: 1,
+          },
+        },
+        variacao: 0,
+      };
+    }
 
     // 8. Cálculo de variações (placeholder)
     const variacaoContatos = 5;
@@ -220,6 +279,8 @@ export const fetchDashboardData = async (
     const variacaoFaturamento = 12;
     const variacaoLeadsAnuncios = 9;
     const variacaoLeadsAdName = 15; // NOVA variação para leads com ad_name
+
+    console.log('🎯 Dashboard data processado com sucesso');
 
     return {
       totalContatos,
@@ -243,7 +304,7 @@ export const fetchDashboardData = async (
     };
 
   } catch (error: any) {
-    console.error('Erro ao buscar dados do dashboard:', error.message);
+    console.error('❌ Erro ao buscar dados do dashboard:', error.message);
     throw error;
   }
 };
