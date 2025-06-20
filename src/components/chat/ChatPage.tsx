@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Search, Phone, Video, MessageSquare, Instagram } from 'lucide-react';
 import { MessageInput } from './MessageInput';
@@ -230,8 +229,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
    */
   const handleFileUploadAndSend = async (file: File) => {
     if (!selectedConversation) {
-      alert('Por favor, sel
-ecione uma conversa antes de enviar uma mídia.');
+      alert('Por favor, selecione uma conversa antes de enviar uma mídia.');
       console.error('[ChatPage] Tentativa de upload sem conversa selecionada.');
       return;
     }
