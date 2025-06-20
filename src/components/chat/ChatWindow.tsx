@@ -4,6 +4,7 @@ import { Send, Paperclip, MoreVertical, Phone, Calendar, Clock } from 'lucide-re
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSupabaseChat } from '@/hooks/useSupabaseChat';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { formatDistanceToNow, format, isToday, isYesterday, isSameWeek, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -61,18 +62,39 @@ const shouldShowDateSeparator = (currentMessage: any, previousMessage: any): boo
 const ChatWindow = ({ leadId, onScheduleConsult, onMakeCall }: ChatWindowProps) => {
   const [inputMessage, setInputMessage] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [lead, setLead] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const {
-    messages = [],
-    lead,
-    isLoading,
-    sendMessage,
-    sendFile,
-    markAsRead,
-    isConnected
-  } = useSupabaseChat(leadId);
+  // Hooks do Supabase
+  const chatHook = useSupabaseChat();
+  const { leads } = useSupabaseData();
+
+  // Buscar lead específico
+  useEffect(() => {
+    if (leadId && leads.length > 0) {
+      const foundLead = leads.find(l => l.id === leadId);
+      setLead(foundLead || null);
+    }
+  }, [leadId, leads]);
+
+  // Buscar mensagens do lead
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (leadId && chatHook.buscarMensagensLead) {
+        try {
+          const leadMessages = await chatHook.buscarMensagensLead(leadId);
+          setMessages(leadMessages || []);
+        } catch (error) {
+          console.error('Erro ao buscar mensagens:', error);
+          setMessages([]);
+        }
+      }
+    };
+
+    fetchMessages();
+  }, [leadId, chatHook.buscarMensagensLead]);
 
   // Scroll para o final quando novas mensagens chegarem
   useEffect(() => {
@@ -81,17 +103,21 @@ const ChatWindow = ({ leadId, onScheduleConsult, onMakeCall }: ChatWindowProps) 
 
   // Marcar mensagens como lidas quando o chat for aberto
   useEffect(() => {
-    if (leadId && messages.length > 0) {
-      markAsRead();
+    if (leadId && messages.length > 0 && chatHook.marcarMensagensComoLidas) {
+      chatHook.marcarMensagensComoLidas(leadId);
     }
-  }, [leadId, messages.length, markAsRead]);
+  }, [leadId, messages.length, chatHook.marcarMensagensComoLidas]);
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || !leadId) return;
+    if (!inputMessage.trim() || !leadId || !chatHook.enviarMensagem) return;
 
     try {
-      await sendMessage(inputMessage.trim());
+      await chatHook.enviarMensagem(leadId, inputMessage.trim(), 'texto');
       setInputMessage('');
+      
+      // Recarregar mensagens após envio
+      const updatedMessages = await chatHook.buscarMensagensLead(leadId);
+      setMessages(updatedMessages || []);
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
     }
@@ -106,11 +132,16 @@ const ChatWindow = ({ leadId, onScheduleConsult, onMakeCall }: ChatWindowProps) 
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !leadId) return;
+    if (!file || !leadId || !chatHook.enviarMensagem) return;
 
     setIsUploading(true);
     try {
-      await sendFile(file);
+      // Por enquanto, apenas enviar o nome do arquivo como mensagem
+      await chatHook.enviarMensagem(leadId, `Arquivo: ${file.name}`, 'arquivo');
+      
+      // Recarregar mensagens após envio
+      const updatedMessages = await chatHook.buscarMensagensLead(leadId);
+      setMessages(updatedMessages || []);
     } catch (error) {
       console.error('Erro ao enviar arquivo:', error);
     } finally {
@@ -153,7 +184,7 @@ const ChatWindow = ({ leadId, onScheduleConsult, onMakeCall }: ChatWindowProps) 
     );
   }
 
-  if (isLoading) {
+  if (!chatHook.isChatDataReady) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
@@ -241,7 +272,7 @@ const ChatWindow = ({ leadId, onScheduleConsult, onMakeCall }: ChatWindowProps) 
         })}
 
         {/* Indicador de status de conexão */}
-        {!isConnected && (
+        {!chatHook.isChatDataReady && (
           <div className="flex justify-center">
             <div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs">
               Reconectando...
