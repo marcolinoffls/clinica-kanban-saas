@@ -165,7 +165,7 @@ export const ResponseTimeCard = ({
               <div className="font-semibold text-red-600">
                 {tempoMedioResposta.detalhes.distribuicao.acimaDe4h}
               </div>
-              <div className="text-muted-foreground">> 4h</div>
+              <div className="text-muted-foreground">{">"} 4h</div>
             </div>
           </div>
 
