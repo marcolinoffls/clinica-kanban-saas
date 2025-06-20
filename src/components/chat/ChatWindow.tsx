@@ -1,4 +1,3 @@
-
 /**
  * Componente de janela de chat com atualização em tempo real
  * 
@@ -11,6 +10,7 @@
  * - Posiciona inicialmente no final da conversa para evitar efeito de rolagem
  * - Rola automaticamente apenas se o usuário estiver próximo do final
  * - UI similar ao iPhone para as bolhas de mensagem
+ * - Exibe separadores de data estilo WhatsApp quando o dia muda
  * 
  * Props:
  * - leadId: ID do lead para filtrar mensagens
@@ -20,8 +20,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-// Removida a importação do useClinicaFixa, pois usaremos o clinicaId dinâmico
-import { useClinicaData } from '@/hooks/useClinicaData'; // Importa o hook para obter dados da clínica dinamicamente
+import { useClinicaData } from '@/hooks/useClinicaData';
+import { format, isToday, isYesterday, isThisWeek, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 // Interface para definir a estrutura de um objeto de mensagem
 interface Mensagem {
@@ -42,7 +43,7 @@ interface ChatWindowProps {
 
 export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   // Hook para obter o clinicaId dinâmico, o estado de carregamento e possíveis erros
-  const { clinicaId, loading: clinicaDataLoading, error: clinicaDataError } = useClinicaData(); //
+  const { clinicaId, loading: clinicaDataLoading, error: clinicaDataError } = useClinicaData();
 
   // Estado para armazenar a lista de mensagens da conversa atual
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
@@ -76,6 +77,36 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     return scrollHeight - scrollTop - clientHeight < 100;
+  };
+
+  // Função para formatar a data do separador conforme as regras do WhatsApp
+  const formatarDataSeparador = (timestamp: string) => {
+    const data = parseISO(timestamp);
+    
+    if (isToday(data)) {
+      return 'Hoje';
+    }
+    
+    if (isYesterday(data)) {
+      return 'Ontem';
+    }
+    
+    if (isThisWeek(data)) {
+      return format(data, 'EEEE', { locale: ptBR }); // Dia da semana (ex: "Segunda-feira")
+    }
+    
+    return format(data, 'dd/MM/yyyy', { locale: ptBR }); // Data completa (ex: "15/06/2024")
+  };
+
+  // Função para verificar se duas mensagens são de dias diferentes
+  const precisaMostrarSeparadorData = (mensagemAtual: Mensagem, mensagemAnterior?: Mensagem) => {
+    if (!mensagemAnterior) return true; // Primeira mensagem sempre mostra separador
+    
+    const dataAtual = parseISO(mensagemAtual.created_at);
+    const dataAnterior = parseISO(mensagemAnterior.created_at);
+    
+    // Compara apenas a data (ignora hora/minuto/segundo)
+    return format(dataAtual, 'yyyy-MM-dd') !== format(dataAnterior, 'yyyy-MM-dd');
   };
 
   // Função assíncrona para carregar o histórico inicial de mensagens do lead
@@ -289,50 +320,61 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
               <p className="text-sm">As novas mensagens aparecerão aqui automaticamente.</p>
             </div>
           ) : (
-            // Mapeia e renderiza cada mensagem
-            mensagens.map((mensagem) => (
-              <div
-                key={mensagem.id} // Chave única para cada mensagem
-                className={`flex ${
-                  // Alinha a mensagem à direita se for do usuário, à esquerda se for do lead
-                  mensagem.enviado_por === 'usuario' ? 'justify-end' : 'justify-start'
-                }`}
-              >
+            // Mapeia e renderiza cada mensagem com separadores de data
+            mensagens.map((mensagem, index) => (
+              <div key={mensagem.id}>
+                {/* Separador de data - mostra quando o dia muda */}
+                {precisaMostrarSeparadorData(mensagem, mensagens[index - 1]) && (
+                  <div className="flex justify-center my-4">
+                    <div className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
+                      {formatarDataSeparador(mensagem.created_at)}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Bolha da mensagem */}
                 <div
-                  className={`relative max-w-xs lg:max-w-md px-4 py-3 shadow-sm ${
-                    // Estilização diferente para mensagens do usuário e do lead - estilo iPhone
-                    mensagem.enviado_por === 'usuario'
-                      ? 'bg-blue-500 text-white rounded-t-2xl rounded-bl-2xl rounded-br-md' // Mensagem do usuário (enviada)
-                      : 'bg-white text-gray-900 border border-gray-200 rounded-t-2xl rounded-br-2xl rounded-bl-md' // Mensagem do lead (recebida)
+                  className={`flex ${
+                    // Alinha a mensagem à direita se for do usuário, à esquerda se for do lead
+                    mensagem.enviado_por === 'usuario' ? 'justify-end' : 'justify-start'
                   }`}
                 >
-                  {/* Conteúdo da mensagem */}
-                  <p className="text-sm whitespace-pre-wrap break-words">{mensagem.conteudo}</p>
-                  
-                  {/* Informações da mensagem (horário e tipo) */}
-                  <div className="flex items-center justify-between mt-2">
-                    <p
-                      className={`text-xs ${
-                        mensagem.enviado_por === 'usuario' 
-                          ? 'text-blue-100' 
-                          : 'text-gray-500'
-                      }`}
-                    >
-                      {formatarHorario(mensagem.created_at)} {/* Exibe o horário formatado */}
-                    </p>
+                  <div
+                    className={`relative max-w-xs lg:max-w-md px-4 py-3 shadow-sm ${
+                      // Estilização diferente para mensagens do usuário e do lead - estilo iPhone
+                      mensagem.enviado_por === 'usuario'
+                        ? 'bg-blue-500 text-white rounded-t-2xl rounded-bl-2xl rounded-br-md' // Mensagem do usuário (enviada)
+                        : 'bg-white text-gray-900 border border-gray-200 rounded-t-2xl rounded-br-2xl rounded-bl-md' // Mensagem do lead (recebida)
+                    }`}
+                  >
+                    {/* Conteúdo da mensagem */}
+                    <p className="text-sm whitespace-pre-wrap break-words">{mensagem.conteudo}</p>
                     
-                    {/* Se a mensagem não for do tipo 'texto', exibe um indicador do tipo */}
-                    {mensagem.tipo !== 'texto' && (
-                      <span
-                        className={`text-xs px-2 py-1 rounded-full ml-2 ${
-                          mensagem.enviado_por === 'usuario'
-                            ? 'bg-blue-400 text-blue-100'
-                            : 'bg-gray-100 text-gray-600'
+                    {/* Informações da mensagem (horário e tipo) */}
+                    <div className="flex items-center justify-between mt-2">
+                      <p
+                        className={`text-xs ${
+                          mensagem.enviado_por === 'usuario' 
+                            ? 'text-blue-100' 
+                            : 'text-gray-500'
                         }`}
                       >
-                        {mensagem.tipo}
-                      </span>
-                    )}
+                        {formatarHorario(mensagem.created_at)} {/* Exibe o horário formatado */}
+                      </p>
+                      
+                      {/* Se a mensagem não for do tipo 'texto', exibe um indicador do tipo */}
+                      {mensagem.tipo !== 'texto' && (
+                        <span
+                          className={`text-xs px-2 py-1 rounded-full ml-2 ${
+                            mensagem.enviado_por === 'usuario'
+                              ? 'bg-blue-400 text-blue-100'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {mensagem.tipo}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
