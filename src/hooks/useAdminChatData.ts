@@ -25,6 +25,7 @@ interface AdminChatData {
   mensagensNaoLidas: Record<string, number>;
   loading: boolean;
   error: string | null;
+  marcarMensagensComoLidasAdmin: (leadId: string) => Promise<void>;
 }
 
 export const useAdminChatData = (clinicaId: string | null): AdminChatData => {
@@ -47,7 +48,7 @@ export const useAdminChatData = (clinicaId: string | null): AdminChatData => {
           nome_clinica
         `)
         .eq('clinica_id', targetClinicaId)
-        .order('data_ultimo_contato', { ascending: false, nullsLast: true });
+        .order('data_ultimo_contato', { ascending: false, nullsFirst: false });
 
       if (error) {
         console.error('Erro ao buscar leads da clínica:', error);

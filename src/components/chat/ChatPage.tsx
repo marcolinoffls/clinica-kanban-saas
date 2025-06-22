@@ -119,7 +119,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
         tags: normalChatData.tags, // Tags são sempre as mesmas
         respostasProntas: normalChatData.respostasProntas,
         enviarMensagem: normalChatData.enviarMensagem,
-        marcarMensagensComoLidas: adminChatData.marcarMensagensComoLidasAdmin || normalChatData.marcarMensagensComoLidas
+        marcarMensagensComoLidas: adminChatData.marcarMensagensComoLidasAdmin
       }
     : normalChatData;
 
@@ -227,9 +227,9 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
   useEffect(() => {
     if (selectedConversation && currentChatData.mensagensNaoLidas[selectedConversation] > 0) {
-      currentChatData.marcarMensagensComoLidasAdmin(selectedConversation);
+      currentChatData.marcarMensagensComoLidas(selectedConversation);
     }
-  }, [selectedConversation, currentChatData.mensagensNaoLidas, currentChatData.marcarMensagensComoLidasAdmin]);
+  }, [selectedConversation, currentChatData.mensagensNaoLidas, currentChatData.marcarMensagensComoLidas]);
 
   // Filtrar e ordenar leads - adaptar para modo admin
   const leadsComMensagens = currentChatData.leads
@@ -668,7 +668,11 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
             </div>
 
             <div className="flex-1 bg-gray-50 overflow-hidden">
-              <ChatWindow leadId={selectedConversation} />
+              <ChatWindow 
+                leadId={selectedConversation} 
+                adminMode={isAdmin}
+                targetClinicaId={adminClinicaSelecionada?.id}
+              />
             </div>
 
             <div className="border-t border-gray-200 bg-white flex-shrink-0">
@@ -753,7 +757,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
               telefone: '',
               origem_lead: 'WhatsApp (via Instagram)',
             }}
-            etapas={etapas}
+            etapas={normalChatData.etapas}
             onSave={handleSaveContact}
         />
       )}
