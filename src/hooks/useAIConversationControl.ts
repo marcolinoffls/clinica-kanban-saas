@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { toast } from 'sonner';
 
 /**
@@ -21,6 +21,7 @@ export interface UseAIConversationControlProps {
 }
 
 export const useAIConversationControl = ({ leadId }: UseAIConversationControlProps) => {
+  const supabase = useSupabaseClient();
   const [aiEnabled, setAiEnabled] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
