@@ -1,4 +1,23 @@
-
+/**
+ * =================================================================
+ * ARQUIVO: ClientsPage.tsx
+ * =================================================================
+ *
+ * DESCRIÇÃO:
+ * Componente principal que renderiza a página de "Contatos".
+ * Ele utiliza o hook `useClientsPage` para obter toda a lógica de
+ * manipulação de dados, filtros e estados de modais. A responsabilidade
+ * deste componente é apenas organizar a estrutura da UI.
+ *
+ * CORREÇÃO:
+ * A função `handleAddLead` do hook `useClientsPage` foi conectada
+ * corretamente ao prop `onAddLead` do componente `ClientsPageHeader`.
+ * Isso garante que ao clicar no botão "Adicionar Lead", o modal
+ * de criação seja aberto. Além disso, o modal `LeadModal` também foi
+ * adicionado para o caso de criação de um novo lead (quando não há
+ * um lead selecionado para edição).
+ *
+ */
 import React from 'react';
 import { useClientsPage } from '@/hooks/useClientsPage';
 import { ContactsTable } from './ContactsTable';
@@ -8,24 +27,8 @@ import { LeadModal } from '@/components/kanban/LeadModal';
 import { ClientsPageHeader } from './ClientsPageHeader';
 import { ClientsActionsBar } from './ClientsActionsBar';
 
-/**
- * Página Principal de Clientes/Leads (Refatorada)
- * 
- * O que faz:
- * - Usa o hook `useClientsPage` para toda a lógica de estado e manipulação de dados.
- * - Compõe a UI a partir de componentes menores e focados.
- * - Orquestra a exibição de estados (carregamento, vazio, dados).
- * 
- * Onde é usado:
- * - É a página principal de contatos, chamada por `ContatosPage.tsx`.
- * 
- * Como se conecta:
- * - `useClientsPage`: Hook que centraliza a lógica.
- * - `ClientsPageHeader`, `ClientsActionsBar`: Componentes de UI para o layout da página.
- * - `ContactsTable`, `ContactsEmptyState`, `ContactsLoadingState`: Componentes para exibir os dados ou estados da lista.
- * - `LeadModal`: Modal para edição de um lead.
- */
 const ClientsPage = () => {
+  // O hook 'useClientsPage' centraliza toda a lógica e estado da página.
   const {
     loading,
     tags,
@@ -48,7 +51,7 @@ const ClientsPage = () => {
     sortedLeads,
     hasActiveFilters,
     handleSort,
-    handleAddLead,
+    handleAddLead, // <--- Função para abrir o modal de criação.
     handleClearFilters,
     handleEditLead,
     handleOpenChat,
@@ -56,7 +59,7 @@ const ClientsPage = () => {
     handleSaveLead,
   } = useClientsPage();
 
-  // Renderização condicional baseada no estado de carregamento
+  // Renderização condicional enquanto os dados estão carregando.
   if (loading) {
     return (
       <div className="space-y-6">
@@ -68,8 +71,12 @@ const ClientsPage = () => {
 
   return (
     <div className="space-y-6">
+      {/* Cabeçalho da página.
+        A função handleAddLead do hook é passada aqui para ser chamada pelo botão.
+      */}
       <ClientsPageHeader onAddLead={handleAddLead} />
       
+      {/* Barra com campo de busca e botão de filtros. */}
       <ClientsActionsBar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
@@ -83,7 +90,7 @@ const ClientsPage = () => {
         onClearFilters={handleClearFilters}
       />
 
-      {/* Tabela ou estados especiais */}
+      {/* Exibe a tabela de contatos ou um estado de vazio se não houver dados. */}
       {sortedLeads.length > 0 ? (
         <ContactsTable
           leads={sortedLeads}
@@ -107,14 +114,19 @@ const ClientsPage = () => {
         </div>
       )}
       
-      {/* Modal de Edição de Lead */}
-      {selectedLeadForEdit && (
+      {/* Modal para Criar ou Editar um Lead.
+        É o mesmo modal usado no Kanban.
+        A sua visibilidade é controlada pela variável `isLeadModalOpen`.
+      */}
+      {isLeadModalOpen && (
         <LeadModal
           isOpen={isLeadModalOpen}
           onClose={() => {
             setIsLeadModalOpen(false);
-            setSelectedLeadForEdit(null);
+            setSelectedLeadForEdit(null); // Limpa o lead selecionado ao fechar.
           }}
+          // Se `selectedLeadForEdit` existir, o modal abre em modo de edição.
+          // Se for nulo, abre em modo de criação.
           lead={selectedLeadForEdit}
           etapas={etapas}
           onSave={handleSaveLead}
