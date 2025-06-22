@@ -1,9 +1,8 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ClinicaProvider } from "@/contexts/ClinicaContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -45,15 +44,13 @@ const App = () => (
               element={<Navigate to="/dashboard" replace />} 
             />
             
-            {/* Rotas protegidas com layout principal - CORRIGIDO para usar Outlet */}
+            {/* Rotas protegidas com layout principal - TODAS dentro do ClinicaProvider */}
             <Route 
               path="/*" 
               element={
                 <ProtectedRoute>
                   <ClinicaProvider>
-                    <MainLayout>
-                      <Outlet />
-                    </MainLayout>
+                    <MainLayout />
                   </ClinicaProvider>
                 </ProtectedRoute>
               }

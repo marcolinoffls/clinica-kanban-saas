@@ -12,7 +12,7 @@ export interface Plan {
   max_users: number;
   max_leads: number;
   max_mensagens_mes: number;
-  features: Record<string, any>;
+  features: Record<string, any>; // Alterado de Json para Record<string, any>
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -26,7 +26,7 @@ export interface Subscription {
   id: string;
   clinica_id: string;
   plan_id: string;
-  status: SubscriptionStatus;
+  status: SubscriptionStatus; // Usando o tipo específico
   current_period_start: string;
   current_period_end: string;
   trial_end: string;
@@ -46,7 +46,7 @@ export enum FeatureAccess {
   TRIAL = 'trial'
 }
 
-// Interface para leads - CORRIGIDA para compatibilidade com o banco de dados
+// Interface para leads
 export interface Lead {
   id: string;
   nome: string;
@@ -58,10 +58,8 @@ export interface Lead {
   data_ultimo_contato?: string | null;
   convertido: boolean;
   clinica_id: string;
-  etapa_id?: string; // OPCIONAL para compatibilidade
-  etapa_kanban_id?: string; // Campo usado no banco
+  etapa_id: string; // Campo obrigatório que estava faltando
   tag_ids?: string[] | null;
-  tag_id?: string | null; // Campo individual para compatibilidade
   avatar_url?: string | null;
   anuncio?: string | null;
   ad_name?: string | null;
@@ -72,7 +70,6 @@ export interface Lead {
   utm_term?: string | null;
   utm_content?: string | null;
   ai_conversation_enabled: boolean;
-  ltv?: number | null;
   created_at: string;
   updated_at: string;
   nome_clinica?: string; // Para exibição Admin
@@ -88,26 +85,11 @@ export interface Lead {
 export interface Etapa {
   id: string;
   nome: string;
-  cor?: string; // OPCIONAL
+  cor: string;
   ordem: number;
   clinica_id: string;
   created_at: string;
-  updated_at?: string; // OPCIONAL
-}
-
-// Tipos para operações de etapas
-export interface CreateEtapaData {
-  nome: string;
-  ordem: number;
-  clinica_id: string;
-  cor?: string;
-}
-
-export interface UpdateEtapaData {
-  id: string;
-  nome?: string;
-  ordem?: number;
-  cor?: string;
+  updated_at: string;
 }
 
 // Interface para tags

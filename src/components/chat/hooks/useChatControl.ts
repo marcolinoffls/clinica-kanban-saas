@@ -1,156 +1,231 @@
 
-import { useState, useEffect, useMemo } from 'react';
-import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { useAIConversationControl } from '@/hooks/useAIConversationControl';
-import { useAllClinicas } from '@/hooks/useAllClinicas';
-import { useAuthUser } from '@/hooks/useAuthUser';
-import { useClinicaData } from '@/hooks/useClinicaData';
-import { toast } from 'sonner';
-import type { Lead, MessageData } from '@/types';
-
 /**
- * Hook principal de controle do chat
+ * Hook principal para controle do ChatPage
  * 
- * Centraliza toda a lógica de estado e manipulação do sistema de chat:
- * - Seleção de conversas e leads
- * - Controle de entrada de mensagem
- * - Integração com IA
- * - Sistema Admin multi-clínica
- * - Modais e estados da UI
+ * Centraliza toda a lógica de:
+ * - Estados da página
+ * - Controle de Admin e clínicas
+ * - Envio de mensagens
+ * - Modais
+ * - Integração com webhooks
  */
+
+import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useWebhook } from '@/hooks/useWebhook';
+import { useClinicaData } from '@/hooks/useClinicaData';
+import { useAIConversationControl } from '@/hooks/useAIConversationControl';
+import { useUpdateLeadAiConversationStatus, useCreateLead } from '@/hooks/useLeadsData';
+import { useAuthUser } from '@/hooks/useAuthUser';
+import { useAllClinicas } from '@/hooks/useAllClinicas';
+import { Lead, MessageData } from '@/types';
+import { validarClinicaId } from '../utils/chatUtils';
 
 interface UseChatControlProps {
   selectedLeadId?: string;
 }
 
 export const useChatControl = ({ selectedLeadId }: UseChatControlProps) => {
-  // Estados básicos da UI
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [messageInput, setMessageInput] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sendingMessage, setSendingMessage] = useState(false);
+  // Hooks para controle de Admin e seleção de clínicas
+  const { isAdmin } = useAuthUser();
+  const { clinicas, loading: loadingClinicas } = useAllClinicas();
+  const [selectedClinicaId, setSelectedClinicaId] = useState<string>('all');
 
-  // Estados dos modais
-  const [isAgendamentoModalOpen, setIsAgendamentoModalOpen] = useState(false);
-  const [isHistoricoModalOpen, setIsHistoricoModalOpen] = useState(false);
-  const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
-  const [leadSourceForModal, setLeadSourceForModal] = useState<any>(null);
-
-  // Hooks de dados do usuário e clínica
-  const { user } = useAuthUser();
+  // Hook original para dados da clínica do usuário
   const { clinicaId } = useClinicaData();
-  
-  // CORRIGIDO: Verificar se é admin através do contexto de auth
-  const isAdmin = user?.user_metadata?.profile_type === 'admin';
 
-  // Estados para Admin multi-clínica
-  const [selectedClinicaId, setSelectedClinicaId] = useState<string | null>(
-    isAdmin ? null : clinicaId
-  );
-  
-  // CORRIGIDO: Buscar dados das clínicas com estrutura correta
-  const { clinicas = [], loading: loadingClinicas } = useAllClinicas();
+  // Determinar qual clinica_id usar baseado no tipo de usuário e seleção
+  const effectiveClinicaId = (() => {
+    if (isAdmin()) {
+      // Admin: usar clínica selecionada ou null para "todas"
+      return selectedClinicaId === 'all' ? null : selectedClinicaId;
+    } else {
+      // Usuário normal: usar sempre sua própria clínica
+      return clinicaId;
+    }
+  })();
 
-  // Buscar dados principais usando filtro de clínica
+  console.log('[useChatControl] Controle de clínica:', {
+    isAdmin: isAdmin(),
+    selectedClinicaId,
+    clinicaId,
+    effectiveClinicaId
+  });
+
+  // Hook para dados do Supabase
   const {
     leads,
     etapas,
+    tags,
+    enviarMensagem,
     respostasProntas,
     mensagensNaoLidas,
-    loading,
-    buscarMensagensLead,
-    enviarMensagem,
     marcarMensagensComoLidas,
-  } = useSupabaseData(selectedClinicaId);
+    loading
+  } = useSupabaseData(effectiveClinicaId);
 
-  // Hook de controle da IA para a conversa selecionada
-  const {
-    aiEnabled,
-    toggleAI,
-    isInitializing,
-    isUpdating
-  } = useAIConversationControl({ 
-    leadId: selectedConversation || '' 
-  });
+  const { enviarWebhook } = useWebhook();
+  const updateLeadAiStatusMutation = useUpdateLeadAiConversationStatus();
+  const createLeadMutation = useCreateLead();
 
-  // Calcular últimas mensagens
-  const ultimasMensagens = useMemo(() => {
-    const mensagensMap: Record<string, any> = {};
-    
-    leads.forEach(lead => {
-      mensagensMap[lead.id] = {
-        conteudo: `Conversa com ${lead.nome}`,
-        created_at: lead.updated_at,
-        enviado_por: 'sistema'
-      };
-    });
-    
-    return mensagensMap;
-  }, [leads]);
+  // Hook para controle de IA
+  const { 
+    aiEnabled, 
+    toggleAI, 
+    isInitializing, 
+    isUpdating 
+  } = useAIConversationControl({ leadId: selectedLeadId || '' });
 
-  // Buscar lead selecionado
-  const selectedLead = useMemo(() => {
-    if (!selectedConversation) return null;
-    return leads.find(lead => lead.id === selectedConversation) || null;
-  }, [selectedConversation, leads]);
+  // Estados locais
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(selectedLeadId || null);
+  const [messageInput, setMessageInput] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  
+  // Estado para armazenar última mensagem de cada lead
+  const [ultimasMensagens, setUltimasMensagens] = useState<Record<string, string>>({});
 
-  // Efeito para lead pré-selecionado
+  // Estados para os modais
+  const [isAgendamentoModalOpen, setIsAgendamentoModalOpen] = useState(false);
+  const [isHistoricoModalOpen, setIsHistoricoModalOpen] = useState(false);
+  const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
+  const [leadSourceForModal, setLeadSourceForModal] = useState<Lead | null>(null);
+
+  // Lead selecionado baseado na conversa atual
+  const selectedLead = leads.find(lead => lead.id === selectedConversation);
+
+  // Recarregar dados quando clínica selecionada muda
   useEffect(() => {
-    if (selectedLeadId && leads.length > 0) {
-      const leadExists = leads.find(lead => lead.id === selectedLeadId);
-      if (leadExists) {
-        setSelectedConversation(selectedLeadId);
-        marcarMensagensComoLidas(selectedLeadId);
-      }
+    if (isAdmin()) {
+      console.log(`[useChatControl] Admin mudou seleção de clínica para: ${selectedClinicaId}`);
+      // Limpar conversa selecionada ao trocar de clínica
+      setSelectedConversation(null);
+      // Limpar termo de busca
+      setSearchTerm('');
     }
-  }, [selectedLeadId, leads, marcarMensagensComoLidas]);
+  }, [selectedClinicaId, isAdmin]);
 
-  // Marcar mensagens como lidas quando conversa muda
   useEffect(() => {
-    if (selectedConversation) {
+    if (selectedLeadId) {
+      setSelectedConversation(selectedLeadId);
+    }
+  }, [selectedLeadId]);
+
+  useEffect(() => {
+    if (selectedConversation && mensagensNaoLidas[selectedConversation] > 0) {
       marcarMensagensComoLidas(selectedConversation);
     }
-  }, [selectedConversation, marcarMensagensComoLidas]);
+  }, [selectedConversation, mensagensNaoLidas, marcarMensagensComoLidas]);
 
-  // Funções de manipulação
+  /**
+   * Função para lidar com envio de mensagens (texto e mídia)
+   * Recebe um objeto MessageData
+   */
   const handleSendMessage = async (messageData: MessageData) => {
-    if (!selectedConversation || !messageData.content.trim()) return;
+    // Validar se há conteúdo (texto) ou anexo (mídia)
+    if ((!messageData.content.trim() && !messageData.anexoUrl) || !selectedConversation || sending
 
-    setSendingMessage(true);
+
+ || isUploadingMedia) {
+      // Validação específica por tipo
+      if (messageData.type === 'text' && !messageData.content.trim()) return;
+      if ((messageData.type === 'image' || messageData.type === 'audio') && !messageData.anexoUrl) return;
+      if (!selectedConversation || sendingMessage) return;
+    }
+
+    console.log('📨 Enviando mensagem:', messageData);
+
     try {
-      await enviarMensagem({
-        leadId: selectedConversation,
-        conteudo: messageData.content,
-        tipo: messageData.type as any,
-        anexoUrl: messageData.anexoUrl,
-        aiEnabled: messageData.aiEnabled || false
-      });
-      
-      setMessageInput('');
-      toast.success('Mensagem enviada!');
-    } catch (error) {
-      console.error('Erro ao enviar mensagem:', error);
-      toast.error('Erro ao enviar mensagem');
+      setSendingMessage(true);
+
+      const leadSelecionado = leads.find(l => l.id === selectedConversation);
+
+      let clinicaIdParaWebhook: string | null = null;
+
+      if (leadSelecionado?.clinica_id && validarClinicaId(leadSelecionado.clinica_id)) {
+        clinicaIdParaWebhook = leadSelecionado.clinica_id;
+      } else if (clinicaId && validarClinicaId(clinicaId)) {
+        clinicaIdParaWebhook = clinicaId;
+      }
+
+      if (!clinicaIdParaWebhook) {
+        console.error('❌ [useChatControl] ERRO CRÍTICO: Não foi possível determinar um clinica_id válido para o webhook.');
+        alert('Erro: ID da clínica não pôde ser determinado para o envio.');
+        setSendingMessage(false);
+        return;
+      }
+
+      // Chamar enviarMensagem com os novos parâmetros (incluindo tipo e anexoUrl)
+      const novaMensagemRaw = await enviarMensagem(
+        selectedConversation,        // leadId
+        messageData.content,         // conteúdo (nome do arquivo para mídia, texto para mensagens de texto)
+        messageData.type,            // tipo: 'text', 'image', 'audio'
+        messageData.anexoUrl         // URL do MinIO para mídias, undefined para texto
+      );
+
+      // Limpar input de texto apenas se for mensagem de texto
+      if (messageData.type === 'text') {
+        setMessageInput('');
+      }
+
+      // Enviar webhook se a mensagem foi criada com sucesso
+      if (novaMensagemRaw && novaMensagemRaw.enviado_por === 'usuario') {
+        console.log('📡 Enviando webhook para a mensagem:', novaMensagemRaw.id);
+        
+        await enviarWebhook(
+          novaMensagemRaw.id,
+          novaMensagemRaw.lead_id,
+          clinicaIdParaWebhook,
+          novaMensagemRaw.conteudo,
+          novaMensagemRaw.tipo || 'text',
+          novaMensagemRaw.created_at,
+          messageData.aiEnabled || false
+        );
+      }
+
+      console.log('✅ Mensagem e/ou mídia enviada com sucesso e webhook disparado.');
+
+    } catch (error: any) {
+      console.error('❌ [useChatControl] Erro no envio da mensagem:', error.message);
+      alert(`Erro no envio: ${error.message}`);
     } finally {
       setSendingMessage(false);
     }
   };
 
-  const handleAddContact = (leadSource: any) => {
-    setLeadSourceForModal(leadSource);
+  /**
+   * Funções para controle de modais e contatos
+   */
+  const handleAddContact = (sourceLead: Lead) => {
+    setLeadSourceForModal(sourceLead);
     setIsAddContactModalOpen(true);
   };
 
-  const handleSaveContact = async (leadData: any) => {
-    try {
-      console.log('Salvando novo contato:', leadData);
-      toast.success('Contato adicionado com sucesso!');
-      setIsAddContactModalOpen(false);
-      setLeadSourceForModal(null);
-    } catch (error) {
-      console.error('Erro ao salvar contato:', error);
-      toast.error('Erro ao salvar contato');
+  const handleSaveContact = (newLeadData: Partial<Lead>) => {
+    if (!clinicaId) {
+      toast.error("ID da clínica não encontrado. Não é possível criar o lead.");
+      console.error("Tentativa de criar lead sem clinica_id");
+      return;
     }
+
+    const finalLeadData = {
+      ...newLeadData,
+      clinica_id: clinicaId,
+      etapa_id: newLeadData.etapa_id || '', // Garantir que etapa_id seja fornecida
+      anotacoes: `Contato criado a partir de um lead do Instagram (${leadSourceForModal?.nome}).\n${newLeadData.anotacoes || ''}`.trim()
+    };
+    
+    createLeadMutation.mutate(finalLeadData, {
+      onSuccess: (createdLead) => {
+        toast.success(`Contato "${createdLead.nome}" criado com sucesso!`);
+        setIsAddContactModalOpen(false);
+        setLeadSourceForModal(null);
+      },
+      onError: (error) => {
+        toast.error(`Erro ao criar contato: ${error.message}`);
+      }
+    });
   };
 
   const handleCloseContactModal = () => {
@@ -159,10 +234,13 @@ export const useChatControl = ({ selectedLeadId }: UseChatControlProps) => {
   };
 
   return {
-    // Estados básicos
-    loading,
+    // Estados principais
+    loading: loading || (isAdmin() && loadingClinicas),
+    
+    // Dados
     leads,
     etapas,
+    tags,
     respostasProntas,
     mensagensNaoLidas,
     ultimasMensagens,
@@ -172,21 +250,23 @@ export const useChatControl = ({ selectedLeadId }: UseChatControlProps) => {
     setSelectedConversation,
     selectedLead,
     
-    // Input de mensagem
+    // Input e busca
     messageInput,
     setMessageInput,
     searchTerm,
     setSearchTerm,
+    
+    // Estados de envio
     sendingMessage,
     
-    // Controle da IA
+    // IA
     aiEnabled,
     toggleAI,
     isInitializing,
     isUpdating,
     
-    // Sistema Admin
-    isAdmin,
+    // Admin e clínicas
+    isAdmin: isAdmin(),
     selectedClinicaId,
     setSelectedClinicaId,
     clinicas,

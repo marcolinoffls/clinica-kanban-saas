@@ -1,155 +1,135 @@
-
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { Plan, Subscription, SubscriptionStatus, FeatureAccess } from '@/types';
 import { useClinicaData } from './useClinicaData';
-import type { Plan, Subscription, FeatureAccess } from '@/types';
+import { useQuery } from '@tanstack/react-query';
 
-/**
- * Hook para buscar todos os planos disponíveis
- */
-export const usePlans = () => {
-  return useQuery({
-    queryKey: ['plans'],
-    queryFn: async () => {
+export const useSubscription = () => {
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const { clinica } = useClinicaData();
+
+  // Buscar planos disponíveis
+  const fetchPlans = async () => {
+    try {
       const { data, error } = await supabase
         .from('plans')
         .select('*')
         .eq('active', true)
-        .order('price_monthly', { ascending: true });
+        .order('price_monthly');
 
-      if (error) {
-        console.error('Erro ao buscar planos:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      return data as Plan[];
-    },
-    staleTime: 1000 * 60 * 5, // 5 minutos
-  });
-};
+      // Converter features de Json para Record<string, any>
+      const plansWithFeatures = data.map(plan => ({
+        ...plan,
+        features: typeof plan.features === 'string' 
+          ? JSON.parse(plan.features) 
+          : plan.features || {}
+      })) as Plan[];
 
-/**
- * Hook para buscar assinatura da clínica
- */
-export const useSubscription = () => {
-  const { clinicaId } = useClinicaData();
+      setPlans(plansWithFeatures);
+    } catch (err: any) {
+      console.error('Erro ao buscar planos:', err);
+      setError(err.message);
+    }
+  };
 
-  return useQuery({
-    queryKey: ['subscription', clinicaId],
-    queryFn: async () => {
-      if (!clinicaId) return null;
+  // Buscar assinatura da clínica
+  const fetchSubscription = async () => {
+    if (!clinica?.id) return;
 
+    try {
       const { data, error } = await supabase
         .from('subscriptions')
         .select(`
           *,
           plans (*)
         `)
-        .eq('clinica_id', clinicaId)
+        .eq('clinica_id', clinica.id)
+        .eq('status', 'active')
+        .or('status.eq.trial')
         .single();
 
-      if (error) {
-        console.error('Erro ao buscar assinatura:', error);
+      if (error && error.code !== 'PGRST116') {
         throw error;
       }
 
-      return data as Subscription;
-    },
-    enabled: !!clinicaId,
-    staleTime: 1000 * 60 * 2, // 2 minutos
-  });
-};
-
-/**
- * Hook para alterar plano
- */
-export const useChangePlan = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ 
-      clinicaId, 
-      planId, 
-      reason 
-    }: { 
-      clinicaId: string; 
-      planId: string; 
-      reason?: string; 
-    }) => {
-      const { data, error } = await supabase
-        .from('subscriptions')
-        .update({ 
-          plan_id: planId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('clinica_id', clinicaId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Erro ao alterar plano:', error);
-        throw error;
+      if (data) {
+        // Converter status para o tipo correto
+        const subscriptionData: Subscription = {
+          ...data,
+          status: data.status as SubscriptionStatus,
+          plans: {
+            ...data.plans,
+            features: typeof data.plans.features === 'string' 
+              ? JSON.parse(data.plans.features) 
+              : data.plans.features || {}
+          }
+        };
+        setSubscription(subscriptionData);
       }
+    } catch (err: any) {
+      console.error('Erro ao buscar assinatura:', err);
+      setError(err.message);
+    }
+  };
 
-      // Registrar no histórico
-      if (reason) {
-        await supabase
-          .from('subscription_history')
-          .insert({
-            subscription_id: data.id,
-            new_plan_id: planId,
-            change_reason: reason
-          });
-      }
+  // Verificar acesso a uma funcionalidade
+  const checkFeatureAccess = async (feature: string): Promise<FeatureAccess> => {
+    if (!clinica?.id) {
+      return FeatureAccess.DENIED;
+    }
 
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subscription'] });
-      toast.success('Plano alterado com sucesso!');
-    },
-    onError: (error: any) => {
-      toast.error(`Erro ao alterar plano: ${error.message}`);
-    },
-  });
-};
+    // Se a assinatura está em trial, conceder acesso
+    if (subscription?.status === 'trial') {
+      return FeatureAccess.TRIAL;
+    }
 
-/**
- * Hook para verificar status do trial
- */
-export const useTrialStatus = () => {
-  const { data: subscription } = useSubscription();
+    // Se não tem assinatura, negar acesso
+    if (!subscription) {
+      return FeatureAccess.DENIED;
+    }
 
-  const isInTrial = subscription?.status === 'trial';
-  const trialEndDate = subscription?.trial_end ? new Date(subscription.trial_end) : null;
-  const hasExpired = trialEndDate ? trialEndDate < new Date() : false;
-  const daysRemaining = trialEndDate ? Math.max(0, Math.ceil((trialEndDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0;
+    // Se o plano não tem a funcionalidade, negar acesso
+    if (!subscription.plans.features[feature]) {
+      return FeatureAccess.DENIED;
+    }
+
+    // Se a funcionalidade está habilitada, conceder acesso
+    return FeatureAccess.GRANTED;
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([fetchPlans(), fetchSubscription()])
+      .finally(() => setLoading(false));
+  }, [clinica?.id]);
+
+  const hasFeatureAccess = async (feature: string): Promise<FeatureAccess> => {
+    return checkFeatureAccess(feature);
+  };
+
+  const useFeatureAccess = (feature: string): FeatureAccess => {
+    const { data: featureData } = useQuery({
+      queryKey: ['feature-access', feature, clinica?.id],
+      queryFn: () => checkFeatureAccess(feature),
+      enabled: !!clinica?.id && !!feature,
+    });
+
+    return featureData || FeatureAccess.DENIED;
+  };
 
   return {
-    isInTrial,
-    trialEndDate,
-    hasExpired,
-    daysRemaining
+    plans,
+    subscription,
+    loading,
+    error,
+    fetchSubscription,
+    hasFeatureAccess,
+    useFeatureAccess
   };
-};
-
-/**
- * Hook para verificar acesso a funcionalidades
- */
-export const useFeatureAccess = (): Record<string, boolean> | null => {
-  const { data: subscription } = useSubscription();
-
-  if (!subscription) return null;
-
-  const features = subscription.plans?.features || {};
-  
-  // Converter features do plano em um mapa de acesso
-  const featureAccess: Record<string, boolean> = {};
-  
-  Object.keys(features).forEach(feature => {
-    featureAccess[feature] = !!features[feature];
-  });
-
-  return featureAccess;
 };
