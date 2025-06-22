@@ -1,26 +1,33 @@
-
+/**
+ * =================================================================
+ * ARQUIVO: useClinicaOperations.ts
+ * =================================================================
+ *
+ * DESCRIÇÃO:
+ * Hook central para operações de escrita relacionadas à clínica,
+ * como a criação de leads, etapas do Kanban e tags.
+ *
+ * FUNCIONALIDADES:
+ * - Garante que todas as operações de criação sejam associadas
+ * automaticamente à clínica do usuário logado.
+ * - Fornece feedback ao usuário (toasts de sucesso/erro).
+ * - Invalida os caches de dados relevantes para que a interface
+ * seja atualizada automaticamente após uma operação.
+ *
+ * SEGURANÇA:
+ * - O ID da clínica é obtido do perfil do usuário autenticado
+ * ('userProfile'), que é uma fonte segura, e não de dados
+ * enviados pelo formulário, prevenindo erros de RLS.
+ *
+ */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthUser } from './useAuthUser';
 import { useToast } from '@/hooks/use-toast';
 
-/**
- * Hook para operações da clínica (criar leads, etapas e tags)
- * 
- * Este hook fornece funções para:
- * - Criar novos leads associados à clínica do usuário
- * - Criar novas etapas do kanban
- * - Criar novas tags
- * - Atualizar dados da clínica
- * - Gerenciar dados específicos da clínica logada
- * 
- * Todas as operações são automaticamente associadas à clínica
- * do usuário autenticado através do userProfile.clinica_id
- */
-
-// Interface para criação de leads
+// Interface para os dados necessários para criar um lead.
+// Os campos são opcionais para acomodar diferentes fontes de criação (ex: formulário, automação).
 interface CreateLeadData {
-  // AJUSTE: O nome do lead agora é opcional para acomodar leads de fontes como o Instagram.
   nome?: string;
   telefone?: string;
   email?: string;
@@ -31,19 +38,19 @@ interface CreateLeadData {
   servico_interesse?: string;
 }
 
-// Interface para criação de etapas
+// Interface para os dados de criação de uma etapa do Kanban.
 interface CreateEtapaData {
   nome: string;
   ordem: number;
 }
 
-// Interface para criação de tags
+// Interface para os dados de criação de uma tag.
 interface CreateTagData {
   nome: string;
   cor?: string;
 }
 
-// Interface para atualização da clínica
+// Interface para os dados de atualização da clínica.
 interface UpdateClinicaData {
   id: string;
   nome?: string;
@@ -58,27 +65,44 @@ interface UpdateClinicaData {
   complemento?: string;
 }
 
+// Hook principal que exporta todas as operações.
 export const useClinicaOperations = () => {
-  const { userProfile } = useAuthUser();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const { userProfile } = useAuthUser(); // Hook para obter o perfil do usuário logado.
+  const queryClient = useQueryClient(); // Cliente do React Query para gerenciar cache.
+  const { toast } = useToast(); // Hook para exibir notificações (toasts).
 
-  // Mutation para criar novos leads
+  // =================================================================
+  // MUTATION PARA CRIAR NOVOS LEADS
+  // =================================================================
   const createLeadMutation = useMutation({
+    // 'mutationFn' é a função assíncrona que executa a lógica de inserção.
     mutationFn: async (leadData: CreateLeadData) => {
+      // 1. Validação de Segurança: Garante que o usuário tem um 'clinica_id' associado.
       if (!userProfile?.clinica_id) {
         throw new Error('Usuário não está associado a uma clínica');
       }
 
+      // 2. ========= INÍCIO DA CORREÇÃO DE SEGURANÇA =========
+      // Removemos a propriedade 'clinica_id' do objeto 'leadData' que vem do formulário,
+      // caso ela exista. Isso evita que um valor incorreto do formulário sobrescreva o ID correto.
+      const { clinica_id, ...dadosDoFormulario } = leadData as any;
+
+      // Criamos um novo objeto para inserção, garantindo que o `clinica_id`
+      // seja SEMPRE o do usuário autenticado, que é a fonte segura da verdade.
+      const dadosParaInserir = {
+        ...dadosDoFormulario, // Pega todos os outros dados do formulário.
+        clinica_id: userProfile.clinica_id, // Adiciona o ID da clínica correto.
+      };
+      // ========= FIM DA CORREÇÃO DE SEGURANÇA =========
+
+      // 3. Executa a inserção no banco de dados com os dados seguros.
       const { data, error } = await supabase
         .from('leads')
-        .insert({
-          ...leadData,
-          clinica_id: userProfile.clinica_id,
-        })
+        .insert(dadosParaInserir) // Usa o objeto corrigido.
         .select()
         .single();
 
+      // 4. Tratamento de Erro: Se o Supabase retornar um erro, ele é lançado.
       if (error) {
         console.error('Erro ao criar lead:', error);
         throw new Error(error.message || 'Erro ao criar lead');
@@ -86,16 +110,21 @@ export const useClinicaOperations = () => {
 
       return data;
     },
+    // 'onSuccess' é executado quando a mutation tem sucesso.
     onSuccess: () => {
+      // Invalida a query 'leads' para forçar a recarga dos dados e atualizar a interface.
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       
+      // Exibe uma notificação de sucesso.
       toast({
         title: "Sucesso",
         description: "Lead criado com sucesso!",
       });
     },
+    // 'onError' é executado quando a mutation falha.
     onError: (error: any) => {
       console.error('Erro na mutation de criar lead:', error);
+      // Exibe uma notificação de erro.
       toast({
         title: "Erro",
         description: error.message || "Erro ao criar lead. Tente novamente.",
@@ -104,7 +133,11 @@ export const useClinicaOperations = () => {
     },
   });
 
-  // Mutation para criar novas etapas
+  // (As mutations para Etapa, Tag e Clínica seguem uma lógica similar)
+
+  // =================================================================
+  // MUTATION PARA CRIAR NOVAS ETAPAS
+  // =================================================================
   const createEtapaMutation = useMutation({
     mutationFn: async (etapaData: CreateEtapaData) => {
       if (!userProfile?.clinica_id) {
@@ -120,32 +153,21 @@ export const useClinicaOperations = () => {
         .select()
         .single();
 
-      if (error) {
-        console.error('Erro ao criar etapa:', error);
-        throw new Error(error.message || 'Erro ao criar etapa');
-      }
-
+      if (error) throw new Error(error.message || 'Erro ao criar etapa');
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['etapas'] });
-      
-      toast({
-        title: "Sucesso",
-        description: "Etapa criada com sucesso!",
-      });
+      toast({ title: "Sucesso", description: "Etapa criada com sucesso!" });
     },
     onError: (error: any) => {
-      console.error('Erro na mutation de criar etapa:', error);
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao criar etapa. Tente novamente.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     },
   });
 
-  // Mutation para criar novas tags
+  // =================================================================
+  // MUTATION PARA CRIAR NOVAS TAGS
+  // =================================================================
   const createTagMutation = useMutation({
     mutationFn: async (tagData: CreateTagData) => {
       if (!userProfile?.clinica_id) {
@@ -161,32 +183,21 @@ export const useClinicaOperations = () => {
         .select()
         .single();
 
-      if (error) {
-        console.error('Erro ao criar tag:', error);
-        throw new Error(error.message || 'Erro ao criar tag');
-      }
-
+      if (error) throw new Error(error.message || 'Erro ao criar tag');
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tags'] });
-      
-      toast({
-        title: "Sucesso",
-        description: "Tag criada com sucesso!",
-      });
+      toast({ title: "Sucesso", description: "Tag criada com sucesso!" });
     },
     onError: (error: any) => {
-      console.error('Erro na mutation de criar tag:', error);
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao criar tag. Tente novamente.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     },
   });
 
-  // Mutation para atualizar dados da clínica
+  // =================================================================
+  // MUTATION PARA ATUALIZAR DADOS DA CLÍNICA
+  // =================================================================
   const updateClinicaMutation = useMutation({
     mutationFn: async (clinicaData: UpdateClinicaData) => {
       const { id, ...updateData } = clinicaData;
@@ -198,58 +209,41 @@ export const useClinicaOperations = () => {
         .select()
         .single();
 
-      if (error) {
-        console.error('Erro ao atualizar clínica:', error);
-        throw new Error(error.message || 'Erro ao atualizar clínica');
-      }
-
+      if (error) throw new Error(error.message || 'Erro ao atualizar clínica');
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clinica'] });
-      
-      toast({
-        title: "Sucesso",
-        description: "Dados da clínica atualizados com sucesso!",
-      });
+      toast({ title: "Sucesso", description: "Dados da clínica atualizados!" });
     },
     onError: (error: any) => {
-      console.error('Erro na mutation de atualizar clínica:', error);
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao atualizar dados da clínica. Tente novamente.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     },
   });
 
-  // Função para criar lead (wrapper da mutation)
+  // Funções "wrapper" para facilitar o uso das mutations nos componentes.
   const createLead = async (leadData: CreateLeadData) => {
     return createLeadMutation.mutateAsync(leadData);
   };
 
-  // Função para criar etapa (wrapper da mutation)
   const createEtapa = async (etapaData: CreateEtapaData) => {
     return createEtapaMutation.mutateAsync(etapaData);
   };
 
-  // Função para criar tag (wrapper da mutation)
   const createTag = async (tagData: CreateTagData) => {
     return createTagMutation.mutateAsync(tagData);
   };
 
+  // Retorna as funções e estados para serem usados em outros lugares da aplicação.
   return {
-    // Funções principais
     createLead,
     createEtapa,
     createTag,
     
-    // Estados das mutations
     isCreatingLead: createLeadMutation.isPending,
     isCreatingEtapa: createEtapaMutation.isPending,
     isCreatingTag: createTagMutation.isPending,
     
-    // Objetos das mutations para acesso direto se necessário
     createLeadMutation,
     createEtapaMutation,
     createTagMutation,
@@ -257,7 +251,7 @@ export const useClinicaOperations = () => {
   };
 };
 
-// Hook específico para atualizar clínica (para compatibilidade)
+// Hook de conveniência para quem precisa apenas da função de atualizar a clínica.
 export const useUpdateClinica = () => {
   const { updateClinicaMutation } = useClinicaOperations();
   return updateClinicaMutation;
