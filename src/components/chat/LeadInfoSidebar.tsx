@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Phone, Mail, User, MessageSquare, Tag, Briefcase, DollarSign, Check, X, Plus, Edit, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -124,7 +123,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
       origem_lead: lead.origem_lead,
       servico_interesse: lead.servico_interesse,
       anotacoes: lead.anotacoes,
-      etapa_id: lead.etapa_id
+      etapa_id: lead.etapa_id || lead.etapa_kanban_id // CORRIGIDO: usar fallback
     });
     setNotesValue(lead.anotacoes || '');
     setIsEditing(false);
@@ -133,12 +132,12 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
     setIsEditingServico(false);
   }, [lead.id]);
 
-  // Buscar nome da etapa atual - CORRIGIDO para usar etapa_id
-  const etapaAtual = etapas.find(etapa => etapa.id === lead.etapa_id);
+  // CORRIGIDO: Buscar nome da etapa usando o campo correto
+  const etapaAtual = etapas.find(etapa => etapa.id === (lead.etapa_id || lead.etapa_kanban_id));
   const etapaNome = etapaAtual?.nome || 'Sem etapa';
 
-  // Buscar informações da tag - CORRIGIDO para usar tag_id
-  const tagAtual = tags.find(tag => tag.id === lead.tag_id);
+  // CORRIGIDO: Buscar informações da tag
+  const tagAtual = tags.find(tag => tag.id === (lead.tag_id || lead.tag_ids?.[0]));
 
   const handleSave = async () => {
     try {
@@ -154,7 +153,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         origem_lead: editedLead.origem_lead,
         servico_interesse: editedLead.servico_interesse,
         anotacoes: editedLead.anotacoes,
-        etapa_id: editedLead.etapa_id || lead.etapa_id,
+        etapa_id: editedLead.etapa_id || lead.etapa_id || lead.etapa_kanban_id,
         clinica_id: lead.clinica_id
       };
 
@@ -177,7 +176,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
       origem_lead: lead.origem_lead,
       servico_interesse: lead.servico_interesse,
       anotacoes: lead.anotacoes,
-      etapa_id: lead.etapa_id
+      etapa_id: lead.etapa_id || lead.etapa_kanban_id
     });
     setIsEditing(false);
   };
@@ -225,7 +224,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         origem_lead: lead.origem_lead,
         servico_interesse: servico,
         anotacoes: lead.anotacoes,
-        etapa_id: lead.etapa_id,
+        etapa_id: lead.etapa_id || lead.etapa_kanban_id,
         clinica_id: lead.clinica_id
       };
 
@@ -253,7 +252,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         origem_lead: lead.origem_lead,
         servico_interesse: lead.servico_interesse,
         anotacoes: notesValue,
-        etapa_id: lead.etapa_id,
+        etapa_id: lead.etapa_id || lead.etapa_kanban_id,
         clinica_id: lead.clinica_id
       };
 

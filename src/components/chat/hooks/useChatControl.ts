@@ -39,15 +39,17 @@ export const useChatControl = ({ selectedLeadId }: UseChatControlProps) => {
   // Hooks de dados do usuário e clínica
   const { user } = useAuthUser();
   const { clinicaId } = useClinicaData();
-  const isAdmin = user?.profile_type === 'admin';
+  
+  // CORRIGIDO: Verificar se é admin através do contexto de auth
+  const isAdmin = user?.user_metadata?.profile_type === 'admin';
 
   // Estados para Admin multi-clínica
   const [selectedClinicaId, setSelectedClinicaId] = useState<string | null>(
     isAdmin ? null : clinicaId
   );
   
-  // Buscar dados das clínicas (apenas para Admin)
-  const { data: clinicas = [], isLoading: loadingClinicas } = useAllClinicas(isAdmin);
+  // CORRIGIDO: Buscar dados das clínicas com estrutura correta
+  const { clinicas = [], loading: loadingClinicas } = useAllClinicas();
 
   // Buscar dados principais usando filtro de clínica
   const {
@@ -101,7 +103,7 @@ export const useChatControl = ({ selectedLeadId }: UseChatControlProps) => {
         marcarMensagensComoLidas(selectedLeadId);
       }
     }
-  }, [selectedLeadId, leads]);
+  }, [selectedLeadId, leads, marcarMensagensComoLidas]);
 
   // Marcar mensagens como lidas quando conversa muda
   useEffect(() => {

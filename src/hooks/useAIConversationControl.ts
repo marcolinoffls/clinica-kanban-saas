@@ -1,8 +1,5 @@
-import { useState, useEffect } from 'react';
-// SUBSTITUIR esta linha:
-// import { useSupabaseClient } from '@supabase/auth-helpers-react';
 
-// POR esta:
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -24,11 +21,6 @@ export interface UseAIConversationControlProps {
 }
 
 export const useAIConversationControl = ({ leadId }: UseAIConversationControlProps) => {
-  // REMOVER esta linha:
-  // const supabase = useSupabaseClient();
-  
-  // O supabase já está importado diretamente acima
-  
   const [aiEnabled, setAiEnabled] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -63,12 +55,12 @@ export const useAIConversationControl = ({ leadId }: UseAIConversationControlPro
     };
 
     fetchInitialState();
-  }, [leadId]); // REMOVER 'supabase' das dependências
+  }, [leadId]);
 
   const toggleAI = async () => {
     if (!leadId) {
       console.warn("[useAIConversationControl] leadId não fornecido. Não é possível alterar o estado da IA.");
-      toast.warn("Selecione um lead para ativar/desativar a IA.");
+      toast.error("Selecione um lead para ativar/desativar a IA.");
       return;
     }
 

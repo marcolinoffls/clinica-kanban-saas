@@ -1,3 +1,4 @@
+
 // Tipos centralizados do sistema
 
 // Interface para planos de assinatura
@@ -45,7 +46,7 @@ export enum FeatureAccess {
   TRIAL = 'trial'
 }
 
-// Interface para leads - CORRIGIDA para ser consistente
+// Interface para leads - CORRIGIDA para compatibilidade com o banco de dados
 export interface Lead {
   id: string;
   nome: string;
@@ -57,8 +58,8 @@ export interface Lead {
   data_ultimo_contato?: string | null;
   convertido: boolean;
   clinica_id: string;
-  etapa_id: string; // Campo obrigatório principal
-  etapa_kanban_id?: string; // Campo alternativo para compatibilidade
+  etapa_id?: string; // OPCIONAL para compatibilidade
+  etapa_kanban_id?: string; // Campo usado no banco
   tag_ids?: string[] | null;
   tag_id?: string | null; // Campo individual para compatibilidade
   avatar_url?: string | null;
@@ -71,7 +72,7 @@ export interface Lead {
   utm_term?: string | null;
   utm_content?: string | null;
   ai_conversation_enabled: boolean;
-  ltv?: number | null; // ADICIONADO campo LTV
+  ltv?: number | null;
   created_at: string;
   updated_at: string;
   nome_clinica?: string; // Para exibição Admin
@@ -87,11 +88,26 @@ export interface Lead {
 export interface Etapa {
   id: string;
   nome: string;
-  cor: string;
+  cor?: string; // OPCIONAL
   ordem: number;
   clinica_id: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string; // OPCIONAL
+}
+
+// Tipos para operações de etapas
+export interface CreateEtapaData {
+  nome: string;
+  ordem: number;
+  clinica_id: string;
+  cor?: string;
+}
+
+export interface UpdateEtapaData {
+  id: string;
+  nome?: string;
+  ordem?: number;
+  cor?: string;
 }
 
 // Interface para tags
