@@ -23,12 +23,6 @@ interface DashboardHeaderProps {
 export const DashboardHeader = ({ onFilterChange, currentFilter }: DashboardHeaderProps) => {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
-        <p className="text-gray-600 mt-1">
-          Visão geral das métricas da sua clínica
-        </p>
-      </div>
       <TimeRangeFilter 
         onFilterChange={onFilterChange} 
         currentFilter={currentFilter} 
