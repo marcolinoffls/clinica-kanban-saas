@@ -1,13 +1,12 @@
-
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { LeadPipeline } from '@/components/pipeline/types';
+import { useAuthUser } from './useAuthUser'; // NOVO: Importar o hook para pegar dados do usuário
 
 /**
  * Hook para gerenciar ações dos leads no Pipeline
- * 
- * Centraliza as operações de:
+ * * Centraliza as operações de:
  * - Salvar lead (criar/editar)
  * - Mover lead entre etapas (drag and drop)
  * - Abrir histórico de consultas
@@ -16,6 +15,7 @@ import { LeadPipeline } from '@/components/pipeline/types';
 
 export const usePipelineLeadActions = (onNavigateToChat?: (leadId: string) => void) => {
   const queryClient = useQueryClient();
+  const { userProfile } = useAuthUser(); // NOVO: Obter o perfil do usuário logado
 
   // Mutation para salvar lead
   const saveLeadMutation = useMutation({
@@ -23,7 +23,9 @@ export const usePipelineLeadActions = (onNavigateToChat?: (leadId: string) => vo
       console.log('💾 Salvando lead no Pipeline:', leadData);
 
       if (isEditing && leadData.id) {
-        // Atualizar lead existente
+        // ATUALIZAÇÃO DE LEAD EXISTENTE
+        // A política RLS de UPDATE garante que o usuário só pode editar
+        // um lead se o clinica_id do lead já existente corresponder ao seu.
         const { data, error } = await supabase
           .from('leads')
           .update({
@@ -34,7 +36,8 @@ export const usePipelineLeadActions = (onNavigateToChat?: (leadId: string) => vo
             servico_interesse: leadData.servico_interesse,
             anotacoes: leadData.anotacoes,
             etapa_kanban_id: leadData.etapa_kanban_id,
-            tag_id: leadData.tag_id,
+            // A tipagem em useLeadsData.ts foi corrigida para usar tag_ids (plural)
+            tag_ids: leadData.tag_ids, 
             data_ultimo_contato: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -44,21 +47,29 @@ export const usePipelineLeadActions = (onNavigateToChat?: (leadId: string) => vo
 
         if (error) throw error;
         return data;
+
       } else {
-        // Criar novo lead
+        // ========= INÍCIO DA CORREÇÃO DE SEGURANÇA =========
+        // CRIAÇÃO DE NOVO LEAD
+        // 1. Validação de Segurança: Garante que temos o clinica_id do usuário logado.
+        if (!userProfile?.clinica_id) {
+          throw new Error('Usuário não está associado a uma clínica para criar um lead.');
+        }
+
+        // 2. Desestruturamos o clinica_id que possa vir do formulário para ignorá-lo
+        const { clinica_id, ...dadosDoFormulario } = leadData;
+
+        // 3. Criamos um objeto seguro para inserção, forçando o uso do clinica_id do usuário.
+        const dadosParaInserir = {
+          ...dadosDoFormulario,
+          clinica_id: userProfile.clinica_id, // Fonte segura da verdade
+          data_ultimo_contato: new Date().toISOString(),
+        };
+        // ========= FIM DA CORREÇÃO DE SEGURANÇA =========
+
         const { data, error } = await supabase
           .from('leads')
-          .insert([{
-            nome: leadData.nome,
-            telefone: leadData.telefone,
-            email: leadData.email,
-            origem_lead: leadData.origem_lead,
-            servico_interesse: leadData.servico_interesse,
-            anotacoes: leadData.anotacoes,
-            etapa_kanban_id: leadData.etapa_kanban_id,
-            tag_id: leadData.tag_id,
-            data_ultimo_contato: new Date().toISOString(),
-          }])
+          .insert([dadosParaInserir]) // Usamos o objeto seguro
           .select()
           .single();
 
@@ -75,6 +86,8 @@ export const usePipelineLeadActions = (onNavigateToChat?: (leadId: string) => vo
       toast.error('Erro ao salvar lead: ' + error.message);
     },
   });
+
+  // (O restante do arquivo continua igual...)
 
   // Mutation para mover lead entre etapas
   const moveLeadMutation = useMutation({
