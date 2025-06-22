@@ -82,22 +82,12 @@ export const Dashboard = () => {
   }
 
   return (
-      {/* SUBSTITUIR por apenas o filtro: */}
-        <div className="flex justify-end">
-          <TimeRangeFilter 
-            onFilterChange={handleFilterChange} 
-            currentFilter={currentFilter} 
-          />
-        </div>
-    
-        {/* Resto do código permanece igual... */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* ... */}
-        </div>
-        
-        {/* ... */}
-      </div>
-    );
+    <div className="space-y-6">
+      {/* Header da página com o filtro de período */}
+      <DashboardHeader 
+        onFilterChange={handleFilterChange}
+        currentFilter={currentFilter}
+      />
 
       {/* Grid de cartões de métricas com ResponseTime */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
