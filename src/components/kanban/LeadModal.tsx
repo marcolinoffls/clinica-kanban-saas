@@ -6,11 +6,12 @@
  * DESCRIÇÃO:
  * Componente de modal para criar ou editar um lead.
  *
- * FUNCIONALIDADES ATUALIZADAS (mantendo a UI original):
- * 1.  SERVIÇOS DINÂMICOS: A lista de "Serviços de Interesse" agora é
- * buscada dinamicamente a partir das configurações da clínica.
- * 2.  MÁSCARA DE TELEFONE: O campo "Telefone" agora formata o número
- * automaticamente no padrão (XX) XXXXX-XXXX.
+ * CORREÇÃO APLICADA:
+ * - A função de máscara de telefone ('formatPhoneNumber') foi corrigida
+ * para permitir a digitação completa do número e formatá-lo
+ * corretamente no padrão (XX) XXXXX-XXXX.
+ * - A funcionalidade de serviços dinâmicos foi mantida.
+ * - A interface visual original foi preservada.
  *
  */
 
@@ -22,8 +23,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-
-// LÓGICA ADICIONADA: Importar o hook para buscar os serviços da clínica.
 import { useClinicServices } from '@/hooks/useClinicServices';
 
 interface LeadModalProps {
@@ -35,35 +34,41 @@ interface LeadModalProps {
   onOpenHistory?: () => void;
 }
 
-// Opções para origem do lead (mantidas como no original)
 const origensLead = [
   'Indicação', 'Site', 'Instagram', 'Facebook', 'Google Ads', 'Meta Ads',
   'WhatsApp', 'Busca Google', 'Outros'
 ];
 
-// LÓGICA REMOVIDA: A lista de serviços estática foi removida
-// const servicosInteresse = [ ... ];
-
-// LÓGICA ADICIONADA: Função para formatar o número de telefone com máscara.
+// LÓGICA CORRIGIDA: Função para formatar o número de telefone.
 const formatPhoneNumber = (value: string) => {
     if (!value) return "";
+    
+    // 1. Remove todos os caracteres que não são dígitos.
     let digits = value.replace(/\D/g, '');
+
+    // 2. Limita a 11 dígitos.
     if (digits.length > 11) {
         digits = digits.substring(0, 11);
     }
+
+    // 3. Aplica a máscara de acordo com a quantidade de dígitos.
     if (digits.length > 10) {
+        // Formato (XX) XXXXX-XXXX para celulares com 9 dígitos.
         return `(${digits.substring(0, 2)}) ${digits.substring(2, 7)}-${digits.substring(7)}`;
     } else if (digits.length > 6) {
+        // Formato (XX) XXXX-XXXX para telefones fixos.
         return `(${digits.substring(0, 2)}) ${digits.substring(2, 6)}-${digits.substring(6)}`;
     } else if (digits.length > 2) {
-        return `(${digits.substring(2)})`;
+        // CORREÇÃO APLICADA AQUI: Mantém os dois primeiros dígitos como DDD.
+        return `(${digits.substring(0, 2)}) ${digits.substring(2)}`;
     } else {
+        // Apenas o início do DDD.
         return digits;
     }
 };
 
+
 export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory }: LeadModalProps) => {
-  // LÓGICA ADICIONADA: Chamar o hook para buscar os serviços.
   const { services: servicosDaClinica, isLoading: loadingServices } = useClinicServices();
   
   const [formData, setFormData] = useState({
@@ -78,7 +83,6 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory
     if (lead) {
       setFormData({
         nome: lead.nome || '',
-        // LÓGICA ALTERADA: Formata o telefone ao carregar
         telefone: formatPhoneNumber(lead.telefone || ''),
         email: lead.email || '',
         origem_lead: lead.origem_lead || '',
@@ -97,7 +101,6 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory
   }, [lead, isOpen, etapas]);
 
   const handleInputChange = (field: string, value: string) => {
-    // LÓGICA ADICIONADA: Aplica a formatação se o campo for o de telefone.
     const finalValue = field === 'telefone' ? formatPhoneNumber(value) : value;
     setFormData(prev => ({ ...prev, [field]: finalValue }));
     if (errors[field]) {
@@ -123,7 +126,6 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory
     try {
       const leadDataToSave = {
         ...formData,
-        // LÓGICA ADICIONADA: Envia o número de telefone sem formatação para o banco.
         telefone: formData.telefone.replace(/\D/g, ''),
         ...(lead && { id: lead.id })
       };
@@ -138,7 +140,6 @@ export const LeadModal = ({ isOpen, onClose, lead, etapas, onSave, onOpenHistory
 
   if (!isOpen) return null;
 
-  // A UI abaixo foi mantida o mais próximo possível da sua imagem, apenas a lógica de dados foi alterada.
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
