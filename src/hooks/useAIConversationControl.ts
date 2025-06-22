@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useSupabaseClient } from '@supabase/auth-helpers-react';
+// SUBSTITUIR esta linha:
+// import { useSupabaseClient } from '@supabase/auth-helpers-react';
+
+// POR esta:
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 /**
@@ -14,18 +18,22 @@ import { toast } from 'sonner';
 
 /**
  * Props para o hook useAIConversationControl
- * Corrigindo a interface para aceitar leadId como string
  */
 export interface UseAIConversationControlProps {
   leadId: string;
 }
 
 export const useAIConversationControl = ({ leadId }: UseAIConversationControlProps) => {
-  const supabase = useSupabaseClient();
+  // REMOVER esta linha:
+  // const supabase = useSupabaseClient();
+  
+  // O supabase já está importado diretamente acima
+  
   const [aiEnabled, setAiEnabled] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Buscar estado inicial da IA para o lead
   useEffect(() => {
     const fetchInitialState = async () => {
       if (!leadId) {
@@ -55,7 +63,7 @@ export const useAIConversationControl = ({ leadId }: UseAIConversationControlPro
     };
 
     fetchInitialState();
-  }, [supabase, leadId]);
+  }, [leadId]); // REMOVER 'supabase' das dependências
 
   const toggleAI = async () => {
     if (!leadId) {
