@@ -46,7 +46,7 @@ export enum FeatureAccess {
   TRIAL = 'trial'
 }
 
-// Interface para leads
+// Interface para leads - CORRIGIDA com etapa_id opcional e tag_ids
 export interface Lead {
   id: string;
   nome: string;
@@ -58,8 +58,8 @@ export interface Lead {
   data_ultimo_contato?: string | null;
   convertido: boolean;
   clinica_id: string;
-  etapa_id: string; // Campo obrigatório que estava faltando
-  tag_ids?: string[] | null;
+  etapa_id?: string; // Campo opcional agora
+  tag_ids?: string[] | null; // Corrigido de tag_id para tag_ids
   avatar_url?: string | null;
   anuncio?: string | null;
   ad_name?: string | null;
@@ -90,6 +90,21 @@ export interface Etapa {
   clinica_id: string;
   created_at: string;
   updated_at: string;
+}
+
+// Interfaces para operações de etapas
+export interface CreateEtapaData {
+  nome: string;
+  cor: string;
+  ordem: number;
+  clinica_id: string;
+}
+
+export interface UpdateEtapaData {
+  id: string;
+  nome?: string;
+  cor?: string;
+  ordem?: number;
 }
 
 // Interface para tags
