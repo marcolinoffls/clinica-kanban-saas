@@ -1,27 +1,30 @@
-
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+// CORREÇÃO: Importar useAuthUser para ter acesso ao perfil do usuário
+import { useAuthUser } from './useAuthUser';
 import { useLeads, Lead, useDeleteLead, useUpdateLead, useCreateLead } from '@/hooks/useLeadsData';
 import { useTags } from '@/hooks/useTagsData';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { FilterState, SortField, SortOrder } from '@/components/clients/types';
 import { getUniqueOrigens, getUniqueServicos } from '@/components/clients/utils';
+import { toast } from 'sonner';
 
 /**
- * Hook para gerenciar a lógica da página de Clientes/Leads.
- * 
- * Este hook encapsula todos os estados, filtros, ordenação e 
+ * Hook para gerenciar a lógica da página de Contatos.
+ *
+ * Este hook encapsula todos os estados, filtros, ordenação e
  * manipuladores de eventos da página de contatos, simplificando o
  * componente principal.
- * 
- * Retorna:
- * - Estados de carregamento, dados, filtros, ordenação e modais.
- * - Listas de leads filtradas e ordenadas.
- * - Funções para manipular ações do usuário (adicionar, editar, etc.).
+ *
+ * CORREÇÃO:
+ * A função handleSaveLead foi atualizada para usar o clinica_id do
+ * usuário logado ao criar um novo lead, garantindo que a política de
+ * segurança (RLS) seja cumprida, assim como foi feito no Pipeline.
  */
 export const useClientsPage = () => {
   const navigate = useNavigate();
-  
+  const { userProfile } = useAuthUser(); // NOVO: Obter o perfil do usuário
+
   // Hooks para dados e mutações
   const { data: leads = [], isLoading: loading } = useLeads();
   const { data: tags = [] } = useTags();
@@ -35,7 +38,6 @@ export const useClientsPage = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [isDeleting, setIsDeleting] = useState(false);
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [selectedLeadForEdit, setSelectedLeadForEdit] = useState<Lead | null>(null);
 
@@ -56,10 +58,11 @@ export const useClientsPage = () => {
   const filteredLeads = useMemo(() => {
     if (!leads) return [];
     return leads.filter((lead: Lead) => {
-      const matchesSearch = !searchQuery || 
+      const matchesSearch = !searchQuery ||
         lead.nome?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lead.email?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesTag = !filters.tag || lead.tag_id === filters.tag;
+      // A lógica foi atualizada para usar tag_ids (plural)
+      const matchesTag = !filters.tag || lead.tag_ids?.includes(filters.tag);
       const matchesOrigem = !filters.origem || lead.origem_lead === filters.origem;
       const matchesServico = !filters.servico || lead.servico_interesse === filters.servico;
       let matchesDate = true;
@@ -106,9 +109,7 @@ export const useClientsPage = () => {
     setSortOrder(sortField === field && sortOrder === 'asc' ? 'desc' : 'asc');
   };
 
-  // CORRIGIDO: Função para abrir modal de novo lead ao invés de redirecionar
   const handleAddLead = () => {
-    console.log('🆕 Abrindo modal para criar novo lead na página de contatos');
     setSelectedLeadForEdit(null);
     setIsLeadModalOpen(true);
   };
@@ -128,30 +129,47 @@ export const useClientsPage = () => {
 
   const handleDeleteLead = async (leadId: string) => {
     if (window.confirm('Tem certeza que deseja excluir este contato?')) {
-      setIsDeleting(true);
       await deleteLeadMutation.mutateAsync(leadId);
-      setIsDeleting(false);
     }
   };
 
-  // CORRIGIDO: Função para salvar lead - tanto criar quanto editar
-  const handleSaveLead = async (leadData: any) => {
+  // =================================================================
+  // FUNÇÃO CORRIGIDA PARA SALVAR (CRIAR E EDITAR)
+  // =================================================================
+  const handleSaveLead = async (leadData: Partial<Lead>) => {
     try {
       if (selectedLeadForEdit) {
-        // Editando lead existente
-        await updateLeadMutation.mutateAsync({ 
-          id: selectedLeadForEdit.id, 
-          ...leadData 
+        // Modo de EDIÇÃO: Atualiza um lead existente.
+        // A RLS de UPDATE garante a permissão.
+        await updateLeadMutation.mutateAsync({
+          id: selectedLeadForEdit.id,
+          ...leadData
         });
+        toast.success("Lead atualizado com sucesso!");
       } else {
-        // Criando novo lead
-        await createLeadMutation.mutateAsync(leadData);
+        // Modo de CRIAÇÃO: Adiciona um novo lead.
+        // Validação de Segurança: Garante que temos o clinica_id do usuário logado.
+        if (!userProfile?.clinica_id) {
+          throw new Error('ID da clínica do usuário não encontrado. Não é possível criar o lead.');
+        }
+
+        // Ignora qualquer clinica_id vindo do formulário e força o ID do usuário.
+        const { clinica_id, ...dadosDoFormulario } = leadData;
+        const dadosParaInserir = {
+          ...dadosDoFormulario,
+          clinica_id: userProfile.clinica_id, // Fonte segura da verdade.
+        };
+
+        await createLeadMutation.mutateAsync(dadosParaInserir);
+        // A notificação de sucesso já é tratada dentro do useCreateLead.
       }
       setIsLeadModalOpen(false);
       setSelectedLeadForEdit(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar lead:', error);
-      throw error; // Permite que o modal trate o erro
+      toast.error(error.message || 'Ocorreu um erro ao salvar o lead.');
+      // Re-lança o erro para que o modal possa, opcionalmente, lidar com ele (ex: não fechar).
+      throw error;
     }
   };
 
@@ -159,7 +177,7 @@ export const useClientsPage = () => {
 
   return {
     loading, tags, etapas, searchQuery, setSearchQuery, isFilterOpen, setIsFilterOpen,
-    sortField, sortOrder, isDeleting, isLeadModalOpen, setIsLeadModalOpen,
+    sortField, sortOrder, isDeleting: deleteLeadMutation.isPending, isLeadModalOpen, setIsLeadModalOpen,
     selectedLeadForEdit, setSelectedLeadForEdit, filters, setFilters, uniqueOrigens,
     uniqueServicos, sortedLeads, hasActiveFilters, handleSort, handleAddLead,
     handleClearFilters, handleEditLead, handleOpenChat, handleDeleteLead, handleSaveLead,
