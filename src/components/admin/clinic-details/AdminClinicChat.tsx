@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { MessageSquare, Users, Search } from 'lucide-react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { ChatWindow } from '@/components/chat/ChatWindow';
+import ChatWindow from '@/components/chat/ChatWindow';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 

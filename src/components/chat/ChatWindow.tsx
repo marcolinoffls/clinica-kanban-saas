@@ -1,389 +1,336 @@
-/**
- * Componente de janela de chat com atualização em tempo real
- * 
- * Este componente:
- * - Exibe mensagens de uma conversa específica
- * - Atualiza automaticamente via Supabase Realtime
- * - Diferencia mensagens enviadas e recebidas
- * - Gerencia inscrições de tempo real sem vazamentos de memória
- * - Controla rolagem automática para as mensagens mais recentes
- * - Posiciona inicialmente no final da conversa para evitar efeito de rolagem
- * - Rola automaticamente apenas se o usuário estiver próximo do final
- * - UI similar ao iPhone para as bolhas de mensagem
- * - Exibe separadores de data estilo WhatsApp quando o dia muda
- * 
- * Props:
- * - leadId: ID do lead para filtrar mensagens
- */
 
-// src/components/chat/ChatWindow.tsx
-
-import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useClinicaData } from '@/hooks/useClinicaData';
-import { format, isToday, isYesterday, isThisWeek, parseISO } from 'date-fns';
+import React, { useState, useEffect, useRef } from 'react';
+import { Send, Paperclip, MoreVertical, Phone, Calendar, Clock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useSupabaseChat } from '@/hooks/useSupabaseChat';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { formatDistanceToNow, format, isToday, isYesterday, isSameWeek, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-// Interface para definir a estrutura de um objeto de mensagem
-interface Mensagem {
-  id: string; // ID único da mensagem
-  lead_id: string; // ID do lead a quem a mensagem pertence
-  clinica_id: string; // ID da clínica a qual a mensagem e o lead pertencem
-  conteudo: string; // O texto da mensagem
-  tipo: string; // Tipo da mensagem (ex: 'texto', 'imagem')
-  enviado_por: 'lead' | 'usuario'; // Quem enviou a mensagem: 'lead' ou 'usuario' (do CRM)
-  lida: boolean; // Status de leitura da mensagem
-  created_at: string; // Timestamp de quando a mensagem foi criada
-}
+/**
+ * Componente da janela de chat
+ * 
+ * Exibe a conversa com um lead específico, permitindo:
+ * - Visualizar histórico de mensagens com indicadores de data
+ * - Enviar novas mensagens
+ * - Fazer upload de arquivos
+ * - Agendar consultas
+ * - Fazer ligações
+ * 
+ * Funcionalidades:
+ * - Indicadores de data estilo WhatsApp (Hoje, Ontem, dia da semana, data completa)
+ * - Scroll automático para novas mensagens
+ * - Interface responsiva
+ */
 
-// Interface para as props do componente ChatWindow
 interface ChatWindowProps {
-  leadId: string; // ID do lead para o qual a janela de chat será exibida
+  leadId: string | null;
+  onScheduleConsult?: (leadId: string) => void;
+  onMakeCall?: (leadId: string) => void;
 }
 
-export const ChatWindow = ({ leadId }: ChatWindowProps) => {
-  // Hook para obter o clinicaId dinâmico, o estado de carregamento e possíveis erros
-  const { clinicaId, loading: clinicaDataLoading, error: clinicaDataError } = useClinicaData();
+// Função para formatar a data das mensagens estilo WhatsApp
+const formatMessageDate = (date: Date): string => {
+  if (isToday(date)) {
+    return 'Hoje';
+  } else if (isYesterday(date)) {
+    return 'Ontem';
+  } else if (isSameWeek(date, new Date(), { weekStartsOn: 1 })) {
+    // Se for na mesma semana, mostrar dia da semana
+    return format(date, 'EEEE', { locale: ptBR });
+  } else {
+    // Para datas anteriores, mostrar data completa
+    return format(date, 'dd/MM/yyyy', { locale: ptBR });
+  }
+};
 
-  // Estado para armazenar a lista de mensagens da conversa atual
-  const [mensagens, setMensagens] = useState<Mensagem[]>([]);
-  // Estado para controlar o carregamento das mensagens
-  const [carregando, setCarregando] = useState(true);
-  // Estado para armazenar mensagens de erro
-  const [erro, setErro] = useState<string | null>(null);
-  // Estado para controlar se a primeira carga de mensagens foi concluída (para otimizar a rolagem)
-  const [primeiraCarregaCompleta, setPrimeiraCarregaCompleta] = useState(false);
-  // Ref para o elemento final da lista de mensagens, usado para rolar automaticamente
+// Função para verificar se deve mostrar o separador de data
+const shouldShowDateSeparator = (currentMessage: any, previousMessage: any): boolean => {
+  if (!previousMessage) return true;
+  
+  const currentDate = new Date(currentMessage.created_at);
+  const previousDate = new Date(previousMessage.created_at);
+  
+  // Mostrar separador se as mensagens forem de dias diferentes
+  return !isToday(currentDate) || 
+         currentDate.getDate() !== previousDate.getDate() ||
+         currentDate.getMonth() !== previousDate.getMonth() ||
+         currentDate.getFullYear() !== previousDate.getFullYear();
+};
+
+const ChatWindow = ({ leadId, onScheduleConsult, onMakeCall }: ChatWindowProps) => {
+  const [inputMessage, setInputMessage] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [lead, setLead] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  // Ref para o container das mensagens, usado para controlar a rolagem
-  const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Função para rolar a visualização para a mensagem mais recente
-  const rolarParaFinal = (comportamento: ScrollBehavior = 'smooth') => {
-    messagesEndRef.current?.scrollIntoView({ behavior: comportamento });
-  };
+  // Hooks do Supabase
+  const chatHook = useSupabaseChat();
+  const { leads } = useSupabaseData();
 
-  // Função para posicionar a visualização imediatamente no final do chat (usado na carga inicial)
-  const posicionarNoFinal = () => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
-  };
-
-  // Função para verificar se o usuário está visualizando as mensagens mais recentes
-  // Retorna true se a rolagem estiver a menos de 100px do final.
-  const estaProximoDoFinal = () => {
-    if (!containerRef.current) return true;
-    
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    return scrollHeight - scrollTop - clientHeight < 100;
-  };
-
-  // Função para formatar a data do separador conforme as regras do WhatsApp
-  const formatarDataSeparador = (timestamp: string) => {
-    const data = parseISO(timestamp);
-    
-    if (isToday(data)) {
-      return 'Hoje';
-    }
-    
-    if (isYesterday(data)) {
-      return 'Ontem';
-    }
-    
-    if (isThisWeek(data)) {
-      return format(data, 'EEEE', { locale: ptBR }); // Dia da semana (ex: "Segunda-feira")
-    }
-    
-    return format(data, 'dd/MM/yyyy', { locale: ptBR }); // Data completa (ex: "15/06/2024")
-  };
-
-  // Função para verificar se duas mensagens são de dias diferentes
-  const precisaMostrarSeparadorData = (mensagemAtual: Mensagem, mensagemAnterior?: Mensagem) => {
-    if (!mensagemAnterior) return true; // Primeira mensagem sempre mostra separador
-    
-    const dataAtual = parseISO(mensagemAtual.created_at);
-    const dataAnterior = parseISO(mensagemAnterior.created_at);
-    
-    // Compara apenas a data (ignora hora/minuto/segundo)
-    return format(dataAtual, 'yyyy-MM-dd') !== format(dataAnterior, 'yyyy-MM-dd');
-  };
-
-  // Função assíncrona para carregar o histórico inicial de mensagens do lead
-  const carregarMensagens = async () => {
-    // Verifica se o clinicaId está disponível antes de prosseguir
-    if (!clinicaId) {
-      setCarregando(false);
-      setErro('ID da clínica não disponível para carregar mensagens.');
-      console.warn('[ChatWindow] Tentativa de carregar mensagens sem clinicaId.');
-      return;
-    }
-    try {
-      console.log('📥 Carregando mensagens para lead:', leadId, 'clínica:', clinicaId);
-      setCarregando(true); // Define o estado de carregamento como true
-      setErro(null); // Limpa erros anteriores
-      
-      // Busca as mensagens no Supabase, filtrando por leadId e clinicaId, ordenando por data de criação
-      const { data, error: dbError } = await supabase
-        .from('chat_mensagens')
-        .select('*')
-        .eq('lead_id', leadId)
-        .eq('clinica_id', clinicaId) // Adiciona filtro por clinicaId dinâmico
-        .order('created_at', { ascending: true });
-
-      if (dbError) {
-        console.error('❌ Erro ao carregar mensagens:', dbError);
-        setErro('Erro ao carregar mensagens');
-        return;
-      }
-
-      // Formata as mensagens recebidas para garantir a tipagem correta de 'enviado_por'
-      const mensagensFormatadas = (data || []).map(msg => ({
-        ...msg,
-        enviado_por: msg.enviado_por === 'lead' ? 'lead' as const : 'usuario' as const
-      }));
-
-      setMensagens(mensagensFormatadas); // Atualiza o estado com as mensagens carregadas
-      console.log('✅ Mensagens carregadas:', mensagensFormatadas?.length || 0);
-      
-      // Após a primeira carga, posiciona a visualização no final das mensagens
-      // requestAnimationFrame garante que o DOM foi atualizado antes da rolagem
-      requestAnimationFrame(() => {
-        posicionarNoFinal();
-        setPrimeiraCarregaCompleta(true); // Marca que a primeira carga foi concluída
-      });
-      
-    } catch (errorCatch) {
-      console.error('❌ Erro ao carregar mensagens (catch):', errorCatch);
-      setErro('Erro ao carregar mensagens');
-    } finally {
-      setCarregando(false); // Define o estado de carregamento como false ao final
-    }
-  };
-
-  // useEffect para configurar o Supabase Realtime e carregar as mensagens iniciais
+  // Buscar lead específico
   useEffect(() => {
-    // Se os dados da clínica ainda estão carregando, aguarda
-    if (clinicaDataLoading) {
-      console.log('[ChatWindow] Aguardando clinicaId...');
-      setCarregando(true);
-      return;
+    if (leadId && leads.length > 0) {
+      const foundLead = leads.find(l => l.id === leadId);
+      setLead(foundLead || null);
     }
+  }, [leadId, leads]);
 
-    // Se houve erro ao carregar dados da clínica ou o clinicaId não está disponível, exibe erro
-    if (clinicaDataError || !clinicaId) {
-      console.error('[ChatWindow] Erro ao obter clinicaId ou clinicaId não disponível:', clinicaDataError, clinicaId);
-      setErro(clinicaDataError?.message || 'ID da clínica não encontrado para iniciar o chat.');
-      setCarregando(false);
-      setMensagens([]); // Limpa as mensagens se não for possível carregar
-      return;
-    }
-    
-    // Prossegue se clinicaId estiver disponível e sem erros
-    console.log('🔄 Configurando chat em tempo real para lead:', leadId, 'na clinica:', clinicaId);
-    
-    setPrimeiraCarregaCompleta(false); // Reseta o estado da primeira carga ao mudar de lead/clinica
-    carregarMensagens(); // Carrega as mensagens iniciais
-
-    // Cria um canal de comunicação Realtime específico para este lead e clínica
-    const canalChat = supabase
-      .channel(`chat-mensagens-lead-${leadId}-clinica-${clinicaId}`) // Nome do canal mais específico
-      .on(
-        'postgres_changes', // Escuta por mudanças no banco de dados
-        {
-          event: 'INSERT', // Especificamente para novas inserções
-          schema: 'public', // No schema público
-          table: 'chat_mensagens', // Na tabela chat_mensagens
-          filter: `lead_id=eq.${leadId}` // Filtra eventos apenas para o leadId atual
-        },
-        (payload) => { // Callback executado quando um novo evento é recebido
-          console.log('📨 Nova mensagem recebida via Realtime:', payload.new);
-          
-          const novaMensagem = payload.new as any; // Converte o payload para 'any' para acesso flexível
-          
-          // Filtro adicional no cliente: verifica se a mensagem pertence à clínica correta
-          if (novaMensagem.clinica_id === clinicaId) {
-            // Formata a nova mensagem para garantir a tipagem correta
-            const mensagemFormatada: Mensagem = {
-              ...novaMensagem,
-              enviado_por: novaMensagem.enviado_por === 'lead' ? 'lead' as const : 'usuario' as const
-            };
-            
-            // Atualiza o estado de mensagens, adicionando a nova mensagem
-            setMensagens(mensagensAtuais => {
-              // Evita adicionar mensagens duplicadas (caso raro, mas como segurança)
-              const jaExiste = mensagensAtuais.some(m => m.id === mensagemFormatada.id);
-              if (jaExiste) {
-                console.log('⚠️ Mensagem já existe, ignorando duplicata');
-                return mensagensAtuais;
-              }
-              
-              const novaLista = [...mensagensAtuais, mensagemFormatada];
-              console.log('✅ Mensagem adicionada ao estado, total:', novaLista.length);
-              
-              return novaLista; // Retorna a nova lista de mensagens
-            });
-          } else {
-            // Loga se a mensagem foi ignorada por pertencer a outra clínica
-            console.log('⚠️ Mensagem ignorada - clínica diferente. Esperado:', clinicaId, 'Recebido:', novaMensagem.clinica_id);
-          }
+  // Buscar mensagens do lead
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (leadId && chatHook.buscarMensagensLead) {
+        try {
+          const leadMessages = await chatHook.buscarMensagensLead(leadId);
+          setMessages(leadMessages || []);
+        } catch (error) {
+          console.error('Erro ao buscar mensagens:', error);
+          setMessages([]);
         }
-      )
-      .subscribe((status, err) => { // Inicia a escuta do canal
-        console.log('🔗 Status da subscrição Realtime:', status);
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Subscrição Realtime ativa para lead:', leadId, 'clinica:', clinicaId);
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          // Trata erros ou fechamento inesperado da conexão Realtime
-          console.error('❌ Erro ou fechamento na subscrição Realtime:', status, err);
-          setErro(`Erro na conexão em tempo real: ${status}`);
-        }
-      });
-
-    // Função de limpeza: executada quando o componente é desmontado ou as dependências mudam
-    return () => {
-      console.log('🧹 Removendo subscrição Realtime para lead:', leadId, 'clinica:', clinicaId);
-      supabase.removeChannel(canalChat).catch(err => console.error("Erro ao remover canal", err)); // Remove o canal para evitar vazamentos de memória
+      }
     };
-  // Array de dependências do useEffect: re-executa o efeito se qualquer um desses valores mudar
-  }, [leadId, clinicaId, clinicaDataLoading, clinicaDataError]);
 
+    fetchMessages();
+  }, [leadId, chatHook.buscarMensagensLead]);
 
-  // useEffect para rolar para o final quando novas mensagens são adicionadas (após a carga inicial)
+  // Scroll para o final quando novas mensagens chegarem
   useEffect(() => {
-    if (mensagens.length > 0 && primeiraCarregaCompleta) {
-      const deveRolar = estaProximoDoFinal(); // Verifica se o usuário está perto do final
-      if (deveRolar) {
-        // Adia a rolagem para garantir que o DOM foi atualizado
-        requestAnimationFrame(() => {
-          setTimeout(() => rolarParaFinal('smooth'), 50); // Rolagem suave
-        });
-      }
-    }
-  }, [mensagens, primeiraCarregaCompleta]); // Depende de 'mensagens' e 'primeiraCarregaCompleta'
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  // Função para formatar o timestamp da mensagem para exibição (HH:MM)
-  const formatarHorario = (timestamp: string) => {
-    const data = new Date(timestamp);
-    return data.toLocaleTimeString('pt-BR', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+  // Marcar mensagens como lidas quando o chat for aberto
+  useEffect(() => {
+    if (leadId && messages.length > 0 && chatHook.marcarMensagensComoLidas) {
+      chatHook.marcarMensagensComoLidas(leadId);
+    }
+  }, [leadId, messages.length, chatHook.marcarMensagensComoLidas]);
+
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() || !leadId || !chatHook.enviarMensagem) return;
+
+    try {
+      await chatHook.enviarMensagem(leadId, inputMessage.trim(), 'texto');
+      setInputMessage('');
+      
+      // Recarregar mensagens após envio
+      const updatedMessages = await chatHook.buscarMensagensLead(leadId);
+      setMessages(updatedMessages || []);
+    } catch (error) {
+      console.error('Erro ao enviar mensagem:', error);
+    }
   };
 
-  // Renderiza o estado de carregamento enquanto os dados da clínica ou mensagens estão sendo buscados
-  if (clinicaDataLoading || (carregando && !primeiraCarregaCompleta)) {
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !leadId || !chatHook.enviarMensagem) return;
+
+    setIsUploading(true);
+    try {
+      // Por enquanto, apenas enviar o nome do arquivo como mensagem
+      await chatHook.enviarMensagem(leadId, `Arquivo: ${file.name}`, 'arquivo');
+      
+      // Recarregar mensagens após envio
+      const updatedMessages = await chatHook.buscarMensagensLead(leadId);
+      setMessages(updatedMessages || []);
+    } catch (error) {
+      console.error('Erro ao enviar arquivo:', error);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const formatMessageTime = (date: string) => {
+    return format(new Date(date), 'HH:mm');
+  };
+
+  const getMessageAlignment = (sender: string) => {
+    return sender === 'usuario' ? 'flex-row-reverse' : 'flex-row';
+  };
+
+  const getMessageBubbleStyle = (sender: string) => {
+    return sender === 'usuario'
+      ? 'bg-blue-500 text-white rounded-l-lg rounded-tr-lg'
+      : 'bg-gray-100 text-gray-900 rounded-r-lg rounded-tl-lg';
+  };
+
+  if (!leadId) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-          <span className="text-gray-500">Carregando mensagens...</span>
+          <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Send className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Selecione um contato
+          </h3>
+          <p className="text-gray-500">
+            Escolha um contato da lista para iniciar uma conversa
+          </p>
         </div>
       </div>
     );
   }
 
-  // Renderiza o estado de erro, se houver
-  if (erro) {
+  if (!chatHook.isChatDataReady) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-500 mb-2">❌ {erro}</p>
-          <button 
-            onClick={() => {
-              setErro(null); // Limpa o erro
-              setCarregando(true); // Ativa o carregamento para forçar a re-execução do useEffect
-              // A função carregarMensagens será chamada novamente pelo useEffect quando clinicaId estiver pronto
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-          >
-            Tentar Novamente
-          </button>
-        </div>
+      <div className="flex-1 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
-  // Renderização principal da janela de chat
   return (
-    <div className="h-full flex flex-col bg-gray-100">
-      {/* Container das mensagens com rolagem */}
-      <div 
-        ref={containerRef} // Ref para controlar a rolagem
-        className="flex-1 overflow-y-auto p-4" // Permite rolagem vertical
-      >
-        <div className="space-y-3"> {/* Espaçamento entre as bolhas de mensagem */}
-          {/* Se não houver mensagens e não estiver carregando, exibe mensagem informativa */}
-          {mensagens.length === 0 && !carregando ? (
-            <div className="text-center text-gray-500 py-8">
-              <p>Nenhuma mensagem ainda.</p>
-              <p className="text-sm">As novas mensagens aparecerão aqui automaticamente.</p>
-            </div>
-          ) : (
-            // Mapeia e renderiza cada mensagem com separadores de data
-            mensagens.map((mensagem, index) => (
-              <div key={mensagem.id}>
-                {/* Separador de data - mostra quando o dia muda */}
-                {precisaMostrarSeparadorData(mensagem, mensagens[index - 1]) && (
-                  <div className="flex justify-center my-4">
-                    <div className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
-                      {formatarDataSeparador(mensagem.created_at)}
-                    </div>
+    <div className="flex-1 flex flex-col h-full">
+      {/* Header do Chat */}
+      <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+            <span className="text-blue-600 font-medium">
+              {lead?.nome ? lead.nome.charAt(0).toUpperCase() : '?'}
+            </span>
+          </div>
+          <div>
+            <h3 className="font-medium text-gray-900">
+              {lead?.nome || 'Lead sem nome'}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {lead?.telefone || 'Sem telefone'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          {onMakeCall && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onMakeCall(leadId)}
+              className="text-green-600 hover:text-green-700"
+            >
+              <Phone className="w-4 h-4" />
+            </Button>
+          )}
+          {onScheduleConsult && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onScheduleConsult(leadId)}
+              className="text-blue-600 hover:text-blue-700"
+            >
+              <Calendar className="w-4 h-4" />
+            </Button>
+          )}
+          <Button variant="ghost" size="sm">
+            <MoreVertical className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Área de Mensagens */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+        {messages.map((message, index) => {
+          const showDateSeparator = shouldShowDateSeparator(message, messages[index - 1]);
+          
+          return (
+            <div key={message.id}>
+              {/* Separador de data */}
+              {showDateSeparator && (
+                <div className="flex justify-center my-4">
+                  <div className="bg-white px-3 py-1 rounded-full text-xs text-gray-500 shadow-sm">
+                    {formatMessageDate(new Date(message.created_at))}
                   </div>
-                )}
-                
-                {/* Bolha da mensagem */}
-                <div
-                  className={`flex ${
-                    // Alinha a mensagem à direita se for do usuário, à esquerda se for do lead
-                    mensagem.enviado_por === 'usuario' ? 'justify-end' : 'justify-start'
-                  }`}
-                >
-                  <div
-                    className={`relative max-w-xs lg:max-w-md px-4 py-3 shadow-sm ${
-                      // Estilização diferente para mensagens do usuário e do lead - estilo iPhone
-                      mensagem.enviado_por === 'usuario'
-                        ? 'bg-blue-500 text-white rounded-t-2xl rounded-bl-2xl rounded-br-md' // Mensagem do usuário (enviada)
-                        : 'bg-white text-gray-900 border border-gray-200 rounded-t-2xl rounded-br-2xl rounded-bl-md' // Mensagem do lead (recebida)
-                    }`}
-                  >
-                    {/* Conteúdo da mensagem */}
-                    <p className="text-sm whitespace-pre-wrap break-words">{mensagem.conteudo}</p>
-                    
-                    {/* Informações da mensagem (horário e tipo) */}
-                    <div className="flex items-center justify-between mt-2">
-                      <p
-                        className={`text-xs ${
-                          mensagem.enviado_por === 'usuario' 
-                            ? 'text-blue-100' 
-                            : 'text-gray-500'
-                        }`}
-                      >
-                        {formatarHorario(mensagem.created_at)} {/* Exibe o horário formatado */}
-                      </p>
-                      
-                      {/* Se a mensagem não for do tipo 'texto', exibe um indicador do tipo */}
-                      {mensagem.tipo !== 'texto' && (
-                        <span
-                          className={`text-xs px-2 py-1 rounded-full ml-2 ${
-                            mensagem.enviado_por === 'usuario'
-                              ? 'bg-blue-400 text-blue-100'
-                              : 'bg-gray-100 text-gray-600'
-                          }`}
-                        >
-                          {mensagem.tipo}
-                        </span>
-                      )}
-                    </div>
+                </div>
+              )}
+              
+              {/* Mensagem */}
+              <div className={`flex ${getMessageAlignment(message.enviado_por)} mb-2`}>
+                <div className={`max-w-xs px-4 py-2 ${getMessageBubbleStyle(message.enviado_por)}`}>
+                  <p className="text-sm">{message.conteudo}</p>
+                  <div className="flex items-center justify-end mt-1 space-x-1">
+                    <Clock className="w-3 h-3 opacity-50" />
+                    <span className="text-xs opacity-75">
+                      {formatMessageTime(message.created_at)}
+                    </span>
                   </div>
                 </div>
               </div>
-            ))
-          )}
-          {/* Elemento invisível no final da lista para ajudar na rolagem automática */}
-          <div ref={messagesEndRef} />
+            </div>
+          );
+        })}
+
+        {/* Indicador de status de conexão */}
+        {!chatHook.isChatDataReady && (
+          <div className="flex justify-center">
+            <div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs">
+              Reconectando...
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Área de Input */}
+      <div className="bg-white border-t border-gray-200 p-4">
+        <div className="flex items-center space-x-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={handleFileUpload}
+            accept="image/*,audio/*,video/*,.pdf,.doc,.docx"
+          />
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <Paperclip className="w-4 h-4" />
+          </Button>
+
+          <Input
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Digite sua mensagem..."
+            className="flex-1"
+            disabled={isUploading}
+          />
+
+          <Button
+            onClick={handleSendMessage}
+            disabled={!inputMessage.trim() || isUploading}
+            size="sm"
+            className="bg-blue-500 hover:bg-blue-600"
+          >
+            <Send className="w-4 h-4" />
+          </Button>
         </div>
+
+        {isUploading && (
+          <div className="mt-2 text-sm text-gray-500">
+            Enviando arquivo...
+          </div>
+        )}
       </div>
     </div>
   );
 };
+
+export default ChatWindow;

@@ -2,12 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { LeadPipeline, EtapaPipeline } from './types';
+import { useClinicServices } from '@/hooks/useClinicServices';
 
 /**
  * Modal para criar/editar leads no Pipeline
  * 
  * Permite ao usuário criar um novo lead ou editar um existente,
  * incluindo a seleção da etapa inicial/atual.
+ * 
+ * Agora carrega os serviços cadastrados da clínica e torna a origem opcional.
  */
 
 interface PipelineLeadModalProps {
@@ -27,6 +30,9 @@ export const PipelineLeadModal = ({
   etapas,
   onOpenHistory 
 }: PipelineLeadModalProps) => {
+  // Hook para carregar serviços da clínica
+  const { services: servicosClinica, isLoading: loadingServices } = useClinicServices();
+
   const [formData, setFormData] = useState({
     nome: '',
     telefone: '',
@@ -82,6 +88,12 @@ export const PipelineLeadModal = ({
       newErrors.email = 'Email deve ter formato válido';
     }
 
+    // Origem agora é opcional - removida a validação
+
+    if (!formData.servico_interesse) {
+      newErrors.servico_interesse = 'Serviço de interesse é obrigatório';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -104,6 +116,19 @@ export const PipelineLeadModal = ({
   };
 
   if (!isOpen) return null;
+
+  // Opções para origem do lead
+  const origensLead = [
+    'Indicação',
+    'Site',
+    'Instagram',
+    'Facebook',
+    'Google Ads',
+    'Meta Ads',
+    'WhatsApp',
+    'Busca Google',
+    'Outros'
+  ];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -204,34 +229,53 @@ export const PipelineLeadModal = ({
               </select>
             </div>
 
-            {/* Origem do Lead */}
+            {/* Origem do Lead - Agora opcional */}
             <div>
               <label htmlFor="origem" className="block text-sm font-medium text-gray-700 mb-2">
                 Origem do Lead
               </label>
-              <input
-                type="text"
+              <select
                 id="origem"
                 value={formData.origem_lead}
                 onChange={(e) => handleInputChange('origem_lead', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                placeholder="Facebook Ads, Indicação, etc."
-              />
+              >
+                <option value="">Selecione a origem (opcional)</option>
+                {origensLead.map((origem) => (
+                  <option key={origem} value={origem}>
+                    {origem}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* Serviço de Interesse */}
+            {/* Serviço de Interesse - Agora usando serviços da clínica */}
             <div>
               <label htmlFor="servico" className="block text-sm font-medium text-gray-700 mb-2">
-                Serviço de Interesse
+                Serviço de Interesse *
               </label>
-              <input
-                type="text"
+              <select
                 id="servico"
                 value={formData.servico_interesse}
                 onChange={(e) => handleInputChange('servico_interesse', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                placeholder="Limpeza, Implante, etc."
-              />
+                disabled={loadingServices}
+              >
+                <option value="">
+                  {loadingServices ? 'Carregando serviços...' : 'Selecione o serviço'}
+                </option>
+                {servicosClinica.map((servico) => (
+                  <option key={servico.id} value={servico.nome_servico}>
+                    {servico.nome_servico}
+                  </option>
+                ))}
+              </select>
+              {errors.servico_interesse && <p className="mt-1 text-sm text-red-600">{errors.servico_interesse}</p>}
+              {!loadingServices && servicosClinica.length === 0 && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Configure os serviços da clínica em Configurações para ter opções aqui
+                </p>
+              )}
             </div>
           </div>
 

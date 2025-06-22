@@ -1,200 +1,97 @@
 
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { useClinicaData } from './useClinicaData';
-import type { Lead, CreateLeadData, UpdateLeadData } from '@/types';
+/**
+ * Hook para gerenciar dados de leads
+ * 
+ * Este arquivo centraliza todas as operações relacionadas aos leads:
+ * - Buscar leads da clínica
+ * - Criar, atualizar e deletar leads
+ * - Mover leads entre etapas
+ * - Controlar follow-up automático
+ * - Gerenciar conversação com IA por lead
+ * 
+ * As funções são re-exportadas do useSupabaseLeads para manter compatibilidade
+ * com os componentes existentes que importam deste arquivo.
+ */
+
+// Re-exportar tudo do useSupabaseLeads para manter compatibilidade
+export {
+  useLeads,
+  useLeadsByEtapa,
+  useCreateLead,
+  useUpdateLead,
+  useDeleteLead,
+  useMoveLeadToEtapa as useMoveLeadToStage, // Alias para compatibilidade
+  useUpdateLeadAiConversationStatus,
+  useToggleLeadFollowup,
+  type CreateLeadData,
+  type UpdateLeadData
+} from './useSupabaseLeads';
+
+// Importar o tipo base do Supabase
+import { Lead as SupabaseLead } from './useSupabaseLeads';
+
+// Interface Lead mais completa para compatibilidade com componentes existentes
+export interface Lead extends SupabaseLead {
+  etapa_id: string; // Para compatibilidade com componentes antigos
+  avatar_url: string | null; // Avatar do lead
+  nome_clinica: string | null; // Nome da clínica
+}
+
+// Função de dados de leads com filtros (mantida para compatibilidade)
+interface UseLeadsDataProps {
+  etapaId?: string;
+  searchTerm?: string;
+  sortOrder?: 'asc' | 'desc';
+}
 
 /**
- * Hook para criar um novo lead
+ * Hook legado para buscar dados de leads com filtros
+ * 
+ * DEPRECATED: Use useLeads do useSupabaseLeads para novos desenvolvimentos.
+ * Este hook é mantido apenas para compatibilidade com componentes existentes.
  */
-export const useCreateLead = () => {
-  return useMutation({
-    mutationFn: async (newLead: Partial<Lead>) => {
-      const { data, error } = await supabase
-        .from('leads')
-        .insert([newLead])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Erro ao criar lead:', error);
-        throw new Error(error.message);
-      }
-
-      return data;
-    },
-    onSuccess: () => {
-      toast.success('Lead criado com sucesso!');
-    },
-    onError: (error: any) => {
-      toast.error(`Erro ao criar lead: ${error.message}`);
-    },
-  });
-};
-
-/**
- * Hook para atualizar um lead existente
- */
-export const useUpdateLead = () => {
-  return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string; [key: string]: any }) => {
-      const { data, error } = await supabase
-        .from('leads')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Erro ao atualizar lead:', error);
-        throw new Error(error.message);
-      }
-
-      return data;
-    },
-    onSuccess: () => {
-      toast.success('Lead atualizado com sucesso!');
-    },
-    onError: (error: any) => {
-      toast.error(`Erro ao atualizar lead: ${error.message}`);
-    },
-  });
-};
-
-/**
- * Hook para atualizar o status da conversa com a IA de um lead
- */
-export const useUpdateLeadAiConversationStatus = () => {
-  return useMutation({
-    mutationFn: async ({ leadId, enabled }: { leadId: string; enabled: boolean }) => {
-      const { data, error } = await supabase
-        .from('leads')
-        .update({ ai_conversation_enabled: enabled })
-        .eq('id', leadId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Erro ao atualizar status da IA do lead:', error);
-        throw new Error(error.message);
-      }
-
-      return data;
-    },
-    onSuccess: () => {
-      toast.success('Status da IA do lead atualizado com sucesso!');
-    },
-    onError: (error: any) => {
-      toast.error(`Erro ao atualizar status da IA do lead: ${error.message}`);
-    },
-  });
-};
-
-/**
- * Hook principal para buscar leads
- */
-export const useLeads = (clinicaIdFilter?: string | null) => {
-  const { clinicaId } = useClinicaData();
+export const useLeadsData = ({ etapaId, searchTerm, sortOrder }: UseLeadsDataProps = {}) => {
+  // Importar o hook dentro da função para evitar problemas de ciclo
+  const { useLeads } = require('./useSupabaseLeads');
   
-  const effectiveClinicaId = (() => {
-    if (clinicaIdFilter !== undefined) {
-      return clinicaIdFilter;
-    } else {
-      return clinicaId;
+  // Usar o hook principal do Supabase
+  const { data: allLeads, isLoading, error, refetch } = useLeads();
+
+  // Transformar leads do Supabase para o formato compatível
+  const compatibleLeads: Lead[] = (allLeads || []).map((lead: SupabaseLead) => ({
+    ...lead,
+    etapa_id: lead.etapa_kanban_id || '', // Mapeamento para compatibilidade
+    avatar_url: null, // Campo adicional
+    nome_clinica: null // Campo adicional
+  }));
+
+  // Aplicar filtros nos dados retornados
+  const filteredLeads = compatibleLeads.filter((lead: Lead) => {
+    // Filtro por etapa
+    if (etapaId && lead.etapa_kanban_id !== etapaId) {
+      return false;
     }
-  })();
-
-  console.log('[useLeads] Filtro de clínica:', { clinicaIdFilter, clinicaId, effectiveClinicaId });
-
-  return useQuery({
-    queryKey: ['leads', effectiveClinicaId],
-    queryFn: async () => {
-      console.log('[useLeads] Buscando leads para clínica:', effectiveClinicaId || 'todas');
-      
-      let query = supabase
-        .from('leads')
-        .select(`
-          *,
-          etapas_kanban!inner(nome, ordem)
-        `)
-        .order('updated_at', { ascending: false });
-
-      if (effectiveClinicaId !== null) {
-        query = query.eq('clinica_id', effectiveClinicaId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('[useLeads] Erro ao buscar leads:', error);
-        throw error;
-      }
-
-      console.log(`[useLeads] ✅ ${data?.length || 0} leads encontrados`);
-      return data || [];
-    },
-    enabled: effectiveClinicaId !== undefined,
-    staleTime: 30000,
+    
+    // Filtro por termo de busca
+    if (searchTerm && lead.nome) {
+      return lead.nome.toLowerCase().includes(searchTerm.toLowerCase());
+    }
+    
+    return true;
   });
-};
 
-/**
- * Hook para deletar lead
- */
-export const useDeleteLead = () => {
-  return useMutation({
-    mutationFn: async (leadId: string) => {
-      const { error } = await supabase
-        .from('leads')
-        .delete()
-        .eq('id', leadId);
-
-      if (error) {
-        console.error('Erro ao deletar lead:', error);
-        throw new Error(error.message);
-      }
-    },
-    onSuccess: () => {
-      toast.success('Lead deletado com sucesso!');
-    },
-    onError: (error: any) => {
-      toast.error(`Erro ao deletar lead: ${error.message}`);
-    },
+  // Aplicar ordenação
+  const sortedLeads = [...filteredLeads].sort((a, b) => {
+    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    
+    return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
   });
+
+  return {
+    leads: sortedLeads,
+    loading: isLoading,
+    error: error?.message || null,
+    refetch,
+  };
 };
-
-/**
- * Hook para mover lead para outra etapa
- */
-export const useMoveLeadToStage = () => {
-  return useMutation({
-    mutationFn: async ({ leadId, etapaId }: { leadId: string; etapaId: string }) => {
-      const { data, error } = await supabase
-        .from('leads')
-        .update({ 
-          etapa_kanban_id: etapaId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', leadId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Erro ao mover lead:', error);
-        throw new Error(error.message);
-      }
-
-      return data;
-    },
-    onSuccess: () => {
-      toast.success('Lead movido com sucesso!');
-    },
-    onError: (error: any) => {
-      toast.error(`Erro ao mover lead: ${error.message}`);
-    },
-  });
-};
-
-// Exportar tipos para compatibilidade
-export type { Lead, CreateLeadData, UpdateLeadData };
