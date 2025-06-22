@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Phone, Mail, User, MessageSquare, Tag, Briefcase, DollarSign, Check, X, Plus, Edit, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Lead } from '@/hooks/useLeadsData';
+import { Lead } from '@/types';
 import { useUpdateLead } from '@/hooks/useSupabaseLeads';
 import { useEtapas } from '@/hooks/useEtapasData';
 import { useTags } from '@/hooks/useTagsData';
@@ -85,7 +86,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
   const { services, addService } = useClinicServices();
   const updateLeadMutation = useUpdateLead();
 
-  // Hook para buscar apelidos de anúncios - CORRIGIDO para usar o hook adequado
+  // Hook para buscar apelidos de anúncios
   const { getAliasForAd } = useAdAliases();
 
   // Query para buscar histórico de consultas (simulado)
@@ -123,7 +124,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
       origem_lead: lead.origem_lead,
       servico_interesse: lead.servico_interesse,
       anotacoes: lead.anotacoes,
-      etapa_kanban_id: lead.etapa_kanban_id
+      etapa_id: lead.etapa_id
     });
     setNotesValue(lead.anotacoes || '');
     setIsEditing(false);
@@ -132,11 +133,11 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
     setIsEditingServico(false);
   }, [lead.id]);
 
-  // Buscar nome da etapa atual
-  const etapaAtual = etapas.find(etapa => etapa.id === (lead.etapa_kanban_id || lead.etapa_id));
+  // Buscar nome da etapa atual - CORRIGIDO para usar etapa_id
+  const etapaAtual = etapas.find(etapa => etapa.id === lead.etapa_id);
   const etapaNome = etapaAtual?.nome || 'Sem etapa';
 
-  // Buscar informações da tag
+  // Buscar informações da tag - CORRIGIDO para usar tag_id
   const tagAtual = tags.find(tag => tag.id === lead.tag_id);
 
   const handleSave = async () => {
@@ -153,7 +154,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         origem_lead: editedLead.origem_lead,
         servico_interesse: editedLead.servico_interesse,
         anotacoes: editedLead.anotacoes,
-        etapa_kanban_id: editedLead.etapa_kanban_id || lead.etapa_kanban_id,
+        etapa_id: editedLead.etapa_id || lead.etapa_id,
         clinica_id: lead.clinica_id
       };
 
@@ -176,7 +177,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
       origem_lead: lead.origem_lead,
       servico_interesse: lead.servico_interesse,
       anotacoes: lead.anotacoes,
-      etapa_kanban_id: lead.etapa_kanban_id
+      etapa_id: lead.etapa_id
     });
     setIsEditing(false);
   };
@@ -193,7 +194,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         origem_lead: lead.origem_lead,
         servico_interesse: lead.servico_interesse,
         anotacoes: lead.anotacoes,
-        etapa_kanban_id: novaEtapaId,
+        etapa_id: novaEtapaId,
         clinica_id: lead.clinica_id
       };
 
@@ -224,7 +225,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         origem_lead: lead.origem_lead,
         servico_interesse: servico,
         anotacoes: lead.anotacoes,
-        etapa_kanban_id: lead.etapa_kanban_id,
+        etapa_id: lead.etapa_id,
         clinica_id: lead.clinica_id
       };
 
@@ -252,7 +253,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         origem_lead: lead.origem_lead,
         servico_interesse: lead.servico_interesse,
         anotacoes: notesValue,
-        etapa_kanban_id: lead.etapa_kanban_id,
+        etapa_id: lead.etapa_id,
         clinica_id: lead.clinica_id
       };
 
@@ -418,7 +419,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         </CardContent>
       </Card>
 
-      {/* Botão para Novo Agendamento - MOVIDO PARA BAIXO DO CARD DE PERFIL */}
+      {/* Botão para Novo Agendamento */}
       <div className="mb-4">
         <Button 
           onClick={() => setIsScheduleModalOpen(true)}
@@ -443,8 +444,8 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
             {isEditingEtapa ? (
               <div className="space-y-2">
                 <Select
-                  value={editedLead.etapa_kanban_id || lead.etapa_kanban_id}
-                  onValueChange={(value) => setEditedLead(prev => ({ ...prev, etapa_kanban_id: value }))}
+                  value={editedLead.etapa_id || lead.etapa_id}
+                  onValueChange={(value) => setEditedLead(prev => ({ ...prev, etapa_id: value }))}
                 >
                   <SelectTrigger className="text-sm">
                     <SelectValue placeholder="Selecione a etapa" />
@@ -460,7 +461,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
                 <div className="flex space-x-2">
                   <Button 
                     size="sm" 
-                    onClick={() => handleSaveEtapa(editedLead.etapa_kanban_id || lead.etapa_kanban_id)}
+                    onClick={() => handleSaveEtapa(editedLead.etapa_id || lead.etapa_id)}
                     disabled={updateLeadMutation.isPending}
                     className="flex-1"
                   >
@@ -741,7 +742,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         </CardContent>
       </Card>
 
-      {/* Histórico de Consultas - NOVO CARD */}
+      {/* Histórico de Consultas */}
       <Card className="mb-4">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
