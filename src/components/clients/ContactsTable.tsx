@@ -64,10 +64,10 @@ export const ContactsTable: React.FC<ContactsTableProps> = ({
   const [selectedLead, setSelectedLead] = React.useState<Lead | null>(null);
   const [isDetailSheetOpen, setIsDetailSheetOpen] = React.useState(false);
 
-  // Função para obter informações da tag pelo ID - CORRIGIDA para tag_ids
-  const getTagInfo = (tagIds: string[] | null) => {
-    if (!tagIds || tagIds.length === 0) return null;
-    return tags.find(tag => tagIds.includes(tag.id));
+  // Função para obter informações da tag pelo ID
+  const getTagInfo = (tagId: string | null) => {
+    if (!tagId) return null;
+    return tags.find(tag => tag.id === tagId);
   };
 
   // Função para exibir detalhes do lead
@@ -114,7 +114,7 @@ export const ContactsTable: React.FC<ContactsTableProps> = ({
           </TableHeader>
           <TableBody>
             {leads.map((lead) => {
-              const tagInfo = getTagInfo(lead.tag_ids); // CORRIGIDO para tag_ids
+              const tagInfo = getTagInfo(lead.tag_id);
               return (
                 <TableRow key={lead.id}>
                   <TableCell className="font-medium">{lead.nome}</TableCell>
@@ -230,17 +230,17 @@ export const ContactsTable: React.FC<ContactsTableProps> = ({
 
                 <div>
                   <span className="text-sm font-medium text-muted-foreground">Tag:</span>
-                  {getTagInfo(selectedLead.tag_ids) ? ( // CORRIGIDO para tag_ids
+                  {getTagInfo(selectedLead.tag_id) ? (
                     <Badge 
                       variant="outline" 
                       className="border-0 mt-1"
                       style={{ 
-                        backgroundColor: `${getTagInfo(selectedLead.tag_ids)?.cor}20`,
-                        color: getTagInfo(selectedLead.tag_ids)?.cor,
-                        borderLeft: `3px solid ${getTagInfo(selectedLead.tag_ids)?.cor}`
+                        backgroundColor: `${getTagInfo(selectedLead.tag_id)?.cor}20`,
+                        color: getTagInfo(selectedLead.tag_id)?.cor,
+                        borderLeft: `3px solid ${getTagInfo(selectedLead.tag_id)?.cor}`
                       }}
                     >
-                      {getTagInfo(selectedLead.tag_ids)?.nome}
+                      {getTagInfo(selectedLead.tag_id)?.nome}
                     </Badge>
                   ) : (
                     <p>Nenhuma tag atribuída</p>

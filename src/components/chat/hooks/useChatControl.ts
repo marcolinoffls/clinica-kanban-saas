@@ -77,13 +77,11 @@ export const useChatControl = ({ selectedLeadId }: UseChatControlProps) => {
     isUpdating 
   } = useAIConversationControl({ leadId: selectedLeadId || '' });
 
-  // Estados locais - ADICIONADOS sending e isUploadingMedia
+  // Estados locais
   const [selectedConversation, setSelectedConversation] = useState<string | null>(selectedLeadId || null);
   const [messageInput, setMessageInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
-  const [sending, setSending] = useState(false); // ADICIONADO
-  const [isUploadingMedia, setIsUploadingMedia] = useState(false); // ADICIONADO
   
   // Estado para armazenar última mensagem de cada lead
   const [ultimasMensagens, setUltimasMensagens] = useState<Record<string, string>>({});
@@ -126,7 +124,10 @@ export const useChatControl = ({ selectedLeadId }: UseChatControlProps) => {
    */
   const handleSendMessage = async (messageData: MessageData) => {
     // Validar se há conteúdo (texto) ou anexo (mídia)
-    if ((!messageData.content.trim() && !messageData.anexoUrl) || !selectedConversation || sendingMessage || isUploadingMedia) {
+    if ((!messageData.content.trim() && !messageData.anexoUrl) || !selectedConversation || sending
+
+
+ || isUploadingMedia) {
       // Validação específica por tipo
       if (messageData.type === 'text' && !messageData.content.trim()) return;
       if ((messageData.type === 'image' || messageData.type === 'audio') && !messageData.anexoUrl) return;
@@ -255,12 +256,8 @@ export const useChatControl = ({ selectedLeadId }: UseChatControlProps) => {
     searchTerm,
     setSearchTerm,
     
-    // Estados de envio - ADICIONADOS sending e isUploadingMedia
+    // Estados de envio
     sendingMessage,
-    sending,
-    setSending,
-    isUploadingMedia,
-    setIsUploadingMedia,
     
     // IA
     aiEnabled,

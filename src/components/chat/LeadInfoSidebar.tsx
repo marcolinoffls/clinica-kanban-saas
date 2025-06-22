@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Phone, Mail, User, MessageSquare, Tag, Briefcase, Check, X, Plus, Edit, ChevronDown } from 'lucide-react';
+import { Calendar, MapPin, Phone, Mail, User, MessageSquare, Tag, Briefcase, DollarSign, Check, X, Plus, Edit, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,7 +25,7 @@ import { toast } from 'sonner';
  * - Avatar e dados de identificação
  * - Etapa atual no pipeline
  * - Tags e anotações
- * - Histórico de conversões
+ * - Histórico de conversões e LTV
  * - Origem do lead e serviços de interesse
  */
 
@@ -120,10 +119,11 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
       nome: lead.nome,
       telefone: lead.telefone,
       email: lead.email,
+      ltv: lead.ltv,
       origem_lead: lead.origem_lead,
       servico_interesse: lead.servico_interesse,
       anotacoes: lead.anotacoes,
-      etapa_id: lead.etapas_kanban?.id // CORRIGIDO: usar etapas_kanban.id
+      etapa_kanban_id: lead.etapa_kanban_id
     });
     setNotesValue(lead.anotacoes || '');
     setIsEditing(false);
@@ -132,12 +132,12 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
     setIsEditingServico(false);
   }, [lead.id]);
 
-  // Buscar nome da etapa atual - CORRIGIDO para usar etapas_kanban
-  const etapaAtual = etapas.find(etapa => etapa.id === lead.etapas_kanban?.id);
+  // Buscar nome da etapa atual
+  const etapaAtual = etapas.find(etapa => etapa.id === (lead.etapa_kanban_id || lead.etapa_id));
   const etapaNome = etapaAtual?.nome || 'Sem etapa';
 
-  // Buscar informações da tag - CORRIGIDO para usar tag_ids
-  const tagAtual = tags.find(tag => lead.tag_ids?.includes(tag.id));
+  // Buscar informações da tag
+  const tagAtual = tags.find(tag => tag.id === lead.tag_id);
 
   const handleSave = async () => {
     try {
@@ -149,10 +149,11 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         nome: editedLead.nome,
         telefone: editedLead.telefone,
         email: editedLead.email,
+        ltv: editedLead.ltv,
         origem_lead: editedLead.origem_lead,
         servico_interesse: editedLead.servico_interesse,
         anotacoes: editedLead.anotacoes,
-        etapa_id: editedLead.etapa_id || lead.etapas_kanban?.id, // CORRIGIDO
+        etapa_kanban_id: editedLead.etapa_kanban_id || lead.etapa_kanban_id,
         clinica_id: lead.clinica_id
       };
 
@@ -171,10 +172,11 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
       nome: lead.nome,
       telefone: lead.telefone,
       email: lead.email,
+      ltv: lead.ltv,
       origem_lead: lead.origem_lead,
       servico_interesse: lead.servico_interesse,
       anotacoes: lead.anotacoes,
-      etapa_id: lead.etapas_kanban?.id // CORRIGIDO
+      etapa_kanban_id: lead.etapa_kanban_id
     });
     setIsEditing(false);
   };
@@ -187,10 +189,11 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         nome: lead.nome,
         telefone: lead.telefone,
         email: lead.email,
+        ltv: lead.ltv,
         origem_lead: lead.origem_lead,
         servico_interesse: lead.servico_interesse,
         anotacoes: lead.anotacoes,
-        etapa_id: novaEtapaId, // CORRIGIDO
+        etapa_kanban_id: novaEtapaId,
         clinica_id: lead.clinica_id
       };
 
@@ -217,10 +220,11 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         nome: lead.nome,
         telefone: lead.telefone,
         email: lead.email,
+        ltv: lead.ltv,
         origem_lead: lead.origem_lead,
         servico_interesse: servico,
         anotacoes: lead.anotacoes,
-        etapa_id: lead.etapas_kanban?.id, // CORRIGIDO
+        etapa_kanban_id: lead.etapa_kanban_id,
         clinica_id: lead.clinica_id
       };
 
@@ -244,10 +248,11 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         nome: lead.nome,
         telefone: lead.telefone,
         email: lead.email,
+        ltv: lead.ltv,
         origem_lead: lead.origem_lead,
         servico_interesse: lead.servico_interesse,
         anotacoes: notesValue,
-        etapa_id: lead.etapas_kanban?.id, // CORRIGIDO
+        etapa_kanban_id: lead.etapa_kanban_id,
         clinica_id: lead.clinica_id
       };
 
@@ -263,6 +268,14 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
   const handleCancelNotes = () => {
     setNotesValue(lead.anotacoes || '');
     setIsEditingNotes(false);
+  };
+
+  const formatCurrency = (value: number | null | undefined) => {
+    if (!value) return 'R$ 0,00';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
   };
 
   const formatDate = (dateString: string | null | undefined) => {
@@ -430,8 +443,8 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
             {isEditingEtapa ? (
               <div className="space-y-2">
                 <Select
-                  value={editedLead.etapa_id || lead.etapas_kanban?.id} // CORRIGIDO
-                  onValueChange={(value) => setEditedLead(prev => ({ ...prev, etapa_id: value }))}
+                  value={editedLead.etapa_kanban_id || lead.etapa_kanban_id}
+                  onValueChange={(value) => setEditedLead(prev => ({ ...prev, etapa_kanban_id: value }))}
                 >
                   <SelectTrigger className="text-sm">
                     <SelectValue placeholder="Selecione a etapa" />
@@ -447,7 +460,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
                 <div className="flex space-x-2">
                   <Button 
                     size="sm" 
-                    onClick={() => handleSaveEtapa(editedLead.etapa_id || lead.etapas_kanban?.id || '')} // CORRIGIDO
+                    onClick={() => handleSaveEtapa(editedLead.etapa_kanban_id || lead.etapa_kanban_id)}
                     disabled={updateLeadMutation.isPending}
                     className="flex-1"
                   >
@@ -699,6 +712,35 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
         </CardContent>
       </Card>
 
+      {/* Informações de valor */}
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <DollarSign className="w-4 h-4" />
+            Valor
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">LTV (Lifetime Value)</p>
+            {isEditing ? (
+              <Input
+                value={editedLead.ltv || ''}
+                onChange={(e) => setEditedLead(prev => ({ ...prev, ltv: parseFloat(e.target.value) || 0 }))}
+                placeholder="Valor em R$"
+                type="number"
+                step="0.01"
+                className="text-lg font-semibold"
+              />
+            ) : (
+              <p className="text-lg font-semibold text-green-600">
+                {formatCurrency(lead.ltv || 0)}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Histórico de Consultas - NOVO CARD */}
       <Card className="mb-4">
         <CardHeader>
@@ -715,7 +757,9 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
                   {consultasHistorico.length} consulta{consultasHistorico.length !== 1 ? 's' : ''}
                 </p>
                 <p className="text-xs text-gray-500">
-                  Valor total: R$ {consultasHistorico.reduce((sum, consulta) => sum + consulta.valor, 0).toFixed(2)}
+                  Valor total: {formatCurrency(
+                    consultasHistorico.reduce((sum, consulta) => sum + consulta.valor, 0)
+                  )}
                 </p>
               </div>
               <Button 
@@ -735,7 +779,7 @@ export const LeadInfoSidebar = ({ lead, onClose }: LeadInfoSidebarProps) => {
                       <div className="flex justify-between items-start mb-1">
                         <span className="font-medium">{consulta.procedimento}</span>
                         <span className="text-green-600 font-medium">
-                          R$ {consulta.valor.toFixed(2)}
+                          {formatCurrency(consulta.valor)}
                         </span>
                       </div>
                       <p className="text-gray-500">{formatDate(consulta.data_consulta)}</p>

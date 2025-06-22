@@ -1,85 +1,100 @@
+/**
+ * Componente para controlar acesso a funcionalidades baseado no plano
+ * 
+ * Este componente:
+ * - Verifica se o usuário tem acesso a uma funcionalidade específica
+ * - Exibe um fallback quando o acesso é negado
+ * - Permite override para Admin
+ * - Integra com o sistema de planos e trial
+ * 
+ * Usado para proteger funcionalidades premium em toda a aplicação
+ */
 
-import React from 'react';
-import { useSubscription } from '@/hooks/useSubscription';
-import { FeatureAccess } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ReactNode } from 'react';
+import { useFeatureAccess } from '@/hooks/useSubscription';
+import { AlertTriangle, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Lock, Clock, CheckCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FeatureAccess } from '@/types';
 
 interface FeatureGuardProps {
-  feature: string;
-  fallback?: React.ReactNode;
-  children: React.ReactNode;
+  feature: keyof FeatureAccess;
+  children: ReactNode;
+  fallback?: ReactNode;
+  showUpgrade?: boolean;
 }
 
-/**
- * Componente de proteção de funcionalidades baseado no plano
- * 
- * Verifica se o usuário tem acesso a uma funcionalidade específica
- * baseado no seu plano atual e status da assinatura.
- */
-export const FeatureGuard: React.FC<FeatureGuardProps> = ({
-  feature,
-  fallback,
-  children,
-}) => {
-  // CORRIGIDO: usar useSubscription unificado
-  const { useFeatureAccess } = useSubscription();
-  const featureAccess = useFeatureAccess(feature);
-
-  // Se tem acesso concedido, renderizar normalmente
-  if (featureAccess === FeatureAccess.GRANTED) {
-    return <>{children}</>;
-  }
-
-  // Se tem acesso trial, renderizar com aviso
-  if (featureAccess === FeatureAccess.TRIAL) {
+export const FeatureGuard = ({ 
+  feature, 
+  children, 
+  fallback, 
+  showUpgrade = true 
+}: FeatureGuardProps) => {
+  const featureAccess = useFeatureAccess();
+  
+  // Se ainda está carregando dados do plano
+  if (!featureAccess) {
     return (
-      <div className="space-y-4">
-        <Card className="border-orange-200 bg-orange-50">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-orange-800">
-              <Clock className="w-5 h-5" />
-              Funcionalidade em Trial
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-orange-700 mb-3">
-              Você está usando esta funcionalidade durante o período de trial. 
-              Para continuar usando após o trial, faça upgrade do seu plano.
-            </p>
-            <Button size="sm" className="bg-orange-600 hover:bg-orange-700">
-              Fazer Upgrade
-            </Button>
-          </CardContent>
-        </Card>
-        {children}
+      <div className="flex items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
-  // Se não tem acesso, renderizar fallback ou mensagem padrão
+  // Verificar se tem acesso à funcionalidade
+  const hasAccess = featureAccess[feature];
+
+  // Se tem acesso, mostrar o conteúdo
+  if (hasAccess) {
+    return <>{children}</>;
+  }
+
+  // Se foi fornecido um fallback customizado
   if (fallback) {
     return <>{fallback}</>;
   }
 
+  // Fallback padrão com opção de upgrade
+  if (showUpgrade) {
+    return (
+      <Card className="border-amber-200 bg-amber-50">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center text-amber-800">
+            <Crown className="w-5 h-5 mr-2" />
+            Funcionalidade Premium
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="default" className="border-amber-300 bg-amber-50">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-amber-800">
+              Esta funcionalidade está disponível apenas nos planos pagos. 
+              Faça upgrade para acessar todos os recursos.
+            </AlertDescription>
+          </Alert>
+          
+          <div className="mt-4 flex gap-2">
+            <Button variant="outline" size="sm" className="border-amber-300 text-amber-700 hover:bg-amber-100">
+              Ver Planos
+            </Button>
+            <Button size="sm" className="bg-amber-600 hover:bg-amber-700">
+              <Crown className="w-4 h-4 mr-2" />
+              Fazer Upgrade
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Fallback minimalista sem botão de upgrade
   return (
-    <Card className="border-red-200 bg-red-50">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-red-800">
-          <Lock className="w-5 h-5" />
-          Funcionalidade Bloqueada
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-red-700 mb-4">
-          Esta funcionalidade não está disponível no seu plano atual. 
-          Faça upgrade para acessar recursos avançados.
-        </p>
-        <Button size="sm" className="bg-red-600 hover:bg-red-700">
-          Ver Planos
-        </Button>
-      </CardContent>
-    </Card>
+    <Alert variant="default" className="border-gray-300">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertDescription>
+        Esta funcionalidade não está disponível no seu plano atual.
+      </AlertDescription>
+    </Alert>
   );
 };

@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar, CreditCard, Clock, History } from 'lucide-react';
-import { useSubscription } from '@/hooks/useSubscription';
+import { usePlans, useSubscription, useChangePlan, useTrialStatus } from '@/hooks/useSubscription';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -31,16 +31,23 @@ export const AdminPlanManager = ({ clinicaId, clinicaNome }: AdminPlanManagerPro
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [changeReason, setChangeReason] = useState<string>('');
   
-  // CORRIGIDO: usar useSubscription unificado
-  const { plans, subscription, loading } = useSubscription();
+  const { data: plans = [], isLoading: plansLoading } = usePlans();
+  const { data: subscription, isLoading: subscriptionLoading } = useSubscription();
+  const trialStatus = useTrialStatus();
+  const changePlanMutation = useChangePlan();
 
-  // Função simulada para alterar plano (deve ser implementada no hook)
+  // Buscar plano atual
+  const currentPlan = plans.find(plan => plan.id === subscription?.plan_id);
+
   const handleChangePlan = async () => {
     if (!selectedPlanId) return;
 
     try {
-      // TODO: Implementar lógica de alteração de plano
-      console.log('Alterando plano para:', selectedPlanId, 'Motivo:', changeReason);
+      await changePlanMutation.mutateAsync({
+        clinicaId,
+        planId: selectedPlanId,
+        reason: changeReason || `Alteração manual pelo admin para ${clinicaNome}`,
+      });
       
       setSelectedPlanId('');
       setChangeReason('');
@@ -48,9 +55,6 @@ export const AdminPlanManager = ({ clinicaId, clinicaNome }: AdminPlanManagerPro
       console.error('Erro ao alterar plano:', error);
     }
   };
-
-  // Buscar plano atual
-  const currentPlan = plans.find(plan => plan.id === subscription?.plan_id);
 
   const getStatusBadge = (status: string) => {
     const variants = {
@@ -76,13 +80,7 @@ export const AdminPlanManager = ({ clinicaId, clinicaNome }: AdminPlanManagerPro
     );
   };
 
-  // Função para verificar se está em trial
-  const isInTrial = subscription?.status === 'trial';
-  const trialEndDate = subscription?.trial_end ? new Date(subscription.trial_end) : null;
-  const hasExpired = trialEndDate ? trialEndDate < new Date() : false;
-  const daysRemaining = trialEndDate ? Math.max(0, Math.ceil((trialEndDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0;
-
-  if (loading) {
+  if (plansLoading || subscriptionLoading) {
     return (
       <Card>
         <CardContent className="p-6">
@@ -117,21 +115,21 @@ export const AdminPlanManager = ({ clinicaId, clinicaNome }: AdminPlanManagerPro
               </div>
 
               {/* Informações do Trial */}
-              {isInTrial && (
+              {trialStatus.isInTrial && (
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                   <div className="flex items-center gap-2 mb-2">
                     <Clock className="w-4 h-4 text-blue-600" />
                     <span className="font-medium text-blue-800">Status do Trial</span>
                   </div>
                   <div className="text-sm text-blue-700">
-                    {hasExpired ? (
+                    {trialStatus.hasExpired ? (
                       <span className="text-red-600 font-medium">Trial expirado</span>
                     ) : (
                       <>
-                        <span>{daysRemaining} dias restantes</span>
-                        {trialEndDate && (
+                        <span>{trialStatus.daysRemaining} dias restantes</span>
+                        {trialStatus.trialEndDate && (
                           <span className="block">
-                            Expira em: {format(trialEndDate, 'dd/MM/yyyy', { locale: ptBR })}
+                            Expira em: {format(trialStatus.trialEndDate, 'dd/MM/yyyy', { locale: ptBR })}
                           </span>
                         )}
                       </>
@@ -201,10 +199,10 @@ export const AdminPlanManager = ({ clinicaId, clinicaNome }: AdminPlanManagerPro
 
           <Button
             onClick={handleChangePlan}
-            disabled={!selectedPlanId || loading}
+            disabled={!selectedPlanId || changePlanMutation.isPending}
             className="w-full"
           >
-            {loading ? 'Alterando...' : 'Alterar Plano'}
+            {changePlanMutation.isPending ? 'Alterando...' : 'Alterar Plano'}
           </Button>
         </CardContent>
       </Card>
