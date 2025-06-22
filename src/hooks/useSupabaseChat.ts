@@ -147,47 +147,62 @@ export const useSupabaseChat = () => {
     }
   };
 
-  // Função para enviar mensagem com suporte a anexos de mídia (ATUALIZADA)
+  // Função para enviar mensagem com suporte a anexos de mídia - ADMIN COMPATIBLE
   const enviarMensagem = async (
     leadId: string, 
     conteudo: string, 
-    tipo: string = 'texto', // ATUALIZAÇÃO: Valor padrão alterado para 'texto' para consistência.
-    anexoUrl?: string | null // Novo parâmetro para URL do anexo (MinIO)
+    tipo: string = 'texto',
+    anexoUrl?: string | null
   ) => {
-    // Validações rigorosas antes do envio
-    if (!validarClinicaId('enviarMensagem')) {
-      const errorMsg = 'Não é possível enviar mensagem: ID da clínica não está disponível ou dados da clínica estão carregando/com erro.';
-      console.error(`[useSupabaseChat] enviarMensagem: ${errorMsg}`);
-      console.error('Debug - clinicaId:', clinicaId, 'type:', typeof clinicaId);
-      console.error('Debug - clinicaDataLoading:', clinicaDataLoading);
-      console.error('Debug - clinicaDataError:', clinicaDataError);
-      
-      toast.error(errorMsg);
-      throw new Error(errorMsg);
+    // Para admin, permitir envio mesmo sem clinica_id do contexto
+    // O admin deve fornecer explicitamente o clinica_id correto
+    const targetClinicaId = clinicaId;
+    
+    if (!targetClinicaId && !validarClinicaId('enviarMensagem')) {
+      // Se não há clinica_id disponível, buscar pela mensagem do lead
+      try {
+        const { data: leadData, error: leadError } = await supabase
+          .from('leads')
+          .select('clinica_id')
+          .eq('id', leadId)
+          .single();
+
+        if (leadError || !leadData?.clinica_id) {
+          const errorMsg = 'Não é possível enviar mensagem: não foi possível determinar a clínica do lead.';
+          console.error(`[useSupabaseChat] enviarMensagem: ${errorMsg}`);
+          toast.error(errorMsg);
+          throw new Error(errorMsg);
+        }
+
+        // Usar clinica_id do lead
+        var finalClinicaId = leadData.clinica_id;
+      } catch (error) {
+        console.error('[useSupabaseChat] Erro ao buscar clinica_id do lead:', error);
+        throw error;
+      }
+    } else {
+      var finalClinicaId = targetClinicaId;
     }
 
     // Log detalhado dos dados que serão enviados
     console.log('[useSupabaseChat] Preparando para enviar mensagem:');
     console.log('- leadId:', leadId, 'type:', typeof leadId);
-    console.log('- clinicaId:', clinicaId, 'type:', typeof clinicaId);
+    console.log('- finalClinicaId:', finalClinicaId, 'type:', typeof finalClinicaId);
     console.log('- conteudo:', conteudo.substring(0, 50) + '...');
     console.log('- tipo:', tipo);
     console.log('- anexoUrl:', anexoUrl);
 
     try {
-      // CORREÇÃO: Garante que o tipo da mensagem seja compatível com o banco de dados.
-      // O banco de dados espera 'texto', mas algumas partes do código podem enviar 'text'.
-      // Esta linha converte 'text' para 'texto', garantindo que a inserção funcione.
       const tipoCorrigido = tipo === 'text' ? 'texto' : tipo;
 
       // Preparar dados da mensagem com novos campos
       const mensagemData: any = {
         lead_id: leadId,
-        clinica_id: clinicaId,
+        clinica_id: finalClinicaId,
         conteudo: conteudo.trim(),
         enviado_por: 'usuario',
-        tipo: tipoCorrigido, // CORREÇÃO: Usando o tipo corrigido.
-        lida: false // Mensagens enviadas pelo usuário podem começar como não lidas
+        tipo: tipoCorrigido,
+        lida: false
       };
 
       // Adicionar anexo_url apenas se fornecido (para mídias)
@@ -277,7 +292,7 @@ export const useSupabaseChat = () => {
     buscarMensagensNaoLidas,
     marcarMensagensComoLidas,
     buscarMensagensLead,
-    enviarMensagem, // Função atualizada com suporte a tipo e anexoUrl
+    enviarMensagem, // Função atualizada com compatibilidade admin
     buscarRespostasProntas,
     // Indicador de que os dados do chat estão prontos para uso
     isChatDataReady: !!clinicaId && !clinicaDataLoading && !clinicaDataError

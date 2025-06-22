@@ -1,16 +1,20 @@
-
 import { useState, useEffect } from 'react';
-import { Search, Phone, Video, MessageSquare, Instagram } from 'lucide-react';
+import { Search, Phone, Video, MessageSquare, Instagram, Shield } from 'lucide-react';
 import { MessageInput } from './MessageInput';
 import { ChatWindow } from './ChatWindow';
 import { LeadInfoSidebar } from './LeadInfoSidebar';
 import { FollowupButton } from '@/components/followup/FollowupButton';
+import { AdminClinicSelector } from '@/components/admin/AdminClinicSelector';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useAdminChatData } from '@/hooks/useAdminChatData';
+import { useAdminCheck } from '@/hooks/useAdminCheck';
 import { useWebhook } from '@/hooks/useWebhook';
 import { useClinicaData } from '@/hooks/useClinicaData';
 import { useAIConversationControl } from '@/hooks/useAIConversationControl';
 import { useUpdateLeadAiConversationStatus, useCreateLead } from '@/hooks/useLeadsData';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Lead } from '@/hooks/useLeadsData';
 import { supabase } from '@/integrations/supabase/client';
 import { RegistroAgendamentoModal } from '@/components/agendamentos/RegistroAgendamentoModal';
@@ -95,18 +99,29 @@ const getOrigemIcon = (origem: string | null | undefined) => {
 };
 
 export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
-  const { clinicaId } = useClinicaData(); // Obtém o ID da clínica diretamente
+  const { clinicaId } = useClinicaData();
+  const { isAdmin, loading: adminLoading } = useAdminCheck();
 
-  const {
-    leads,
-    etapas,
-    tags,
-    enviarMensagem,
-    respostasProntas,
-    mensagensNaoLidas,
-    marcarMensagensComoLidas,
-    loading
-  } = useSupabaseData();
+  // Estado para controle administrativo
+  const [adminClinicaSelecionada, setAdminClinicaSelecionada] = useState<any | null>(null);
+
+  // Hooks de dados - usar admin ou normal dependendo do tipo de usuário
+  const normalChatData = useSupabaseData();
+  const adminChatData = useAdminChatData(adminClinicaSelecionada?.id || null);
+
+  // Determinar quais dados usar baseado no tipo de usuário
+  const currentChatData = isAdmin 
+    ? {
+        leads: adminChatData.leads,
+        mensagensNaoLidas: adminChatData.mensagensNaoLidas,
+        loading: adminChatData.loading,
+        etapas: normalChatData.etapas, // Etapas são sempre as mesmas
+        tags: normalChatData.tags, // Tags são sempre as mesmas
+        respostasProntas: normalChatData.respostasProntas,
+        enviarMensagem: normalChatData.enviarMensagem,
+        marcarMensagensComoLidas: adminChatData.marcarMensagensComoLidasAdmin || normalChatData.marcarMensagensComoLidas
+      }
+    : normalChatData;
 
   const { enviarWebhook } = useWebhook();
   const updateLeadAiStatusMutation = useUpdateLeadAiConversationStatus();
@@ -130,7 +145,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
   const [leadSourceForModal, setLeadSourceForModal] = useState<Lead | null>(null);
 
-  const selectedLead = leads.find(l => l.id === selectedConversation) || null;
+  const selectedLead = currentChatData.leads.find(l => l.id === selectedConversation) || null;
 
   const { aiEnabled, toggleAI, isInitializing, isUpdating } = useAIConversationControl({
     selectedLead,
@@ -211,20 +226,19 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   }, [selectedLeadId]);
 
   useEffect(() => {
-    if (selectedConversation && mensagensNaoLidas[selectedConversation] > 0) {
-      marcarMensagensComoLidas(selectedConversation);
+    if (selectedConversation && currentChatData.mensagensNaoLidas[selectedConversation] > 0) {
+      currentChatData.marcarMensagensComoLidasAdmin(selectedConversation);
     }
-  }, [selectedConversation, mensagensNaoLidas, marcarMensagensComoLidas]);
+  }, [selectedConversation, currentChatData.mensagensNaoLidas, currentChatData.marcarMensagensComoLidasAdmin]);
 
-  // Filtrar e ordenar leads por última mensagem (ATUALIZADO)
-  const leadsComMensagens = leads
+  // Filtrar e ordenar leads - adaptar para modo admin
+  const leadsComMensagens = currentChatData.leads
     .filter(lead =>
       (lead.nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.telefone?.includes(searchTerm) ||
       (lead.email || '').toLowerCase().includes(searchTerm.toLowerCase())
     )
     .sort((a, b) => {
-      // Ordenar por data da última mensagem, mais recente primeiro
       const dataA = ultimasMensagens[a.id] || a.data_ultimo_contato || a.updated_at;
       const dataB = ultimasMensagens[b.id] || b.data_ultimo_contato || b.updated_at;
       
@@ -332,7 +346,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     try {
       setSendingMessage(true);
 
-      const leadSelecionado = leads.find(l => l.id === selectedConversation);
+      const leadSelecionado = currentChatData.leads.find(l => l.id === selectedConversation);
 
       let clinicaIdParaWebhook: string | null = null;
 
@@ -350,7 +364,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       }
 
       // Chamar enviarMensagem com os novos parâmetros (incluindo tipo e anexoUrl)
-      const novaMensagemRaw = await enviarMensagem(
+      const novaMensagemRaw = await currentChatData.enviarMensagem(
         selectedConversation,        // leadId
         messageData.content,         // conteúdo (nome do arquivo para mídia, texto para mensagens de texto)
         messageData.type,            // tipo: 'text', 'image', 'audio'
@@ -450,7 +464,18 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     setLeadSourceForModal(null);
   };
 
-  if (loading) {
+  if (adminLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Verificando permissões...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentChatData.loading) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
@@ -465,9 +490,39 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
     <div className="h-screen flex overflow-hidden">
       {/* Lista de conversas - Lateral esquerda */}
       <div className="w-80 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
-        {/* Header da lista */}
+        {/* Header da lista com seletor de clínica para admin */}
         <div className="p-4 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-xl font-semibold text-gray-900 mb-3">Conversas</h2>
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-xl font-semibold text-gray-900">Conversas</h2>
+            {isAdmin && (
+              <Badge variant="outline" className="text-xs">
+                <Shield className="w-3 h-3 mr-1" />
+                Admin
+              </Badge>
+            )}
+          </div>
+
+          {/* Seletor de clínica para administradores */}
+          {isAdmin && (
+            <div className="mb-3">
+              <AdminClinicSelector
+                clinicaSelecionada={adminClinicaSelecionada}
+                onClinicaSelected={setAdminClinicaSelecionada}
+                showStats={false}
+              />
+            </div>
+          )}
+
+          {/* Alert informativo para admin */}
+          {isAdmin && !adminClinicaSelecionada && (
+            <Alert className="mb-3">
+              <Shield className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Selecione uma clínica para visualizar suas conversas
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
             <input
@@ -484,8 +539,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
         <div className="flex-1 overflow-y-auto">
           {leadsComMensagens.length > 0 ? (
             leadsComMensagens.map((lead) => {
-              const mensagensNaoLidasCount = mensagensNaoLidas[lead.id] || 0;
-              // Usar a data da última mensagem do estado ou fallback para data_ultimo_contato
+              const mensagensNaoLidasCount = currentChatData.mensagensNaoLidas[lead.id] || 0;
               const ultimaMensagemData = ultimasMensagens[lead.id] || lead.data_ultimo_contato || lead.updated_at;
               
               return (
@@ -504,7 +558,6 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                           {lead.nome ? lead.nome.charAt(0).toUpperCase() : '?'}
                         </AvatarFallback>
                       </Avatar>
-                      {/* Ícone da origem do lead (NOVO) */}
                       {getOrigemIcon(lead.origem_lead)}
                     </div>
 
@@ -516,11 +569,19 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
 
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start">
-                        <h4 className={`font-medium truncate ${
-                          mensagensNaoLidasCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-900'
-                        }`}>
-                          {lead.nome || 'Lead sem nome'}
-                        </h4>
+                        <div className="min-w-0">
+                          <h4 className={`font-medium truncate ${
+                            mensagensNaoLidasCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-900'
+                          }`}>
+                            {lead.nome || 'Lead sem nome'}
+                          </h4>
+                          {/* Exibir nome da clínica para admin */}
+                          {isAdmin && lead.nome_clinica && (
+                            <div className="text-xs text-blue-600 truncate">
+                              {lead.nome_clinica}
+                            </div>
+                          )}
+                        </div>
                         <span className="text-xs text-gray-500 flex-shrink-0">
                           {formatTime(ultimaMensagemData)}
                         </span>
@@ -543,7 +604,12 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
           ) : (
             <div className="p-8 text-center">
               <MessageSquare size={32} className="text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Nenhuma conversa encontrada</p>
+              <p className="text-gray-500">
+                {isAdmin && !adminClinicaSelecionada 
+                  ? 'Selecione uma clínica para visualizar conversas'
+                  : 'Nenhuma conversa encontrada'
+                }
+              </p>
             </div>
           )}
         </div>
@@ -553,7 +619,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
       <div className="flex-1 flex flex-col min-w-0">
         {selectedLead ? (
           <>
-            {/* Header da conversa com botão de follow-up */}
+            {/* Header da conversa com informações da clínica para admin */}
             <div className="bg-white border-b border-gray-200 p-4 flex justify-between items-center flex-shrink-0">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="relative">
@@ -563,20 +629,26 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                       {selectedLead.nome ? selectedLead.nome.charAt(0).toUpperCase() : '?'}
                     </AvatarFallback>
                   </Avatar>
-                  {/* Ícone da origem no header também (NOVO) */}
                   {getOrigemIcon(selectedLead.origem_lead)}
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-semibold text-gray-900 truncate">
                     {selectedLead.nome || 'Lead sem nome'}
                   </h3>
-                  <p className="text-sm text-gray-500 truncate">
-                    {formatPhoneNumber(selectedLead.telefone)}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-500 truncate">
+                      {formatPhoneNumber(selectedLead.telefone)}
+                    </p>
+                    {/* Mostrar clínica para admin */}
+                    {isAdmin && selectedLead.nome_clinica && (
+                      <Badge variant="outline" className="text-xs">
+                        {selectedLead.nome_clinica}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2 flex-shrink-0">
-                {/* Botão de Follow-up integrado */}
                 <FollowupButton
                   leadId={selectedLead.id}
                   leadNome={selectedLead.nome}
@@ -600,7 +672,6 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
             </div>
 
             <div className="border-t border-gray-200 bg-white flex-shrink-0">
-              {/* Exibir erro de upload se houver */}
               {uploadError && (
                 <div className="px-4 py-2 bg-red-50 border-b border-red-200">
                   <p className="text-sm text-red-600">Erro no upload: {uploadError}</p>
@@ -617,7 +688,7 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                 })}
                 onFileSelect={handleFileUploadAndSend}
                 loading={sendingMessage || isUploadingMedia}
-                respostasProntas={respostasProntas}
+                respostasProntas={currentChatData.respostasProntas}
                 aiEnabled={aiEnabled}
                 onToggleAI={toggleAI}
                 isAIInitializing={isInitializing || isUpdating}
@@ -635,7 +706,10 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
                 Selecione uma conversa
               </h3>
               <p className="text-gray-500">
-                Escolha uma conversa para começar a mensagear
+                {isAdmin && !adminClinicaSelecionada
+                  ? 'Primeiro selecione uma clínica, depois escolha uma conversa'
+                  : 'Escolha uma conversa para começar a mensagear'
+                }
               </p>
             </div>
           </div>
