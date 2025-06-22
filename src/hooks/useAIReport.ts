@@ -13,20 +13,24 @@ import type { CreateReportData } from '@/types/aiReports';
  * - Orquestra todos os hooks relacionados a relatórios
  * - Fornece uma interface unificada para componentes
  * - Combina funcionalidades de modal, dados, criação e cancelamento
+ * - Suporte a modo administrador com clinicaId específica
  * 
  * Onde é usado:
  * - No DashboardPage para permitir a criação de relatórios
  * - No componente AIReportModal para gerenciar o estado
  * 
  * Como se conecta:
- * - Usa o contexto ClinicaContext para obter o ID da clínica
+ * - Usa o contexto ClinicaContext para obter o ID da clínica (modo normal)
  * - Conecta-se à tabela ai_reports no Supabase
  * - Chama as Edge Functions generate-ai-report e reset-ai-report-status
  */
-export const useAIReport = () => {
-  const { clinicaId } = useClinica();
+export const useAIReport = (adminTargetClinicaId?: string) => {
+  const { clinicaId: contextClinicaId } = useClinica();
   
-  // Buscar dados dos relatórios
+  // Em modo admin, usar clinicaId fornecida; caso contrário, usar do contexto
+  const effectiveClinicaId = adminTargetClinicaId || contextClinicaId;
+  
+  // Buscar dados dos relatórios - agora com clinicaId específica
   const {
     reports,
     pendingReports,
@@ -34,7 +38,7 @@ export const useAIReport = () => {
     failedReports,
     isLoading: isLoadingReports,
     refetch: refetchReports
-  } = useAIReportsData();
+  } = useAIReportsData(effectiveClinicaId);
 
   // Controlar modal
   const {
@@ -45,8 +49,8 @@ export const useAIReport = () => {
     updatePeriod
   } = useAIReportModal();
 
-  // Criar relatórios
-  const { createReport, isCreating } = useCreateAIReport(refetchReports);
+  // Criar relatórios - agora com clinicaId específica
+  const { createReport, isCreating } = useCreateAIReport(refetchReports, effectiveClinicaId);
 
   // Cancelar relatórios
   const { cancelReport, isCancelling } = useCancelAIReport(refetchReports);
@@ -84,6 +88,6 @@ export const useAIReport = () => {
 
     // Utilitários
     refetchReports,
-    clinicaId
+    clinicaId: effectiveClinicaId
   };
 };

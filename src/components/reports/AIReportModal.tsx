@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, FileText, Send, Calendar, Clock, XCircle } from 'lucide-react';
+import { X, FileText, Send, Calendar, Clock, XCircle, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -23,6 +23,7 @@ import { useClinica } from '@/contexts/ClinicaContext';
  * - Dispara a criação do relatório através do hook useAIReport
  * - Permite cancelar relatórios em andamento
  * - Usa o telefone da clínica como padrão para WhatsApp
+ * - Suporte a modo administrador mostrando clínica selecionada
  * 
  * Onde é usado:
  * - Aberto a partir do botão "Gerar Relatório" no Dashboard
@@ -49,6 +50,8 @@ interface AIReportModalProps {
     id: string;
     status: string;
   } | null;
+  adminMode?: boolean;
+  selectedClinica?: any;
 }
 
 export const AIReportModal: React.FC<AIReportModalProps> = ({
@@ -58,7 +61,9 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
   onCancelReport,
   isCreating,
   isCancelling = false,
-  currentProcessingReport = null
+  currentProcessingReport = null,
+  adminMode = false,
+  selectedClinica = null
 }) => {
   const { clinicaId } = useClinica();
   
@@ -75,16 +80,19 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
     filterName: 'Últimos 30 dias'
   });
 
+  // Determinar qual clinicaId usar para buscar dados
+  const targetClinicaId = adminMode && selectedClinica ? selectedClinica.id : clinicaId;
+
   // Buscar dados da clínica para obter telefone padrão
   const { data: clinica } = useQuery({
-    queryKey: ['clinica-telefone', clinicaId],
+    queryKey: ['clinica-telefone', targetClinicaId],
     queryFn: async () => {
-      if (!clinicaId) return null;
+      if (!targetClinicaId) return null;
       
       const { data, error } = await supabase
         .from('clinicas')
         .select('telefone, nome')
-        .eq('id', clinicaId)
+        .eq('id', targetClinicaId)
         .single();
 
       if (error) {
@@ -94,7 +102,7 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
 
       return data;
     },
-    enabled: !!clinicaId && isOpen
+    enabled: !!targetClinicaId && isOpen
   });
 
   // Atualizar telefone quando os dados da clínica carregarem
@@ -153,10 +161,33 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-blue-600" />
             Emitir Relatório de Análise
+            {adminMode && selectedClinica && (
+              <div className="flex items-center gap-2 ml-auto">
+                <Building2 className="w-4 h-4 text-gray-600" />
+                <span className="text-sm text-gray-600">{selectedClinica.nome}</span>
+              </div>
+            )}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Alerta de clínica selecionada para admin */}
+          {adminMode && selectedClinica && (
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <Building2 className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <h4 className="font-medium text-blue-900">Gerando relatório para:</h4>
+                    <p className="text-sm text-blue-700">
+                      {selectedClinica.nome} - {selectedClinica.email}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Alerta de relatório em processamento */}
           {hasProcessingReport && (
             <Card className="border-amber-200 bg-amber-50">

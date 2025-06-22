@@ -14,28 +14,32 @@ import type { CreateReportData, ReportRequestPayload } from '@/types/aiReports';
  * - Chama a Edge Function otimizada que envia payload mínimo para o n8n
  * - Gerencia estados de loading e erro
  * - Exibe toasts de feedback para o usuário
+ * - Suporte a modo administrador com clinicaId específica
  * 
  * Onde é usado:
  * - No hook principal useAIReport
  * - Componentes que precisam criar relatórios
  */
-export const useCreateAIReport = (refetchReports: () => void) => {
-  const { clinicaId } = useClinica();
+export const useCreateAIReport = (refetchReports: () => void, targetClinicaId?: string) => {
+  const { clinicaId: contextClinicaId } = useClinica();
 
   // Mutation para criar um novo relatório
   const createReportMutation = useMutation({
     mutationFn: async (reportData: CreateReportData) => {
-      if (!clinicaId) {
+      // Usar clinicaId fornecida (admin) ou do contexto (usuário normal)
+      const effectiveClinicaId = targetClinicaId || contextClinicaId;
+      
+      if (!effectiveClinicaId) {
         throw new Error('ID da clínica não encontrado');
       }
 
-      console.log('📊 Criando novo relatório:', reportData);
+      console.log('📊 Criando novo relatório para clínica:', effectiveClinicaId, reportData);
 
       // 1. Criar registro na tabela ai_reports
       const { data: reportRecord, error: createError } = await supabase
         .from('ai_reports')
         .insert({
-          clinica_id: clinicaId,
+          clinica_id: effectiveClinicaId,
           start_date: reportData.period_start.toISOString(),
           end_date: reportData.period_end.toISOString(),
           delivery_method: reportData.delivery_method,
@@ -54,7 +58,7 @@ export const useCreateAIReport = (refetchReports: () => void) => {
 
       // 2. Preparar payload mínimo para a Edge Function
       const payload: ReportRequestPayload = {
-        clinica_id: clinicaId,
+        clinica_id: effectiveClinicaId,
         start_date: reportData.period_start.toISOString(),
         end_date: reportData.period_end.toISOString(),
         delivery_method: reportData.delivery_method,

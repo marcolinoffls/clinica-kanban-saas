@@ -25,6 +25,9 @@ const DashboardPage = () => {
   const { isAdmin, loading: adminCheckLoading } = useAdminCheck();
   const [clinicaSelecionada, setClinicaSelecionada] = useState<any | null>(null);
 
+  // Hook do relatório IA - agora pode receber clinicaId específica para admin
+  const targetClinicaId = isAdmin ? clinicaSelecionada?.id : undefined;
+  
   const {
     isModalOpen,
     openModal,
@@ -35,7 +38,7 @@ const DashboardPage = () => {
     isCancellingReport,
     pendingReports,
     currentProcessingReport
-  } = useAIReport();
+  } = useAIReport(targetClinicaId);
 
   // Mostrar loading enquanto verifica privilégios admin
   if (adminCheckLoading) {
@@ -134,6 +137,8 @@ const DashboardPage = () => {
         isCreating={isCreatingReport}
         isCancelling={isCancellingReport}
         currentProcessingReport={currentProcessingReport}
+        adminMode={isAdmin}
+        selectedClinica={clinicaSelecionada}
       />
     </div>
   );

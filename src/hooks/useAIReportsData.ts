@@ -5,67 +5,61 @@ import { useClinica } from '@/contexts/ClinicaContext';
 import type { AIReport } from '@/types/aiReports';
 
 /**
- * Hook para buscar dados de relatórios de IA
+ * Hook para buscar dados dos relatórios de IA
  * 
  * O que faz:
- * - Busca todos os relatórios da clínica atual
- * - Ordena por data de criação (mais recentes primeiro)
- * - Categoriza os relatórios por status
- * - Fornece função de refetch para atualizar dados
+ * - Busca todos os relatórios de uma clínica específica
+ * - Organiza os relatórios por status (pendente, completo, falha)
+ * - Suporte a modo administrador com clinicaId específica
  * 
  * Onde é usado:
  * - No hook principal useAIReport
- * - Qualquer componente que precise listar relatórios
+ * - Componentes que precisam listar relatórios
  */
-export const useAIReportsData = () => {
-  const { clinicaId } = useClinica();
+export const useAIReportsData = (targetClinicaId?: string) => {
+  const { clinicaId: contextClinicaId } = useClinica();
+  
+  // Usar clinicaId fornecida ou do contexto
+  const effectiveClinicaId = targetClinicaId || contextClinicaId;
 
-  // Query para buscar relatórios existentes da clínica
-  const { data: reports = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['ai-reports', clinicaId],
+  const { data: reports = [], isLoading, error, refetch } = useQuery<AIReport[]>({
+    queryKey: ['aiReports', effectiveClinicaId],
     queryFn: async () => {
-      if (!clinicaId) return [];
-      
+      if (!effectiveClinicaId) {
+        console.log('🔍 [useAIReportsData] Nenhuma clínica especificada');
+        return [];
+      }
+
+      console.log('📊 [useAIReportsData] Buscando relatórios para clínica:', effectiveClinicaId);
+
       const { data, error } = await supabase
         .from('ai_reports')
         .select('*')
-        .eq('clinica_id', clinicaId)
+        .eq('clinica_id', effectiveClinicaId)
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Erro ao buscar relatórios:', error);
+        console.error('❌ [useAIReportsData] Erro ao buscar relatórios:', error);
         throw error;
       }
 
-      // Mapear campos da tabela para o tipo AIReport
-      return data.map(item => ({
-        id: item.id,
-        clinica_id: item.clinica_id,
-        start_date: item.start_date,  // Corrigido: usar start_date ao invés de period_start
-        end_date: item.end_date,      // Corrigido: usar end_date ao invés de period_end
-        delivery_method: item.delivery_method as 'in_app' | 'whatsapp',
-        status: item.status as 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled',
-        report_content: item.report_content,
-        report_pdf_url: item.report_pdf_url,
-        phone_number: item.phone_number,
-        error_message: item.error_message,
-        created_at: item.created_at,
-        updated_at: item.updated_at
-      } as AIReport));
+      console.log(`✅ [useAIReportsData] Carregados ${data?.length || 0} relatórios`);
+      return data || [];
     },
-    enabled: !!clinicaId,
-    staleTime: 30 * 1000, // 30 segundos
+    enabled: !!effectiveClinicaId,
+    staleTime: 1 * 60 * 1000, // 1 minuto
+    retry: 1
   });
 
-  // Categorizar relatórios por status
+  // Organizar relatórios por status
   const pendingReports = reports.filter(report => 
     report.status === 'pending' || report.status === 'processing'
   );
-
+  
   const completedReports = reports.filter(report => 
     report.status === 'completed'
   );
-
+  
   const failedReports = reports.filter(report => 
     report.status === 'failed' || report.status === 'cancelled'
   );
