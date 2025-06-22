@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 // CORREÇÃO: Importa o cliente Supabase centralizado do projeto.
