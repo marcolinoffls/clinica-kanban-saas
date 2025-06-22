@@ -1,177 +1,89 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuthUser } from './useAuthUser'; // Importar para obter o perfil do usuário
-import { useLeads, Lead, useDeleteLead, useUpdateLead, useCreateLead } from '@/hooks/useLeadsData';
-import { useTags } from '@/hooks/useTagsData';
-import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { FilterState, SortField, SortOrder } from '@/components/clients/types';
-import { getUniqueOrigens, getUniqueServicos } from '@/components/clients/utils';
-import { toast } from 'sonner';
+import { useState, useEffect, useMemo } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
-/**
- * Hook para gerenciar a lógica da página de Contatos.
- *
- * CORREÇÃO:
- * A função handleSaveLead foi atualizada para injetar o `clinica_id`
- * do usuário logado ao criar um novo lead, garantindo que a política de
- * segurança (RLS) seja cumprida, assim como foi feito no Pipeline.
- */
-export const useClientsPage = () => {
-  const navigate = useNavigate();
-  const { userProfile } = useAuthUser(); // Obter o perfil do usuário logado
+interface Contact {
+  id: string;
+  created_at: string;
+  nome: string;
+  telefone: string;
+  email: string;
+  origem_lead: string;
+  servico_interesse: string;
+  anotacoes: string;
+  tag_id: string | null;
+  // Outras propriedades do contato
+}
 
-  // Hooks para dados e mutações
-  const { data: leads = [], isLoading: loading } = useLeads();
-  const { data: tags = [] } = useTags();
-  const { etapas = [] } = useSupabaseData();
-  const deleteLeadMutation = useDeleteLead();
-  const updateLeadMutation = useUpdateLead();
-  const createLeadMutation = useCreateLead();
+interface UseClientsPageResult {
+  data: Contact[] | null;
+  loading: boolean;
+  error: Error | null;
+  searchTerm: string;
+  setSearchTerm: (term: string) => void;
+  selectedTagId: string | null;
+  setSelectedTagId: (tagId: string | null) => void;
+  filteredContacts: Contact[];
+}
 
-  // Estados locais
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [sortField, setSortField] = useState<SortField>('created_at');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
-  const [selectedLeadForEdit, setSelectedLeadForEdit] = useState<Lead | null>(null);
+export const useClientsPage = (): UseClientsPageResult => {
+  const [data, setData] = useState<Contact[] | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
 
-  // Estado dos filtros
-  const [filters, setFilters] = useState<FilterState>({
-    tag: '',
-    origem: '',
-    servico: '',
-    dataInicio: undefined,
-    dataFim: undefined,
-  });
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
 
-  // Dados únicos para filtros
-  const uniqueOrigens = useMemo(() => getUniqueOrigens(leads), [leads]);
-  const uniqueServicos = useMemo(() => getUniqueServicos(leads), [leads]);
+      try {
+        const { data: contacts, error: fetchError } = await supabase
+          .from('leads')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-  // Função para aplicar filtros e busca
-  const filteredLeads = useMemo(() => {
-    if (!leads) return [];
-    return leads.filter((lead: Lead) => {
-      const matchesSearch = !searchQuery ||
-        lead.nome?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.email?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesTag = !filters.tag || lead.tag_ids?.includes(filters.tag);
-      const matchesOrigem = !filters.origem || lead.origem_lead === filters.origem;
-      const matchesServico = !filters.servico || lead.servico_interesse === filters.servico;
-      let matchesDate = true;
-      if (filters.dataInicio || filters.dataFim) {
-        const leadDate = lead.created_at ? new Date(lead.created_at) : null;
-        if (leadDate) {
-          if (filters.dataInicio) matchesDate = matchesDate && leadDate >= new Date(filters.dataInicio);
-          if (filters.dataFim) matchesDate = matchesDate && leadDate <= new Date(filters.dataFim);
+        if (fetchError) {
+          setError(fetchError);
         } else {
-          matchesDate = false;
+          setData(contacts);
         }
+      } catch (e: any) {
+        setError(e);
+      } finally {
+        setLoading(false);
       }
-      return matchesSearch && matchesTag && matchesOrigem && matchesServico && matchesDate;
+    };
+
+    fetchData();
+  }, []);
+
+  // Filtrar leads/contatos baseado no termo de busca
+  const filteredContacts = useMemo(() => {
+    if (!data) return [];
+    
+    return data.filter((contact) => {
+      const matchesSearch = !searchTerm || 
+        contact.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        contact.telefone?.includes(searchTerm) ||
+        contact.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        contact.origem_lead?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        contact.servico_interesse?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesTag = !selectedTagId || contact.tag_id === selectedTagId;
+      
+      return matchesSearch && matchesTag;
     });
-  }, [leads, searchQuery, filters]);
-
-  // Função para aplicar ordenação
-  const sortedLeads = useMemo(() => {
-    if (!filteredLeads.length) return [];
-    return [...filteredLeads].sort((a, b) => {
-      let aValue: any, bValue: any;
-      switch (sortField) {
-        case 'nome': aValue = a.nome || ''; bValue = b.nome || ''; break;
-        case 'email': aValue = a.email || ''; bValue = b.email || ''; break;
-        case 'data_ultimo_contato':
-          aValue = a.data_ultimo_contato ? new Date(a.data_ultimo_contato).getTime() : 0;
-          bValue = b.data_ultimo_contato ? new Date(b.data_ultimo_contato).getTime() : 0;
-          break;
-        case 'created_at':
-          aValue = a.created_at ? new Date(a.created_at).getTime() : 0;
-          bValue = b.created_at ? new Date(b.created_at).getTime() : 0;
-          break;
-        default: return 0;
-      }
-      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [filteredLeads, sortField, sortOrder]);
-
-  // Handlers
-  const handleSort = (field: SortField) => {
-    setSortField(field);
-    setSortOrder(sortField === field && sortOrder === 'asc' ? 'desc' : 'asc');
-  };
-
-  const handleAddLead = () => {
-    setSelectedLeadForEdit(null);
-    setIsLeadModalOpen(true);
-  };
-
-  const handleClearFilters = () => {
-    setFilters({ tag: '', origem: '', servico: '', dataInicio: undefined, dataFim: undefined });
-    setSearchQuery('');
-    setIsFilterOpen(false);
-  };
-
-  const handleEditLead = (lead: Lead) => {
-    setSelectedLeadForEdit(lead);
-    setIsLeadModalOpen(true);
-  };
-
-  const handleOpenChat = (lead: Lead) => navigate(`/chat?leadId=${lead.id}`);
-
-  const handleDeleteLead = async (leadId: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este contato?')) {
-      await deleteLeadMutation.mutateAsync(leadId);
-    }
-  };
-
-  // =================================================================
-  // FUNÇÃO CORRIGIDA PARA SALVAR (CRIAR E EDITAR)
-  // =================================================================
-  const handleSaveLead = async (leadData: Partial<Lead>) => {
-    try {
-      if (selectedLeadForEdit) {
-        // Modo de EDIÇÃO: Atualiza um lead existente.
-        await updateLeadMutation.mutateAsync({
-          id: selectedLeadForEdit.id,
-          ...leadData
-        });
-        toast.success("Lead atualizado com sucesso!");
-      } else {
-        // Modo de CRIAÇÃO: Adiciona um novo lead.
-        // Validação de Segurança: Garante que temos o clinica_id do usuário logado.
-        if (!userProfile?.clinica_id) {
-          throw new Error('ID da clínica do usuário não encontrado. Não é possível criar o lead.');
-        }
-
-        // Ignora qualquer clinica_id vindo do formulário e força o ID do usuário.
-        const { clinica_id, ...dadosDoFormulario } = leadData;
-        const dadosParaInserir = {
-          ...dadosDoFormulario,
-          clinica_id: userProfile.clinica_id, // Fonte segura da verdade.
-        };
-
-        await createLeadMutation.mutateAsync(dadosParaInserir);
-        // A notificação de sucesso já é tratada dentro do useCreateLead.
-      }
-      setIsLeadModalOpen(false);
-      setSelectedLeadForEdit(null);
-    } catch (error: any) {
-      console.error('Erro ao salvar lead:', error);
-      toast.error(error.message || 'Ocorreu um erro ao salvar o lead.');
-      throw error; // Re-lança o erro para que o modal saiba que falhou.
-    }
-  };
-
-  const hasActiveFilters = Boolean(filters.tag || filters.origem || filters.servico || filters.dataInicio || filters.dataFim || searchQuery);
+  }, [data, searchTerm, selectedTagId]);
 
   return {
-    loading, tags, etapas, searchQuery, setSearchQuery, isFilterOpen, setIsFilterOpen,
-    sortField, sortOrder, isDeleting: deleteLeadMutation.isPending, isLeadModalOpen, setIsLeadModalOpen,
-    selectedLeadForEdit, setSelectedLeadForEdit, filters, setFilters, uniqueOrigens,
-    uniqueServicos, sortedLeads, hasActiveFilters, handleSort, handleAddLead,
-    handleClearFilters, handleEditLead, handleOpenChat, handleDeleteLead, handleSaveLead,
+    data,
+    loading,
+    error,
+    searchTerm,
+    setSearchTerm,
+    selectedTagId,
+    setSelectedTagId,
+    filteredContacts,
   };
 };

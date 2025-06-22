@@ -5,6 +5,7 @@ import { DashboardMetrics } from './DashboardMetrics';
 import { DashboardCharts } from './DashboardCharts';
 import { DashboardInsights } from './DashboardInsights';
 import { useDashboardData } from '@/hooks/useDashboardData';
+import { useAdminDashboardData } from '@/hooks/useAdminDashboardData';
 import { useLeads } from '@/hooks/useSupabaseLeads';
 import { ResponseTimeCard } from './ResponseTimeCard';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
@@ -18,17 +19,27 @@ import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
  * - Gráficos de performance e conversão com melhor visualização
  * - Performance de anúncios específicos por ad_name com rolagem
  * - Insights automáticos baseados nos dados
+ * - Suporte a modo administrador para visualizar dados de qualquer clínica
  * 
- * Os dados são buscados do Supabase através do hook useDashboardData
- * e filtrados pelo período selecionado pelo usuário.
+ * Os dados são buscados do Supabase através dos hooks useDashboardData
+ * ou useAdminDashboardData (em modo admin) e filtrados pelo período selecionado.
  */
 
-export const Dashboard = () => {
+interface DashboardProps {
+  adminMode?: boolean;
+  targetClinicaId?: string;
+}
+
+export const Dashboard = ({ adminMode = false, targetClinicaId }: DashboardProps) => {
   const [startDate, setStartDate] = useState<Date | null>(() => startOfDay(startOfMonth(new Date())));
   const [endDate, setEndDate] = useState<Date | null>(() => endOfDay(endOfMonth(new Date())));
   const [currentFilter, setCurrentFilter] = useState('Este Mês');
 
-  const { data: dashboardData, isLoading, error } = useDashboardData(startDate, endDate);
+  // Usar hook apropriado baseado no modo
+  const normalDashboard = useDashboardData(startDate, endDate);
+  const adminDashboard = useAdminDashboardData(targetClinicaId || null, startDate, endDate);
+  
+  const { data: dashboardData, isLoading, error } = adminMode ? adminDashboard : normalDashboard;
   const { data: rawLeads = [] } = useLeads();
 
   const handleFilterChange = (newStartDate: Date | null, newEndDate: Date | null, filterName: string) => {
@@ -40,6 +51,12 @@ export const Dashboard = () => {
   // Filtrar leads brutos pelo período selecionado
   const filteredRawLeads = rawLeads.filter(lead => {
     if (!lead.created_at) return false;
+    
+    // Em modo admin, filtrar apenas leads da clínica selecionada
+    if (adminMode && targetClinicaId && lead.clinica_id !== targetClinicaId) {
+      return false;
+    }
+    
     const leadDate = new Date(lead.created_at);
     
     let withinRange = true;
@@ -55,7 +72,7 @@ export const Dashboard = () => {
       <div className="space-y-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
-          <p className="text-gray-600 mt-1">Carregando métricas da sua clínica...</p>
+          <p className="text-gray-600 mt-1">Carregando métricas da clínica...</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -105,6 +122,7 @@ export const Dashboard = () => {
           </div>
         )}
       </div>
+
       {/* Seção de gráficos */}
       <DashboardCharts 
         dashboardData={dashboardData}
