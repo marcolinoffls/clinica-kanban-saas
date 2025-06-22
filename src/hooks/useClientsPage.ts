@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-// CORREÇÃO: Importar useAuthUser para ter acesso ao perfil do usuário
-import { useAuthUser } from './useAuthUser';
+import { useAuthUser } from './useAuthUser'; // Importar para obter o perfil do usuário
 import { useLeads, Lead, useDeleteLead, useUpdateLead, useCreateLead } from '@/hooks/useLeadsData';
 import { useTags } from '@/hooks/useTagsData';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
@@ -12,18 +11,14 @@ import { toast } from 'sonner';
 /**
  * Hook para gerenciar a lógica da página de Contatos.
  *
- * Este hook encapsula todos os estados, filtros, ordenação e
- * manipuladores de eventos da página de contatos, simplificando o
- * componente principal.
- *
  * CORREÇÃO:
- * A função handleSaveLead foi atualizada para usar o clinica_id do
- * usuário logado ao criar um novo lead, garantindo que a política de
+ * A função handleSaveLead foi atualizada para injetar o `clinica_id`
+ * do usuário logado ao criar um novo lead, garantindo que a política de
  * segurança (RLS) seja cumprida, assim como foi feito no Pipeline.
  */
 export const useClientsPage = () => {
   const navigate = useNavigate();
-  const { userProfile } = useAuthUser(); // NOVO: Obter o perfil do usuário
+  const { userProfile } = useAuthUser(); // Obter o perfil do usuário logado
 
   // Hooks para dados e mutações
   const { data: leads = [], isLoading: loading } = useLeads();
@@ -61,7 +56,6 @@ export const useClientsPage = () => {
       const matchesSearch = !searchQuery ||
         lead.nome?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lead.email?.toLowerCase().includes(searchQuery.toLowerCase());
-      // A lógica foi atualizada para usar tag_ids (plural)
       const matchesTag = !filters.tag || lead.tag_ids?.includes(filters.tag);
       const matchesOrigem = !filters.origem || lead.origem_lead === filters.origem;
       const matchesServico = !filters.servico || lead.servico_interesse === filters.servico;
@@ -140,7 +134,6 @@ export const useClientsPage = () => {
     try {
       if (selectedLeadForEdit) {
         // Modo de EDIÇÃO: Atualiza um lead existente.
-        // A RLS de UPDATE garante a permissão.
         await updateLeadMutation.mutateAsync({
           id: selectedLeadForEdit.id,
           ...leadData
@@ -168,8 +161,7 @@ export const useClientsPage = () => {
     } catch (error: any) {
       console.error('Erro ao salvar lead:', error);
       toast.error(error.message || 'Ocorreu um erro ao salvar o lead.');
-      // Re-lança o erro para que o modal possa, opcionalmente, lidar com ele (ex: não fechar).
-      throw error;
+      throw error; // Re-lança o erro para que o modal saiba que falhou.
     }
   };
 
