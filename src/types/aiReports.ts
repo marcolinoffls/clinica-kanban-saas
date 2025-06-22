@@ -35,7 +35,7 @@ export interface PeriodSelection {
   filterName: string;
 }
 
-// Payload mínimo para a Edge Function
+// Payload mínimo para a Edge Function com identificação de quem solicitou
 export interface ReportRequestPayload {
   clinica_id: string;
   start_date: string;
@@ -43,6 +43,10 @@ export interface ReportRequestPayload {
   delivery_method: 'in_app' | 'whatsapp';
   recipient_phone_number?: string;
   report_request_id: string;
+  // Novos campos para identificar quem solicitou
+  requested_by_admin: boolean;
+  requester_user_id: string;
+  admin_clinic_context?: string | null;
 }
 
 // Payload para cancelar relatório

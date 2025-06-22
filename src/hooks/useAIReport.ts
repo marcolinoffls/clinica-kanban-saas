@@ -4,6 +4,7 @@ import { useAIReportsData } from './useAIReportsData';
 import { useCreateAIReport } from './useCreateAIReport';
 import { useCancelAIReport } from './useCancelAIReport';
 import { useAIReportModal } from './useAIReportModal';
+import { useAdminCheck } from './useAdminCheck';
 import type { CreateReportData } from '@/types/aiReports';
 
 /**
@@ -14,6 +15,7 @@ import type { CreateReportData } from '@/types/aiReports';
  * - Fornece uma interface unificada para componentes
  * - Combina funcionalidades de modal, dados, criação e cancelamento
  * - Suporte a modo administrador com clinicaId específica
+ * - Identifica automaticamente se é admin e passa essa informação
  * 
  * Onde é usado:
  * - No DashboardPage para permitir a criação de relatórios
@@ -26,9 +28,11 @@ import type { CreateReportData } from '@/types/aiReports';
  */
 export const useAIReport = (adminTargetClinicaId?: string) => {
   const { clinicaId: contextClinicaId } = useClinica();
+  const { isAdmin } = useAdminCheck();
   
   // Em modo admin, usar clinicaId fornecida; caso contrário, usar do contexto
   const effectiveClinicaId = adminTargetClinicaId || contextClinicaId;
+  const isAdminMode = isAdmin && !!adminTargetClinicaId;
   
   // Buscar dados dos relatórios - agora com clinicaId específica
   const {
@@ -49,11 +53,11 @@ export const useAIReport = (adminTargetClinicaId?: string) => {
     updatePeriod
   } = useAIReportModal();
 
-  // Criar relatórios - agora com clinicaId específica
-  const { createReport, isCreating } = useCreateAIReport(refetchReports, effectiveClinicaId);
+  // Criar relatórios - agora com clinicaId específica e informação de admin
+  const { createReport, isCreating } = useCreateAIReport(refetchReports, effectiveClinicaId, isAdminMode);
 
-  // Cancelar relatórios
-  const { cancelReport, isCancelling } = useCancelAIReport(refetchReports);
+  // Cancelar relatórios - agora com clinicaId específica
+  const { cancelReport, isCancelling } = useCancelAIReport(refetchReports, effectiveClinicaId);
 
   // Encontrar o relatório em processamento atual
   const currentProcessingReport = pendingReports.find(report => 
@@ -88,6 +92,7 @@ export const useAIReport = (adminTargetClinicaId?: string) => {
 
     // Utilitários
     refetchReports,
-    clinicaId: effectiveClinicaId
+    clinicaId: effectiveClinicaId,
+    isAdminMode
   };
 };

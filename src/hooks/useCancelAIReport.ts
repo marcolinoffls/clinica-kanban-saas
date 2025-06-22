@@ -13,27 +13,31 @@ import type { CancelReportPayload } from '@/types/aiReports';
  * - Chama a Edge Function reset-ai-report-status
  * - Atualiza o status do relatório para 'cancelled'
  * - Exibe toasts de feedback para o usuário
+ * - Suporte a modo administrador com clinicaId específica
  * 
  * Onde é usado:
  * - No hook principal useAIReport
- * - Componentes que precisam cancelar relatórios em processamento
+ * - Componentes que precisem cancelar relatórios em processamento
  */
-export const useCancelAIReport = (refetchReports: () => void) => {
-  const { clinicaId } = useClinica();
+export const useCancelAIReport = (refetchReports: () => void, targetClinicaId?: string) => {
+  const { clinicaId: contextClinicaId } = useClinica();
 
   // Mutation para cancelar um relatório
   const cancelReportMutation = useMutation({
     mutationFn: async (reportId: string) => {
-      if (!clinicaId) {
+      // Usar clinicaId fornecida (admin) ou do contexto (usuário normal)
+      const effectiveClinicaId = targetClinicaId || contextClinicaId;
+      
+      if (!effectiveClinicaId) {
         throw new Error('ID da clínica não encontrado');
       }
 
-      console.log('🚫 Cancelando relatório:', reportId);
+      console.log('🚫 Cancelando relatório:', reportId, 'da clínica:', effectiveClinicaId);
 
       // Preparar payload para a Edge Function
       const payload: CancelReportPayload = {
         report_id: reportId,
-        clinica_id: clinicaId
+        clinica_id: effectiveClinicaId
       };
 
       // Obter o token JWT do usuário atual

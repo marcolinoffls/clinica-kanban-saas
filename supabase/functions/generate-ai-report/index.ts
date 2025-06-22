@@ -10,6 +10,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * - Recebe payload mínimo do frontend
  * - Converte datas para o fuso horário de São Paulo
  * - Envia dados essenciais para o webhook do n8n
+ * - Inclui informações sobre quem solicitou (admin ou usuário da clínica)
  * - Delega coleta de dados para o n8n (mais eficiente)
  * - Atualiza status em caso de erro
  * 
@@ -19,7 +20,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * Como funciona:
  * - Validação JWT usando Supabase Auth
  * - Conversão de datas para timezone de São Paulo
- * - Payload mínimo para n8n
+ * - Payload mínimo para n8n com identificação do solicitante
  * - Resposta rápida para o frontend
  * - n8n faz o trabalho pesado de coleta e análise de dados
  */
@@ -36,6 +37,9 @@ interface ReportRequestPayload {
   delivery_method: 'in_app' | 'whatsapp';
   recipient_phone_number?: string;
   report_request_id: string;
+  requested_by_admin: boolean;
+  requester_user_id: string;
+  admin_clinic_context?: string | null;
 }
 
 /**
@@ -120,13 +124,23 @@ serve(async (req) => {
       end_date, 
       delivery_method, 
       recipient_phone_number, 
-      report_request_id 
+      report_request_id,
+      requested_by_admin,
+      requester_user_id,
+      admin_clinic_context
     } = requestData;
 
     // Validar campos obrigatórios
     if (!clinica_id || !start_date || !end_date || !delivery_method || !report_request_id) {
       throw new Error('Campos obrigatórios faltando no payload');
     }
+
+    // Log das informações do solicitante
+    console.log('🔐 Informações do solicitante:', {
+      requested_by_admin,
+      requester_user_id,
+      admin_clinic_context
+    });
 
     // 4. Atualizar status do relatório para 'processing'
     await supabase
@@ -147,7 +161,7 @@ serve(async (req) => {
       sao_paulo_end: endDateSaoPaulo
     });
 
-    // 6. Preparar payload mínimo para o n8n com datas no fuso de São Paulo
+    // 6. Preparar payload mínimo para o n8n com datas no fuso de São Paulo e informações do solicitante
     const n8nPayload = {
       // IDs e metadados essenciais
       report_request_id,
@@ -156,6 +170,11 @@ serve(async (req) => {
       end_date: endDateSaoPaulo,      // Data convertida para São Paulo
       delivery_method,
       recipient_phone_number,
+      
+      // Informações sobre quem solicitou o relatório
+      requested_by_admin,
+      requester_user_id,
+      admin_clinic_context,
       
       // Timestamp do processamento
       processing_started_at: new Date().toISOString(),
@@ -167,7 +186,7 @@ serve(async (req) => {
       timezone: 'America/Sao_Paulo'
     };
 
-    console.log('📤 Enviando payload mínimo para o n8n com timezone de São Paulo...');
+    console.log('📤 Enviando payload completo para o n8n:', n8nPayload);
 
     // 7. Enviar para o webhook do n8n
     const webhookUrl = 'https://webhooks.marcolinofernades.site/webhook/relatorio-crm-sistema';
@@ -196,6 +215,11 @@ serve(async (req) => {
         message: 'Relatório enviado para processamento no n8n',
         report_id: report_request_id,
         n8n_response: webhookResult,
+        requester_info: {
+          requested_by_admin,
+          requester_user_id,
+          admin_clinic_context
+        },
         timezone_info: {
           original_dates: { start_date, end_date },
           sao_paulo_dates: { start_date: startDateSaoPaulo, end_date: endDateSaoPaulo }
