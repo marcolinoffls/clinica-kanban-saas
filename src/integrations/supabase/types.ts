@@ -104,7 +104,7 @@ export type Database = {
           clinica_id?: string | null
           created_at?: string | null
           data_fim: string
-          data_inicio?: string
+          data_inicio: string
           descricao?: string | null
           id?: string
           status?: string | null
