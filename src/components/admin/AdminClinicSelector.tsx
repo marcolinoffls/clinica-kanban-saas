@@ -40,71 +40,22 @@ export const AdminClinicSelector = ({
   onClinicaSelected, 
   showStats = true 
 }: AdminClinicSelectorProps) => {
-  const [clinicas, setClinicas] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  // CORREÇÃO: Remover estado local de clínicas e usar do hook
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
   const { 
-    buscarEstatisticasClinicas, 
-    buscarTodasClinicas, 
+    clinicas,           // ← USAR CLÍNICAS DO HOOK
+    loading,            // ← USAR LOADING DO HOOK
     isAdmin, 
     adminCheckLoading,
-    debug // Para logs de debug
+    debug
   } = useSupabaseAdmin();
 
-  // Carregar lista de clínicas ao montar o componente
-  useEffect(() => {
-    const carregarClinicas = async () => {
-      try {
-        console.log('🏥 [AdminClinicSelector] Carregando lista de clínicas...');
-        console.log('🏥 [AdminClinicSelector] Status admin:', isAdmin);
-        console.log('🏥 [AdminClinicSelector] Admin loading:', adminCheckLoading);
-        
-        if (!isAdmin) {
-          console.warn('⚠️ [AdminClinicSelector] Usuário não é admin - não carregando clínicas');
-          setClinicas([]);
-          setLoading(false);
-          return;
-        }
-
-        setLoading(true);
-        
-        // CORREÇÃO: Usar buscarTodasClinicas primeiro, depois buscarEstatisticasClinicas se necessário
-        let dadosClinicas;
-        
-        if (showStats) {
-          console.log('📊 [AdminClinicSelector] Buscando clínicas com estatísticas...');
-          dadosClinicas = await buscarEstatisticasClinicas();
-        } else {
-          console.log('🏥 [AdminClinicSelector] Buscando clínicas básicas...');
-          dadosClinicas = await buscarTodasClinicas();
-        }
-        
-        console.log('✅ [AdminClinicSelector] Dados recebidos:', dadosClinicas);
-        console.log('✅ [AdminClinicSelector] Total de clínicas:', dadosClinicas?.length || 0);
-        
-        setClinicas(dadosClinicas || []);
-        
-        console.log(`✅ [AdminClinicSelector] ${dadosClinicas?.length || 0} clínicas carregadas no estado`);
-      } catch (error) {
-        console.error('❌ [AdminClinicSelector] Erro ao carregar clínicas:', error);
-        setClinicas([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Só carrega se não estiver carregando verificação de admin
-    if (!adminCheckLoading) {
-      carregarClinicas();
-    }
-  }, [isAdmin, adminCheckLoading, showStats]);
-
-  // Log de debug adicional
+  // Log de debug para acompanhar o estado
   useEffect(() => {
     console.log('🔍 [AdminClinicSelector] Estado atual:', {
-      clinicas: clinicas.length,
+      clinicasDoHook: clinicas.length,
       loading,
       isAdmin,
       adminCheckLoading,
@@ -112,7 +63,7 @@ export const AdminClinicSelector = ({
     });
     
     if (debug) {
-      debug(); // Chama debug do hook useSupabaseAdmin
+      debug();
     }
   }, [clinicas, loading, isAdmin, adminCheckLoading]);
 
@@ -167,7 +118,7 @@ export const AdminClinicSelector = ({
       {/* Debug info temporário */}
       {process.env.NODE_ENV === 'development' && (
         <div className="text-xs text-gray-400 p-1 bg-gray-50 rounded">
-          Debug: {clinicas.length} clínicas carregadas
+          Debug: {clinicas.length} clínicas do hook - {clinicasFiltradas.length} filtradas
         </div>
       )}
 
