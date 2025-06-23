@@ -1,10 +1,10 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useSupabaseChat } from './useSupabaseChat';
-import { useLeads, useUpdateLeadAiConversationStatus } from './useLeadsData';
+import { useLeads } from './useLeadsData';
 import { useEtapas } from './useEtapasData';
 import { useTags } from './useTagsData';
+import { useSupabaseChat } from './useSupabaseChat';
+import { useUpdateLeadAiConversationStatus } from './mutations/useUpdateLeadAiConversationStatus';
 
 /**
  * Hook principal para gerenciar dados do Supabase
@@ -34,7 +34,7 @@ export const useSupabaseData = () => {
   // Hook especializado para chat
   const chatHook = useSupabaseChat();
 
-  // NOVO: Hook para atualizar estado da IA por lead
+  // Hook para atualizar estado da IA por lead
   const updateLeadAiConversationStatus = useUpdateLeadAiConversationStatus();
 
   // Verificar se ainda está carregando dados iniciais
@@ -43,61 +43,10 @@ export const useSupabaseData = () => {
     setLoading(isStillLoading);
   }, [leadsLoading, etapasLoading, tagsLoading]);
 
-  // Buscar dados iniciais do chat
+  // CORREÇÃO: Realtime subscription SIMPLIFICADA - SEM LOOPS
   useEffect(() => {
-    const fetchChatData = async () => {
-      try {
-        console.log('🔄 Carregando dados iniciais do chat...');
-        
-        // Buscar respostas prontas do chat
-        await chatHook.buscarRespostasProntas();
+    if (!chatHook.isChatDataReady) return;
 
-        // Buscar contadores de mensagens não lidas
-        await chatHook.buscarMensagensNaoLidas();
-        
-        console.log('✅ Dados do chat carregados');
-      } catch (error) {
-        console.error('❌ Erro ao carregar dados do chat:', error);
-      }
-    };
-
-    fetchChatData();
-  }, []);
-
-  // Configurar Realtime para leads e mensagens
-  useEffect(() => {
-    console.log('🔄 Configurando subscrições Realtime para leads e mensagens');
-
-    // Canal para escutar novos leads
-    const canalLeads = supabase
-      .channel('leads-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'leads',
-        },
-        (payload) => {
-          console.log('📥 Novo lead detectado:', payload.new);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'leads',
-        },
-        (payload) => {
-          console.log('📝 Lead atualizado:', payload.new);
-        }
-      )
-      .subscribe((status) => {
-        console.log('🔗 Status da subscrição Realtime (leads):', status);
-      });
-
-    // Canal para escutar novas mensagens
     const canalMensagens = supabase
       .channel('mensagens-realtime')
       .on(
@@ -108,9 +57,8 @@ export const useSupabaseData = () => {
           table: 'chat_mensagens',
         },
         (payload) => {
-          console.log('📨 Nova mensagem detectada:', payload.new);
           const novaMensagem = payload.new as any;
-
+          
           // Atualizar contador de mensagens não lidas
           if (novaMensagem.enviado_por === 'lead' && !novaMensagem.lida) {
             chatHook.setMensagensNaoLidas(contadores => ({
@@ -120,17 +68,13 @@ export const useSupabaseData = () => {
           }
         }
       )
-      .subscribe((status) => {
-        console.log('🔗 Status da subscrição Realtime (mensagens):', status);
-      });
+      .subscribe();
 
     // Função de limpeza
     return () => {
-      console.log('🧹 Removendo subscrições Realtime');
-      supabase.removeChannel(canalLeads);
       supabase.removeChannel(canalMensagens);
     };
-  }, []);
+  }, [chatHook.isChatDataReady]); // DEPENDÊNCIA ÚNICA
 
   return {
     // Dados principais das entidades
@@ -151,7 +95,7 @@ export const useSupabaseData = () => {
     enviarMensagem: chatHook.enviarMensagem,
     marcarMensagensComoLidas: chatHook.marcarMensagensComoLidas,
 
-    // NOVA: Função para atualizar estado da IA por lead
+    // Função para atualizar estado da IA por lead
     updateLeadAiConversationStatus: updateLeadAiConversationStatus.mutate,
   };
 };
