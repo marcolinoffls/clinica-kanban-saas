@@ -24,19 +24,34 @@ import { AdminClinicChat } from './AdminClinicChat';
 
 interface ClinicQuickActionsProps {
   clinicaId: string;
-  clinicaNome: string;
+  onOpenChat?: () => void;
+  onAddLead?: () => void;
 }
 
-export const ClinicQuickActions = ({ clinicaId, clinicaNome }: ClinicQuickActionsProps) => {
+export const ClinicQuickActions = ({ clinicaId, onOpenChat, onAddLead }: ClinicQuickActionsProps) => {
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+
+  const handleOpenChat = () => {
+    if (onOpenChat) {
+      onOpenChat();
+    } else {
+      setIsChatOpen(true);
+    }
+  };
+
+  const handleAddLead = () => {
+    if (onAddLead) {
+      onAddLead();
+    }
+  };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Eye className="w-5 h-5 text-blue-600" />
-          Visualização Rápida
+          Ações Rápidas
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -48,21 +63,34 @@ export const ClinicQuickActions = ({ clinicaId, clinicaNome }: ClinicQuickAction
             className="h-20 flex flex-col gap-2 hover:bg-blue-50 hover:border-blue-300"
           >
             <BarChart3 className="w-6 h-6 text-blue-600" />
-            <span className="text-sm font-medium">Dashboard da Clínica</span>
+            <span className="text-sm font-medium">Dashboard</span>
             <span className="text-xs text-gray-500">Métricas e indicadores</span>
           </Button>
 
           {/* Botão para Chat */}
           <Button
-            onClick={() => setIsChatOpen(true)}
+            onClick={handleOpenChat}
             variant="outline"
             className="h-20 flex flex-col gap-2 hover:bg-green-50 hover:border-green-300"
           >
             <MessageSquare className="w-6 h-6 text-green-600" />
-            <span className="text-sm font-medium">Chat da Clínica</span>
+            <span className="text-sm font-medium">Chat</span>
             <span className="text-xs text-gray-500">Conversas com leads</span>
           </Button>
         </div>
+
+        {/* Botão para Adicionar Lead */}
+        {onAddLead && (
+          <div className="mt-4">
+            <Button
+              onClick={handleAddLead}
+              className="w-full bg-purple-600 hover:bg-purple-700"
+            >
+              <Users className="w-4 h-4 mr-2" />
+              Adicionar Lead
+            </Button>
+          </div>
+        )}
 
         {/* Modal do Dashboard */}
         <Dialog open={isDashboardOpen} onOpenChange={setIsDashboardOpen}>
@@ -70,7 +98,7 @@ export const ClinicQuickActions = ({ clinicaId, clinicaNome }: ClinicQuickAction
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5" />
-                Dashboard - {clinicaNome}
+                Dashboard da Clínica
               </DialogTitle>
             </DialogHeader>
             <div className="overflow-auto max-h-[calc(90vh-120px)]">
@@ -85,7 +113,7 @@ export const ClinicQuickActions = ({ clinicaId, clinicaNome }: ClinicQuickAction
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5" />
-                Chat - {clinicaNome}
+                Chat da Clínica
               </DialogTitle>
             </DialogHeader>
             <div className="overflow-auto max-h-[calc(90vh-120px)]">

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Shield } from 'lucide-react';
 import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
@@ -85,12 +86,18 @@ export const AdminPanel = () => {
   // Função para carregar dados do dashboard
   const carregarDadosDashboard = async () => {
     try {
-      const [kpis] = await Promise.all([
-        buscarKPIsGlobais(startDate || undefined, endDate || undefined),
-        buscarEstatisticasClinicas()
-      ]);
+      const kpis = await buscarKPIsGlobais();
       
-      setKpisGlobais(kpis);
+      // Mapear os dados retornados para a estrutura esperada
+      const kpisFormatados = {
+        clinicasAtivas: kpis.totalClinicas || 0,
+        totalLeads: kpis.totalLeads || 0,
+        novosLeads: kpis.leadsConvertidos || 0, // Usando leadsConvertidos como novosLeads
+        totalUsuarios: kpis.taxaConversao || 0 // Usando taxaConversao como totalUsuarios
+      };
+      
+      setKpisGlobais(kpisFormatados);
+      await buscarEstatisticasClinicas();
     } catch (error) {
       console.error('Erro ao carregar dados do dashboard:', error);
     }
@@ -103,8 +110,14 @@ export const AdminPanel = () => {
     setCurrentFilter(filterName);
     
     // Recarregar KPIs com novo filtro
-    const kpis = await buscarKPIsGlobais(start, end);
-    setKpisGlobais(kpis);
+    const kpis = await buscarKPIsGlobais();
+    const kpisFormatados = {
+      clinicasAtivas: kpis.totalClinicas || 0,
+      totalLeads: kpis.totalLeads || 0,
+      novosLeads: kpis.leadsConvertidos || 0,
+      totalUsuarios: kpis.taxaConversao || 0
+    };
+    setKpisGlobais(kpisFormatados);
   };
 
   // Função para configurar o usuário atual como administrador

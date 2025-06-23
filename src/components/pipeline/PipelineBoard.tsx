@@ -62,8 +62,8 @@ export const PipelineBoard = ({ adminMode = false, targetClinicaId, onNavigateTo
       etapas = pipelineData.data.etapas || [];
       leads = pipelineData.data.leads || [];
     } else {
-      etapas = pipelineData.etapas || [];
-      leads = pipelineData.leads || [];
+      etapas = (pipelineData as any).etapas || [];
+      leads = (pipelineData as any).leads || [];
     }
   }
 
@@ -168,7 +168,6 @@ export const PipelineBoard = ({ adminMode = false, targetClinicaId, onNavigateTo
                   onEditEtapa={() => handleEditEtapa(etapa)}
                   onDeleteEtapa={() => handleDeleteEtapa(etapa)}
                   onOpenHistory={leadActions.handleOpenHistory}
-                  isAdminMode={adminMode}
                 />
               );
             })}
@@ -203,7 +202,6 @@ export const PipelineBoard = ({ adminMode = false, targetClinicaId, onNavigateTo
       <PipelineMoveLeadsModal
         isOpen={modals.isMoveLeadsModalOpen}
         onClose={modals.closeMoveLeadsModal}
-        etapa={modals.editingEtapa}
         targetEtapas={etapas.filter(etapa => etapa.id !== modals.editingEtapa?.id)}
         leads={leads.filter(lead => lead.etapa_kanban_id === modals.editingEtapa?.id)}
         onMoveLeads={() => {}} // Simplificado

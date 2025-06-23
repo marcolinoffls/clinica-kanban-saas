@@ -14,21 +14,21 @@ import { LeadPipeline, EtapaPipeline } from './types';
 interface PipelineColumnProps {
   etapa: EtapaPipeline;
   leads: LeadPipeline[];
-  corEtapa: string;
+  corEtapa?: string;
   onEditLead: (lead: LeadPipeline) => void;
-  onDropLeadInColumn: (leadId: string, fromColumnId: string, toColumnId: string) => void;
+  onDropLeadInColumn?: (leadId: string, fromColumnId: string, toColumnId: string) => void;
   onOpenHistory: (lead: LeadPipeline) => void;
-  onOpenChat: (lead: LeadPipeline) => void;
+  onOpenChat?: (lead: LeadPipeline) => void;
   onEditEtapa: () => void;
   onDeleteEtapa: () => void;
-  onCreateLead: (etapaId: string) => void;
+  onCreateLead?: (etapaId: string) => void;
   isDraggedColumn?: boolean;
 }
 
 export const PipelineColumn = ({
   etapa,
   leads,
-  corEtapa,
+  corEtapa = 'bg-gray-400',
   onEditLead,
   onDropLeadInColumn,
   onOpenHistory,
@@ -140,6 +140,12 @@ export const PipelineColumn = ({
     }
   };
 
+  const handleOpenChat = (lead: LeadPipeline) => {
+    if (onOpenChat) {
+      onOpenChat(lead);
+    }
+  };
+
   return (
     <div
       className={`
@@ -163,7 +169,7 @@ export const PipelineColumn = ({
         <div className="flex items-center gap-3">
           {/* Indicador de cor da etapa */}
           <div 
-            className={`w-4 h-4 rounded-full ${corEtapa || 'bg-gray-400'}`}
+            className={`w-4 h-4 rounded-full ${corEtapa}`}
             title={`Etapa: ${etapa.nome}`}
           />
           <h3 className="font-bold text-gray-900 text-sm">
@@ -217,7 +223,7 @@ export const PipelineColumn = ({
             lead={lead}
             onEdit={() => onEditLead && onEditLead(lead)}
             onOpenHistory={() => onOpenHistory && onOpenHistory(lead)}
-            onOpenChat={() => onOpenChat && onOpenChat(lead)}
+            onOpenChat={() => handleOpenChat(lead)}
             columnId={etapa.id}
           />
         ))}

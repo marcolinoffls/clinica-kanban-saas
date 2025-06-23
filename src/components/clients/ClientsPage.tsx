@@ -86,12 +86,20 @@ const ClientsPage = () => {
           origem: filters.origemLead || '',
           servico: filters.servicoInteresse || ''
         }}
-        setFilters={(newFilters) => setFilters({
-          tagId: newFilters.tag || null,
-          origemLead: newFilters.origem || null,
-          servicoInteresse: newFilters.servico || null,
-          etapaId: null // Mantém a etapa como null já que não está nos filtros da barra
-        })}
+        setFilters={(newFilters) => {
+          if (typeof newFilters === 'function') {
+            // Se newFilters é uma função, não podemos acessar as propriedades diretamente
+            console.warn('setFilters recebeu uma função, não um objeto');
+            return;
+          }
+          
+          setFilters({
+            tagId: newFilters.tag || null,
+            origemLead: newFilters.origem || null,
+            servicoInteresse: newFilters.servico || null,
+            etapaId: null // Mantém a etapa como null já que não está nos filtros da barra
+          });
+        }}
         isFilterOpen={isFilterOpen}
         setIsFilterOpen={setIsFilterOpen}
         tags={tags}
@@ -111,7 +119,7 @@ const ClientsPage = () => {
           onEdit={handleEditLead}
           onChat={handleOpenChat}  
           onDelete={handleDeleteLead}
-          isDeleting={typeof isDeleting === 'string' ? isDeleting : null}
+          isDeleting={isDeleting}
         />
       ) : (
         <div className="flex items-center justify-center min-h-[400px] border rounded-lg bg-muted/10">

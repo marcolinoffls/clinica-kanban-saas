@@ -49,14 +49,11 @@ export const useClientsPage = () => {
     etapaId: null
   });
 
-  // Buscar dados - com filtro explícito por clinica_id
+  // Buscar dados - sem argumentos para useLeads
   const { 
     data: leads = [], 
     isLoading: leadsLoading 
-  } = useLeads({
-    clinicaId: isAdmin ? undefined : clinicaId,
-    enabled: !!clinicaId || isAdmin
-  });
+  } = useLeads();
 
   const { data: tags = [], isLoading: tagsLoading } = useTagsData();
   const { data: etapas = [], isLoading: etapasLoading } = useEtapas();
@@ -111,8 +108,8 @@ export const useClientsPage = () => {
         aValue = new Date(aValue).getTime();
         bValue = new Date(bValue).getTime();
       } else {
-        aValue = aValue?.toLowerCase() || '';
-        bValue = bValue?.toLowerCase() || '';
+        aValue = String(aValue || '').toLowerCase();
+        bValue = String(bValue || '').toLowerCase();
       }
 
       if (sortOrder === 'asc') {
