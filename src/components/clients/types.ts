@@ -1,17 +1,30 @@
 
 /**
- * Tipos e interfaces para a página de Clientes/Leads
+ * Tipos e interfaces usados nos componentes de clientes/contatos
  */
 
-// Tipos para ordenação da tabela
-export type SortField = 'nome' | 'email' | 'data_ultimo_contato' | 'created_at';
-export type SortOrder = 'asc' | 'desc';
-
-// Interface para estado dos filtros
+// Interface para os filtros de contatos
 export interface FilterState {
   tag: string;
   origem: string;
   servico: string;
-  dataInicio?: Date;
-  dataFim?: Date;
+}
+
+// Tipo para campos de ordenação
+export type SortField = 'nome' | 'created_at' | 'email';
+
+// Tipo para direção da ordenação
+export type SortOrder = 'asc' | 'desc';
+
+// Interface para props de componentes de filtro
+export interface ContactsFiltersProps {
+  filters: FilterState;
+  setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
+  isFilterOpen: boolean;
+  setIsFilterOpen: (open: boolean) => void;
+  tags: any[];
+  uniqueOrigens: string[];
+  uniqueServicos: string[];
+  onClearFilters: () => void;
+  hasActiveFilters: boolean;
 }

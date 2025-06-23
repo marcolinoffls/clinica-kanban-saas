@@ -33,6 +33,7 @@ interface ContactsFiltersProps {
   uniqueOrigens: string[];
   uniqueServicos: string[];
   onClearFilters: () => void;
+  hasActiveFilters: boolean; // Adicionado para indicar se há filtros ativos
 }
 
 export const ContactsFilters: React.FC<ContactsFiltersProps> = ({
@@ -44,6 +45,7 @@ export const ContactsFilters: React.FC<ContactsFiltersProps> = ({
   uniqueOrigens,
   uniqueServicos,
   onClearFilters,
+  hasActiveFilters,
 }) => {
   return (
     <Popover open={isFilterOpen} onOpenChange={setIsFilterOpen}>
@@ -51,7 +53,7 @@ export const ContactsFilters: React.FC<ContactsFiltersProps> = ({
         <Button variant="outline" className="flex items-center gap-2">
           <Filter className="h-4 w-4" />
           Filtros
-          {(filters.tag || filters.origem || filters.servico) && (
+          {hasActiveFilters && (
             <Badge variant="secondary" className="ml-1">
               {[filters.tag, filters.origem, filters.servico].filter(Boolean).length}
             </Badge>
