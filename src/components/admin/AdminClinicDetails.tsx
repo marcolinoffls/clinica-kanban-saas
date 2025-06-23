@@ -14,6 +14,7 @@ import { AdminClinicChat } from './clinic-details/AdminClinicChat';
 import { AdminAISettings } from './clinic-details/AdminAISettings';
 import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
 import { InstagramSettings } from './clinic-details/InstagramSettings';
+import { useAdminClinicOperations } from '@/hooks/useAdminClinicOperations';
 
 /**
  * Componente de detalhes de uma clínica específica no painel administrativo
@@ -30,6 +31,14 @@ export const AdminClinicDetails = () => {
   
   // Hook para dados administrativos
   const adminHook = useSupabaseAdmin();
+  
+  // Hook para operações administrativas da clínica
+  const { 
+    updateEvolutionInstanceName, 
+    updateEvolutionApiKey, 
+    updateInstagramHandle,
+    isUpdating 
+  } = useAdminClinicOperations();
   
   // Estados locais para dados específicos da clínica
   const [clinica, setClinica] = useState<any>(null);
@@ -99,6 +108,23 @@ export const AdminClinicDetails = () => {
 
   const handleAddLead = () => {
     console.log('Adicionar lead para clínica:', clinicaId);
+  };
+
+  // Handlers para ações da Evolution API
+  const handleSaveInstanceName = async (instanceName: string) => {
+    if (!clinicaId) return;
+    await updateEvolutionInstanceName(clinicaId, instanceName);
+  };
+
+  const handleSaveApiKey = async (apiKey: string) => {
+    if (!clinicaId) return;
+    await updateEvolutionApiKey(clinicaId, apiKey);
+  };
+
+  // Handler para Instagram
+  const handleSaveInstagramHandle = async (userHandle: string) => {
+    if (!clinicaId) return;
+    await updateInstagramHandle(clinicaId, userHandle);
   };
 
   // Estados de loading e erro
@@ -252,21 +278,19 @@ export const AdminClinicDetails = () => {
 
           <TabsContent value="evolution" className="space-y-6">
             <EvolutionApiSettings 
-              clinicaId={clinica.id}
-              currentInstanceName={clinica.evolution_instance_name || ''} // ✅ Valor padrão
-              onSave={async (instanceName) => {
-                console.log('Salvando instance name:', instanceName);
-              }}
+              clinica={clinica}
+              onSaveInstanceName={handleSaveInstanceName}
+              onSaveApiKey={handleSaveApiKey}
+              saving={isUpdating}
+              savingApiKey={isUpdating}
             />
           </TabsContent>
 
           <TabsContent value="instagram" className="space-y-6">
             <InstagramSettings 
-              clinicaId={clinica.id}
-              currentUserHandle={clinica.instagram_user_handle}
-              onSave={async (userHandle) => {
-                console.log('Salvando configurações Instagram:', userHandle);
-              }}
+              clinica={clinica}
+              onSave={handleSaveInstagramHandle}
+              saving={isUpdating}
             />
           </TabsContent>
         </Tabs>

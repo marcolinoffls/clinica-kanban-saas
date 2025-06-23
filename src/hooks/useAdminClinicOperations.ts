@@ -7,81 +7,99 @@ import { useToast } from '@/hooks/use-toast';
  * Hook para operações de clínica específicas para administradores
  * 
  * O que faz:
- * - Permite que admins criem leads para qualquer clínica específica
- * - Sobrescreve as operações padrão quando em modo admin
+ * - Permite que admins atualizem configurações de qualquer clínica
+ * - Operações de atualização da Evolution API
  * - Gerencia operações com privilégios administrativos
  * 
  * Onde é usado:
- * - Pages e componentes admin que precisam operar em clínicas específicas
+ * - AdminClinicDetails.tsx - página de detalhes da clínica
  * 
  * Como se conecta:
  * - Usa políticas RLS de admin já configuradas
- * - Permite especificar clinica_id diferente do usuário logado
+ * - Atualiza tabela clinicas com configurações específicas
  */
 
-interface CreateLeadForClinicData {
-  nome?: string;
-  telefone?: string;
-  email?: string;
-  etapa_kanban_id?: string;
-  tag_id?: string;
-  anotacoes?: string;
-  origem_lead?: string;
-  servico_interesse?: string;
-  clinica_id: string; // Obrigatório - clínica específica para admin
+interface UpdateClinicaData {
+  clinica_id: string;
+  evolution_instance_name?: string;
+  evolution_api_key?: string;
+  instagram_user_handle?: string;
 }
 
 export const useAdminClinicOperations = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Mutation para criar leads em clínicas específicas (admin)
-  const createLeadForClinicMutation = useMutation({
-    mutationFn: async (leadData: CreateLeadForClinicData) => {
-      console.log('🔧 [Admin] Criando lead para clínica:', leadData.clinica_id);
+  // Mutation para atualizar configurações da clínica
+  const updateClinicaMutation = useMutation({
+    mutationFn: async (data: UpdateClinicaData) => {
+      console.log('🔧 [Admin] Atualizando clínica:', data.clinica_id);
       
-      const { data, error } = await supabase
-        .from('leads')
-        .insert([leadData])
+      const { clinica_id, ...updateData } = data;
+      
+      const { data: result, error } = await supabase
+        .from('clinicas')
+        .update(updateData)
+        .eq('id', clinica_id)
         .select()
         .single();
 
       if (error) {
-        console.error('❌ [Admin] Erro ao criar lead:', error);
-        throw new Error(error.message || 'Erro ao criar lead');
+        console.error('❌ [Admin] Erro ao atualizar clínica:', error);
+        throw new Error(error.message || 'Erro ao atualizar clínica');
       }
 
-      console.log('✅ [Admin] Lead criado com sucesso:', data);
-      return data;
+      console.log('✅ [Admin] Clínica atualizada com sucesso:', result);
+      return result;
     },
     onSuccess: (_, variables) => {
       // Invalidar caches relevantes
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['admin-clinic-data', variables.clinica_id] });
       
       toast({
         title: "Sucesso",
-        description: "Lead criado com sucesso para a clínica selecionada!",
+        description: "Configurações atualizadas com sucesso!",
       });
     },
     onError: (error: any) => {
-      console.error('❌ [Admin] Erro na mutation de criar lead:', error);
+      console.error('❌ [Admin] Erro na mutation de atualizar clínica:', error);
       toast({
         title: "Erro",
-        description: error.message || "Erro ao criar lead. Verifique as permissões.",
+        description: error.message || "Erro ao atualizar configurações.",
         variant: "destructive",
       });
     },
   });
 
-  // Função para criar lead em clínica específica
-  const createLeadForClinic = async (leadData: CreateLeadForClinicData) => {
-    return createLeadForClinicMutation.mutateAsync(leadData);
+  // Função para atualizar nome da instância Evolution
+  const updateEvolutionInstanceName = async (clinica_id: string, instanceName: string) => {
+    return updateClinicaMutation.mutateAsync({
+      clinica_id,
+      evolution_instance_name: instanceName
+    });
+  };
+
+  // Função para atualizar API Key da Evolution
+  const updateEvolutionApiKey = async (clinica_id: string, apiKey: string) => {
+    return updateClinicaMutation.mutateAsync({
+      clinica_id,
+      evolution_api_key: apiKey
+    });
+  };
+
+  // Função para atualizar Instagram handle
+  const updateInstagramHandle = async (clinica_id: string, userHandle: string) => {
+    return updateClinicaMutation.mutateAsync({
+      clinica_id,
+      instagram_user_handle: userHandle
+    });
   };
 
   return {
-    createLeadForClinic,
-    isCreatingLead: createLeadForClinicMutation.isPending,
-    createLeadForClinicMutation,
+    updateEvolutionInstanceName,
+    updateEvolutionApiKey,
+    updateInstagramHandle,
+    isUpdating: updateClinicaMutation.isPending,
+    updateClinicaMutation,
   };
 };

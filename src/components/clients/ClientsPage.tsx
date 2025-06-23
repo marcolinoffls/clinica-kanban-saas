@@ -1,157 +1,177 @@
 
-/**
- * =================================================================
- * ARQUIVO: ClientsPage.tsx
- * =================================================================
- *
- * DESCRIÇÃO:
- * Componente principal que renderiza a página de "Contatos".
- * Ele utiliza o hook `useClientsPage` para obter toda a lógica de
- * manipulação de dados, filtros e estados de modais. A responsabilidade
- * deste componente é apenas organizar a estrutura da UI.
- *
- * CORREÇÃO:
- * A função `handleAddLead` do hook `useClientsPage` foi conectada
- * corretamente ao prop `onAddLead` do componente `ClientsPageHeader`.
- * Isso garante que ao clicar no botão "Adicionar Lead", o modal
- * de criação seja aberto. Além disso, o modal `LeadModal` também foi
- * adicionado para o caso de criação de um novo lead (quando não há
- * um lead selecionado para edição).
- *
- */
-import React from 'react';
-import { useClientsPage } from '@/hooks/useClientsPage';
+import React, { useState, useMemo } from 'react';
 import { ContactsTable } from './ContactsTable';
-import { ContactsLoadingState } from './ContactsLoadingState';
-import { ContactsEmptyState } from './ContactsEmptyState';
-import { LeadModal } from '@/components/kanban/LeadModal';
-import { ClientsPageHeader } from './ClientsPageHeader';
+import { ContactsFilters } from './ContactsFilters';
 import { ClientsActionsBar } from './ClientsActionsBar';
+import { ContactsEmptyState } from './ContactsEmptyState';
+import { ContactsLoadingState } from './ContactsLoadingState';
+import { useClientsPage } from '@/hooks/useClientsPage';
+import { FilterState } from './types';
 
-const ClientsPage = () => {
-  // O hook 'useClientsPage' centraliza toda a lógica e estado da página.
+/**
+ * 📋 Página Principal de Clientes/Contatos
+ * 
+ * O que faz:
+ * - Lista todos os leads/contatos da clínica
+ * - Sistema de filtros avançado (busca, tags, etapas, origem)
+ * - Ordenação personalizável
+ * - Estados de loading e vazio
+ * - Ações rápidas (adicionar lead, visualizar detalhes)
+ * 
+ * Onde é usado:
+ * - Rota /contatos no sistema principal
+ * 
+ * Como se conecta:
+ * - useClientsPage: hook principal para dados e operações
+ * - ContactsTable: tabela de exibição dos contatos
+ * - ContactsFilters: sistema de filtros
+ * - ClientsActionsBar: ações rápidas
+ */
+export const ClientsPage = () => {
   const {
-    loading,
-    tags,
+    leads,
     etapas,
-    searchQuery,
-    setSearchQuery,
-    isFilterOpen,
-    setIsFilterOpen,
-    sortField,
-    sortOrder,
-    isDeleting,
-    isLeadModalOpen,
-    setIsLeadModalOpen,
-    selectedLeadForEdit,
-    setSelectedLeadForEdit,
-    filters,
-    setFilters,
-    uniqueOrigens,
-    uniqueServicos,
-    sortedLeads,
-    hasActiveFilters,
-    handleSort,
+    tags,
+    loading,
     handleAddLead,
-    handleClearFilters,
-    handleEditLead,
-    handleOpenChat,
+    handleViewLead,
     handleDeleteLead,
-    handleSaveLead,
+    handleUpdateLead,
   } = useClientsPage();
 
-  // Renderização condicional enquanto os dados estão carregando.
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <ClientsPageHeader onAddLead={() => {}} />
-        <ContactsLoadingState />
-      </div>
+  // Estado dos filtros
+  const [filters, setFilters] = useState<FilterState>({
+    searchTerm: '',
+    tags: [],
+    etapas: [],
+    origemLead: [],
+    sortBy: 'created_at',
+    sortOrder: 'desc',
+    dateRange: {
+      start: null,
+      end: null,
+    },
+  });
+
+  // Função para atualizar filtros
+  const handleFiltersChange = (newFilters: Partial<FilterState>) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+  };
+
+  // Função para limpar filtros
+  const handleClearFilters = () => {
+    setFilters({
+      searchTerm: '',
+      tags: [],
+      etapas: [],
+      origemLead: [],
+      sortBy: 'created_at',
+      sortOrder: 'desc',
+      dateRange: {
+        start: null,
+        end: null,
+      },
+    });
+  };
+
+  // Filtros computados com indicador de filtros ativos
+  const filtersWithActiveIndicator = useMemo(() => {
+    const hasActiveFilters = Boolean(
+      filters.searchTerm ||
+      filters.tags.length > 0 ||
+      filters.etapas.length > 0 ||
+      filters.origemLead.length > 0 ||
+      filters.dateRange.start ||
+      filters.dateRange.end
     );
+
+    return {
+      ...filters,
+      hasActiveFilters,
+    };
+  }, [filters]);
+
+  // Aplicar filtros aos leads
+  const filteredLeads = useMemo(() => {
+    if (!leads) return [];
+
+    return leads.filter(lead => {
+      // Filtro de busca por texto
+      if (filters.searchTerm) {
+        const searchTerm = filters.searchTerm.toLowerCase();
+        const matchesSearch = 
+          lead.nome?.toLowerCase().includes(searchTerm) ||
+          lead.telefone?.toLowerCase().includes(searchTerm) ||
+          lead.email?.toLowerCase().includes(searchTerm);
+        
+        if (!matchesSearch) return false;
+      }
+
+      // Filtro por tags
+      if (filters.tags.length > 0) {
+        if (!lead.tag_id || !filters.tags.includes(lead.tag_id)) return false;
+      }
+
+      // Filtro por etapas
+      if (filters.etapas.length > 0) {
+        if (!lead.etapa_kanban_id || !filters.etapas.includes(lead.etapa_kanban_id)) return false;
+      }
+
+      // Filtro por origem
+      if (filters.origemLead.length > 0) {
+        if (!lead.origem_lead || !filters.origemLead.includes(lead.origem_lead)) return false;
+      }
+
+      // Filtro por data
+      if (filters.dateRange.start || filters.dateRange.end) {
+        const leadDate = new Date(lead.created_at);
+        if (filters.dateRange.start && leadDate < filters.dateRange.start) return false;
+        if (filters.dateRange.end && leadDate > filters.dateRange.end) return false;
+      }
+
+      return true;
+    });
+  }, [leads, filters]);
+
+  // Estados de loading e vazio
+  if (loading) {
+    return <ContactsLoadingState />;
+  }
+
+  if (!leads || leads.length === 0) {
+    return <ContactsEmptyState onAddLead={handleAddLead} />;
   }
 
   return (
     <div className="space-y-6">
-      {/* Cabeçalho da página.
-        A função handleAddLead do hook é passada aqui para ser chamada pelo botão.
-      */}
-      <ClientsPageHeader onAddLead={handleAddLead} />
-      
-      {/* Barra com campo de busca e botão de filtros. */}
+      {/* Barra de Ações */}
       <ClientsActionsBar
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        filters={{
-          tag: filters.tagId || '',
-          origem: filters.origemLead || '',
-          servico: filters.servicoInteresse || '',
-          hasActiveFilters: hasActiveFilters // ✅ CORREÇÃO: Agora passando boolean correto
-        }}
-        setFilters={(newFilters) => {
-          // Corrigido: verificar se newFilters é um objeto válido e tem a estrutura correta
-          if (typeof newFilters === 'object' && newFilters !== null && 'tag' in newFilters) {
-            setFilters({
-              tagId: newFilters.tag ? newFilters.tag : null,           // ✅ string para string | null
-              origemLead: newFilters.origem ? newFilters.origem : null, // ✅ string para string | null
-              servicoInteresse: newFilters.servico || null,
-              etapaId: null, // Mantém a etapa como null já que não está nos filtros da barra
-              hasActiveFilters: Boolean(newFilters.tag || newFilters.origem || newFilters.servico) // ✅ CORREÇÃO: Calcula boolean corretamente
-            });
-          }
-        }}
-        isFilterOpen={isFilterOpen}
-        setIsFilterOpen={setIsFilterOpen}
-        tags={tags}
-        uniqueOrigens={uniqueOrigens}
-        uniqueServicos={uniqueServicos}
-        onClearFilters={handleClearFilters}
-        hasActiveFilters={hasActiveFilters}
+        onAddLead={handleAddLead}
+        filters={filters}
+        totalContacts={filteredLeads.length}
       />
 
-      {/* Exibe a tabela de contatos ou um estado de vazio se não houver dados. */}
-      {sortedLeads.length > 0 ? (
+      {/* Filtros */}
+      <ContactsFilters
+        filters={filtersWithActiveIndicator}
+        onFiltersChange={handleFiltersChange}
+        onClearFilters={handleClearFilters}
+        totalResults={filteredLeads.length}
+      />
+
+      {/* Tabela de Contatos */}
+      {filteredLeads.length > 0 ? (
         <ContactsTable
-          leads={sortedLeads}
+          leads={filteredLeads}
+          etapas={etapas}
           tags={tags}
-          sortField={sortField}
-          sortOrder={sortOrder}
-          onSort={handleSort}
-          onEdit={handleEditLead}
-          onChat={handleOpenChat}  
-          onDelete={handleDeleteLead}
-          isDeleting={isDeleting}
+          onViewLead={handleViewLead}
+          onDeleteLead={handleDeleteLead}
+          onUpdateLead={handleUpdateLead}
         />
       ) : (
-        <div className="flex items-center justify-center min-h-[400px] border rounded-lg bg-muted/10">
-          <ContactsEmptyState
-            hasFilters={hasActiveFilters}
-            searchQuery={searchQuery}
-            onClearFilters={handleClearFilters}
-            onAddLead={handleAddLead}
-          />
-        </div>
-      )}
-      
-      {/* Modal para Criar ou Editar um Lead.
-        É o mesmo modal usado no Kanban.
-        A sua visibilidade é controlada pela variável `isLeadModalOpen`.
-      */}
-      {isLeadModalOpen && (
-        <LeadModal
-          isOpen={isLeadModalOpen}
-          onClose={() => {
-            setIsLeadModalOpen(false);
-            setSelectedLeadForEdit(null); // Limpa o lead selecionado ao fechar.
-          }}
-          // Se `selectedLeadForEdit` existir, o modal abre em modo de edição.
-          // Se for nulo, abre em modo de criação.
-          lead={selectedLeadForEdit}
-          etapas={etapas}
-          onSave={handleSaveLead}
-        />
+        <ContactsEmptyState onAddLead={handleAddLead} />
       )}
     </div>
   );
 };
-
-export default ClientsPage;

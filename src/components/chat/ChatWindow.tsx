@@ -1,333 +1,156 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { Loader2, FileText, Headphones, Image as ImageIcon, Shield } from 'lucide-react';
-import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { useAdminChatMessages } from '@/hooks/useAdminChatMessages';
-import { useAdminCheck } from '@/hooks/useAdminCheck';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 
-/**
- * 💬 Componente de Janela de Chat
- * 
- * 📋 FUNCIONALIDADES:
- * - Exibe histórico de mensagens entre usuário e lead
- * - Suporta diferentes tipos de mídia (texto, imagem, áudio)
- * - Adapta-se automaticamente para modo admin
- * - Gerencia scroll automático para novas mensagens
- * - CORREÇÃO: Carregamento adequado para usuários normais
- * 
- * 🔄 FLUXO CORRIGIDO:
- * - Usuários normais: usa buscarMensagensLead + estado local
- * - Administradores: usa useAdminChatMessages
- */
+import React, { useState, useEffect, useRef } from 'react';
+import { Send, Paperclip } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card } from '@/components/ui/card';
+import { useSupabaseChat } from '@/hooks/useSupabaseChat';
 
 interface ChatWindowProps {
-  leadId: string | null;
+  leadId: string;
+  targetClinicaId?: string;
 }
 
-export const ChatWindow = ({ leadId }: ChatWindowProps) => {
+/**
+ * 💬 Janela de Chat Individual
+ * 
+ * O que faz:
+ * - Exibe mensagens entre lead e atendente
+ * - Interface para envio de mensagens
+ * - Scroll automático para novas mensagens
+ * - Indicador de mensagens não lidas
+ * - Suporte a anexos (futuro)
+ * 
+ * Onde é usado:
+ * - ChatPage.tsx - janela principal de chat
+ * 
+ * Como se conecta:
+ * - useSupabaseChat: hook para operações de chat
+ * - Supabase Realtime: atualizações em tempo real
+ * - Tabela chat_mensagens: armazena mensagens
+ */
+export const ChatWindow = ({ leadId, targetClinicaId }: ChatWindowProps) => {
+  const [messageText, setMessageText] = useState('');
+  const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
   
-  // 📊 ESTADO LOCAL PARA MENSAGENS (usuários normais)
-  const [localMessages, setLocalMessages] = useState<any[]>([]);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [isFirstLoad, setIsFirstLoad] = useState(true); // NOVO: Flag para primeira carga
+  const {
+    mensagens,
+    buscarMensagensLead,
+    enviarMensagem,
+    marcarMensagensComoLidas,
+  } = useSupabaseChat();
 
-  // 🔗 HOOKS PARA DADOS
-  const normalChatData = useSupabaseData();
-  const { isAdmin } = useAdminCheck();
-  
-  // Hook admin para mensagens (apenas se for admin)
-  const adminChatMessages = useAdminChatMessages(
-    isAdmin ? leadId : null,
-    isAdmin ? normalChatData.leads.find(l => l.id === leadId)?.clinica_id : null
-  );
-
-  // 🎯 DETERMINAR MODO DE OPERAÇÃO
-  const shouldUseAdminMode = isAdmin && leadId;
-  
-  // 📨 SELECIONAR MENSAGENS BASEADO NO MODO
-  const messages = shouldUseAdminMode 
-    ? adminChatMessages.messages || []
-    : localMessages || [];
-
-  // ⏳ LOADING STATE
-  const isLoading = shouldUseAdminMode 
-    ? adminChatMessages.loading 
-    : isLoadingMessages;
-
-  /**
-   * 📥 Buscar Mensagens para Usuários Normais
-   * 
-   * CORREÇÃO PRINCIPAL: Agora atualiza estado local adequadamente
-   */
-  const fetchNormalMessages = useCallback(async () => {
-    if (!leadId || shouldUseAdminMode) return;
-    
-    setIsLoadingMessages(true);
-    try {
-      // 📊 BUSCAR MENSAGENS E ATUALIZAR ESTADO LOCAL
-      const mensagens = await normalChatData.buscarMensagensLead(leadId);
-      setLocalMessages(mensagens || []);
-      
-      console.log(`📥 [ChatWindow] Mensagens carregadas para usuário normal:`, mensagens?.length || 0);
-    } catch (error) {
-      console.error('❌ [ChatWindow] Erro ao carregar mensagens:', error);
-      setLocalMessages([]); // Limpar em caso de erro
-    } finally {
-      setIsLoadingMessages(false);
-    }
-  }, [leadId, shouldUseAdminMode, normalChatData.buscarMensagensLead]);
-
-  /**
-   * 🔄 useEffect: Carregar Mensagens Quando Lead Muda
-   */
-  useEffect(() => {
-    if (!shouldUseAdminMode && leadId) {
-      setIsFirstLoad(true); // NOVO: Marcar como primeira carga
-      fetchNormalMessages();
-    } else if (!leadId) {
-      // Limpar mensagens quando não há lead selecionado
-      setLocalMessages([]);
-      setIsFirstLoad(true); // NOVO: Reset flag
-    }
-  }, [fetchNormalMessages, leadId]);
-
-  /**
-   * ✅ useEffect: Marcar Mensagens como Lidas
-   */
-  useEffect(() => {
-    if (leadId && !shouldUseAdminMode) {
-      normalChatData.marcarMensagensComoLidas(leadId);
-    }
-  }, [leadId, shouldUseAdminMode, normalChatData.marcarMensagensComoLidas]);
-
-  /**
-   * 📜 CORREÇÃO: Scroll Inteligente
-   * 
-   * - Na primeira carga: scroll instantâneo para o final (sem animação)
-   * - Em novas mensagens: scroll suave
-   */
-  const scrollToBottom = useCallback((instant = false) => {
-    if (messagesEndRef.current) {
-      if (instant) {
-        // SCROLL INSTANTÂNEO para primeira carga
-        messagesEndRef.current.scrollIntoView({ block: 'end' });
-      } else {
-        // SCROLL SUAVE para novas mensagens
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      }
-    }
-  }, []);
-
-  /**
-   * 🔄 useEffect: Controle de Scroll Inteligente
-   * 
-   * CORREÇÃO PRINCIPAL: Diferencia primeira carga de novas mensagens
-   */
-  useEffect(() => {
-    if (messages.length > 0) {
-      if (isFirstLoad) {
-        // PRIMEIRA CARGA: Scroll instantâneo após um pequeno delay para garantir renderização
-        setTimeout(() => {
-          scrollToBottom(true); // Scroll instantâneo
-          setIsFirstLoad(false); // Marcar que primeira carga foi concluída
-        }, 100);
-      } else {
-        // NOVAS MENSAGENS: Scroll suave
-        scrollToBottom(false);
-      }
-    }
-  }, [messages.length, isFirstLoad, scrollToBottom]);
-
-  /**
-   * 🔄 useEffect: Reset da Flag quando Lead Muda
-   */
+  // Buscar mensagens do lead ao montar o componente
   useEffect(() => {
     if (leadId) {
-      setIsFirstLoad(true);
+      console.log(`💬 [ChatWindow] Carregando mensagens para lead: ${leadId}`);
+      buscarMensagensLead(leadId);
+      marcarMensagensComoLidas(leadId);
     }
-  }, [leadId]);
+  }, [leadId, buscarMensagensLead, marcarMensagensComoLidas]);
 
-  /**
-   * 🕐 Formatar Horário das Mensagens
-   */
-  const formatMessageTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-
-    if (diffInHours < 24) {
-      return format(date, 'HH:mm', { locale: ptBR });
-    } else if (diffInHours < 24 * 7) {
-      return format(date, 'EEE HH:mm', { locale: ptBR });
-    } else {
-      return format(date, 'dd/MM HH:mm', { locale: ptBR });
+  // Scroll automático para a última mensagem
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  };
+  }, [mensagens]);
 
-  /**
-   * 🎨 Renderizar Conteúdo da Mensagem por Tipo
-   */
-  const renderMessageContent = (mensagem: any) => {
-    const { tipo, conteudo, anexo_url } = mensagem;
-
-    switch (tipo) {
-      case 'imagem':
-        return (
-          <div className="space-y-2">
-            {anexo_url && (
-              <div className="relative max-w-xs">
-                <img 
-                  src={anexo_url} 
-                  alt={conteudo || 'Imagem enviada'}
-                  className="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => window.open(anexo_url, '_blank')}
-                />
-              </div>
-            )}
-            {conteudo && conteudo !== 'Imagem enviada' && (
-              <p className="text-sm">{conteudo}</p>
-            )}
-          </div>
-        );
-
-      case 'audio':
-        return (
-          <div className="space-y-2">
-            {anexo_url && (
-              <div className="flex items-center gap-2 bg-gray-100 p-3 rounded-lg max-w-xs">
-                <Headphones className="w-5 h-5 text-blue-600" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Áudio</p>
-                  <audio controls className="w-full mt-1">
-                    <source src={anexo_url} type="audio/mpeg" />
-                    <source src={anexo_url} type="audio/wav" />
-                    <source src={anexo_url} type="audio/ogg" />
-                    Seu navegador não suporta reprodução de áudio.
-                  </audio>
-                </div>
-              </div>
-            )}
-            {conteudo && conteudo !== 'Áudio enviado' && (
-              <p className="text-sm">{conteudo}</p>
-            )}
-          </div>
-        );
-
-      case 'arquivo':
-        return (
-          <div className="space-y-2">
-            {anexo_url && (
-              <div className="flex items-center gap-2 bg-gray-100 p-3 rounded-lg max-w-xs cursor-pointer hover:bg-gray-200 transition-colors"
-                   onClick={() => window.open(anexo_url, '_blank')}>
-                <FileText className="w-5 h-5 text-blue-600" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Arquivo</p>
-                  <p className="text-xs text-gray-600">{conteudo || 'Clique para visualizar'}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-
-      default:
-        return <p className="text-sm">{conteudo}</p>;
-    }
-  };
-
-  // 🚫 ESTADO: Nenhum Lead Selecionado
-  if (!leadId) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50">
-        <div className="text-center text-gray-500">
-          <p>Selecione uma conversa para visualizar as mensagens</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ⏳ ESTADO: Carregando Mensagens
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
-          <p className="text-gray-500">Carregando mensagens...</p>
-          {shouldUseAdminMode && (
-            <Badge variant="outline" className="mt-2">
-              <Shield className="w-3 h-3 mr-1" />
-              Modo Admin
-            </Badge>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // 🎨 RENDERIZAÇÃO PRINCIPAL DO COMPONENTE
-  return (
-    <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
+  // Enviar mensagem
+  const handleSendMessage = async () => {
+    if (!messageText.trim() || loading) return;
+    
+    try {
+      setLoading(true);
+      console.log(`📤 [ChatWindow] Enviando mensagem para lead: ${leadId}`);
       
-      {/* 🛡️ Header Modo Admin */}
-      {shouldUseAdminMode && (
-        <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
-          <div className="flex items-center gap-2 text-sm text-blue-700">
-            <Shield className="w-4 h-4" />
-            <span>Visualizando conversa como administrador</span>
-          </div>
-        </div>
-      )}
+      await enviarMensagem({
+        leadId,
+        conteudo: messageText.trim(),
+        tipo: 'texto',
+        clinicaId: targetClinicaId
+      });
+      
+      setMessageText('');
+      console.log('✅ [ChatWindow] Mensagem enviada com sucesso');
+    } catch (error) {
+      console.error('❌ [ChatWindow] Erro ao enviar mensagem:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      {/* 📋 Área de Mensagens - CORREÇÃO: Ref adicionada ao container */}
-      <div 
-        ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
-      >
-        {messages.length === 0 ? (
-          // 📝 Estado Vazio
-          <div className="text-center text-gray-500 py-8">
-            <p>Nenhuma mensagem ainda.</p>
-            <p className="text-sm mt-1">Comece a conversa enviando uma mensagem!</p>
-          </div>
-        ) : (
-          // 💬 Lista de Mensagens
-          messages.map((mensagem) => (
-            <div
-              key={mensagem.id}
-              className={`flex ${mensagem.enviado_por === 'usuario' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[70%] rounded-lg px-4 py-2 ${
-                  mensagem.enviado_por === 'usuario'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-900 border border-gray-200'
-                }`}
-              >
-                {/* 📄 Conteúdo da Mensagem */}
-                {renderMessageContent(mensagem)}
-                
-                {/* 🕐 Timestamp */}
-                <div
-                  className={`text-xs mt-1 ${
-                    mensagem.enviado_por === 'usuario' ? 'text-blue-100' : 'text-gray-500'
-                  }`}
-                >
-                  {formatMessageTime(mensagem.created_at)}
-                  {!mensagem.lida && mensagem.enviado_por === 'usuario' && (
-                    <span className="ml-2">✓</span>
-                  )}
-                </div>
-              </div>
+  // Enter para enviar mensagem
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const leadMessages = mensagens[leadId] || [];
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Área de Mensagens */}
+      <ScrollArea className="flex-1 p-4">
+        <div className="space-y-4">
+          {leadMessages.length === 0 ? (
+            <div className="text-center text-gray-500 py-8">
+              <p>Nenhuma mensagem ainda.</p>
+              <p className="text-sm">Inicie uma conversa!</p>
             </div>
-          ))
-        )}
-        
-        {/* 📍 Referência para Scroll - MANTIDA */}
-        <div ref={messagesEndRef} />
+          ) : (
+            leadMessages.map((mensagem) => (
+              <div
+                key={mensagem.id}
+                className={`flex ${mensagem.enviado_por === 'atendente' ? 'justify-end' : 'justify-start'}`}
+              >
+                <Card className={`max-w-xs lg:max-w-md p-3 ${
+                  mensagem.enviado_por === 'atendente'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 text-gray-900'
+                }`}>
+                  <p className="text-sm">{mensagem.conteudo}</p>
+                  <p className={`text-xs mt-1 ${
+                    mensagem.enviado_por === 'atendente' 
+                      ? 'text-blue-100' 
+                      : 'text-gray-500'
+                  }`}>
+                    {new Date(mensagem.created_at).toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </Card>
+              </div>
+            ))
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      </ScrollArea>
+
+      {/* Campo de Envio */}
+      <div className="border-t p-4">
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder="Digite sua mensagem..."
+            value={messageText}
+            onChange={(e) => setMessageText(e.target.value)}
+            onKeyPress={handleKeyPress}
+            disabled={loading}
+            className="flex-1"
+          />
+          <Button
+            onClick={handleSendMessage}
+            disabled={loading || !messageText.trim()}
+            size="sm"
+          >
+            <Send className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );
