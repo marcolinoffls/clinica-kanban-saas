@@ -88,7 +88,7 @@ const ClientsPage = () => {
         }}
         setFilters={(newFilters) => {
           // Corrigido: verificar se newFilters é um objeto válido
-          if (typeof newFilters === 'object' && newFilters !== null) {
+          if (typeof newFilters === 'object' && newFilters !== null && 'tag' in newFilters) {
             setFilters({
               tagId: newFilters.tag || null,
               origemLead: newFilters.origem || null,

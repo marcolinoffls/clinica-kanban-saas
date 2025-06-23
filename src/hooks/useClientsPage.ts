@@ -99,8 +99,8 @@ export const useClientsPage = () => {
 
     // Aplicar ordenação
     return filteredLeads.sort((a, b) => {
-      let aValue = a[sortField];
-      let bValue = b[sortField];
+      let aValue: any = a[sortField];
+      let bValue: any = b[sortField];
 
       if (sortField === 'created_at') {
         aValue = new Date(aValue).getTime();

@@ -14,6 +14,7 @@ import { FilterState } from './types';
  * - isFilterOpen, setIsFilterOpen: Estado e setter para a visibilidade do popover de filtros.
  * - tags, uniqueOrigens, uniqueServicos: Dados para popular os seletores dos filtros.
  * - onClearFilters: Função para limpar todos os filtros.
+ * - hasActiveFilters: Indica se existem filtros ativos.
  * 
  * Onde é usado:
  * - ClientsPage.tsx
@@ -29,6 +30,7 @@ interface ClientsActionsBarProps {
   uniqueOrigens: string[];
   uniqueServicos: string[];
   onClearFilters: () => void;
+  hasActiveFilters: boolean;
 }
 
 export const ClientsActionsBar: React.FC<ClientsActionsBarProps> = ({
@@ -42,6 +44,7 @@ export const ClientsActionsBar: React.FC<ClientsActionsBarProps> = ({
   uniqueOrigens,
   uniqueServicos,
   onClearFilters,
+  hasActiveFilters,
 }) => {
   return (
     <div className="flex items-center space-x-4">
@@ -63,6 +66,7 @@ export const ClientsActionsBar: React.FC<ClientsActionsBarProps> = ({
         uniqueOrigens={uniqueOrigens}
         uniqueServicos={uniqueServicos}
         onClearFilters={onClearFilters}
+        hasActiveFilters={hasActiveFilters}
       />
     </div>
   );
