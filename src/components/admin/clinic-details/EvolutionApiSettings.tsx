@@ -35,11 +35,25 @@ export const EvolutionApiSettings = ({
   saving, 
   savingApiKey 
 }: EvolutionApiSettingsProps) => {
-  // ✅ DEBUG: Verificar se as funções foram passadas corretamente
-  console.log('🔍 [EvolutionApiSettings] Props recebidas:', {
-    clinica: !!clinica,
-    onSaveInstanceName: typeof onSaveInstanceName,
-    onSaveApiKey: typeof onSaveApiKey,
+  // ✅ DEBUG DETALHADO: Verificar se as funções foram passadas corretamente
+  console.log('🔍 [EvolutionApiSettings] Props recebidas detalhadas:', {
+    clinica: {
+      exists: !!clinica,
+      id: clinica?.id,
+      nome: clinica?.nome,
+      evolution_instance_name: clinica?.evolution_instance_name,
+      evolution_api_key: clinica?.evolution_api_key ? '[PRESENTE]' : '[AUSENTE]'
+    },
+    onSaveInstanceName: {
+      type: typeof onSaveInstanceName,
+      isFunction: typeof onSaveInstanceName === 'function',
+      exists: !!onSaveInstanceName
+    },
+    onSaveApiKey: {
+      type: typeof onSaveApiKey,
+      isFunction: typeof onSaveApiKey === 'function',
+      exists: !!onSaveApiKey
+    },
     saving,
     savingApiKey
   });
@@ -53,43 +67,61 @@ export const EvolutionApiSettings = ({
   const [evolutionApiKey, setEvolutionApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
 
-  // ✅ PROTEÇÃO: Verificar se as funções existem antes de executar
+  // ✅ PROTEÇÃO MELHORADA: Verificar se as funções existem antes de executar
   const handleSaveInstanceName = async () => {
+    console.log('🔧 [EvolutionApiSettings] handleSaveInstanceName chamado');
+    console.log('🔧 [EvolutionApiSettings] evolutionInstanceName:', evolutionInstanceName);
+    console.log('🔧 [EvolutionApiSettings] onSaveInstanceName type:', typeof onSaveInstanceName);
+
     if (!evolutionInstanceName.trim()) {
+      console.warn('⚠️ [EvolutionApiSettings] Instance name vazio');
       alert('Por favor, insira um nome para a instância');
       return;
     }
 
     if (typeof onSaveInstanceName !== 'function') {
-      console.error('❌ [EvolutionApiSettings] onSaveInstanceName não é uma função');
+      console.error('❌ [EvolutionApiSettings] onSaveInstanceName não é uma função:', {
+        type: typeof onSaveInstanceName,
+        value: onSaveInstanceName
+      });
       alert('Erro interno: função de salvar não disponível');
       return;
     }
     
     try {
-      console.log(`🔧 [EvolutionApiSettings] Salvando instance name: ${evolutionInstanceName.trim()}`);
+      console.log(`🔧 [EvolutionApiSettings] Executando onSaveInstanceName com: ${evolutionInstanceName.trim()}`);
       await onSaveInstanceName(evolutionInstanceName.trim());
+      console.log('✅ [EvolutionApiSettings] onSaveInstanceName executado com sucesso');
     } catch (error) {
       console.error('❌ [EvolutionApiSettings] Erro ao salvar nome da instância:', error);
     }
   };
 
   const handleSaveApiKey = async () => {
+    console.log('🔑 [EvolutionApiSettings] handleSaveApiKey chamado');
+    console.log('🔑 [EvolutionApiSettings] evolutionApiKey length:', evolutionApiKey.length);
+    console.log('🔑 [EvolutionApiSettings] onSaveApiKey type:', typeof onSaveApiKey);
+
     if (!evolutionApiKey.trim()) {
+      console.warn('⚠️ [EvolutionApiSettings] API Key vazia');
       alert('Por favor, insira a API Key');
       return;
     }
 
     if (typeof onSaveApiKey !== 'function') {
-      console.error('❌ [EvolutionApiSettings] onSaveApiKey não é uma função');
+      console.error('❌ [EvolutionApiSettings] onSaveApiKey não é uma função:', {
+        type: typeof onSaveApiKey,
+        value: onSaveApiKey
+      });
       alert('Erro interno: função de salvar API Key não disponível');
       return;
     }
     
     try {
-      console.log(`🔑 [EvolutionApiSettings] Salvando API Key`);
+      console.log(`🔑 [EvolutionApiSettings] Executando onSaveApiKey`);
       await onSaveApiKey(evolutionApiKey.trim());
       setEvolutionApiKey(''); // Limpar campo após salvar com sucesso
+      console.log('✅ [EvolutionApiSettings] onSaveApiKey executado com sucesso');
     } catch (error) {
       console.error('❌ [EvolutionApiSettings] Erro ao salvar API Key:', error);
     }

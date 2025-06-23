@@ -1,35 +1,52 @@
 
-/**
- * Tipos para o sistema de clientes/contatos
- * 
- * Define as interfaces e tipos utilizados em toda a funcionalidade
- * de gerenciamento de clientes, incluindo filtros, ordenação e estados.
- */
+export interface ContactData {
+  id: string;
+  nome: string;
+  telefone: string;
+  email?: string;
+  origem_lead?: string;
+  servico_interesse?: string;
+  created_at: string;
+  data_ultimo_contato?: string;
+  anotacoes?: string;
+  convertido?: boolean;
+  etapa_kanban_id?: string;
+  tag_id?: string;
+}
 
-// Campos disponíveis para ordenação na tabela de contatos
-export type SortField = 'nome' | 'email' | 'created_at' | 'data_ultimo_contato';
-
-// Direção da ordenação
+export type SortField = 'nome' | 'telefone' | 'email' | 'created_at' | 'data_ultimo_contato';
 export type SortOrder = 'asc' | 'desc';
 
-// Interface para os filtros aplicados na lista de contatos
+export interface Filters {
+  searchTerm: string;
+  origem: string;
+  convertido: string;
+  etapa: string;
+  tag: string;
+  dataInicio: string;
+  dataFim: string;
+}
+
+export interface FilterState {
+  filters: Filters;
+  sortField: SortField;
+  sortOrder: SortOrder;
+}
+
 export interface ContactsFilters {
-  tagId?: string | null;           // ID da tag selecionada
-  origemLead?: string | null;      // Origem do lead (ex: "WhatsApp", "Instagram")
-  servicoInteresse?: string | null; // Serviço de interesse
-  etapaId?: string | null;         // ID da etapa no kanban
-  hasActiveFilters: boolean;       // Indica se há filtros ativos
+  filters: Filters;
+  onFiltersChange: (filters: Filters) => void;
+  hasActiveFilters: boolean;
+  onClearFilters: () => void;
+  etapas: Array<{ id: string; nome: string }>;
+  tags: Array<{ id: string; nome: string; cor: string }>;
 }
 
-// Interface para os filtros da barra de ações (versão simplificada)
-export interface ContactsFiltersBarProps {
-  tag: string;                     // Tag selecionada
-  origem: string;                  // Origem selecionada
-  servico: string;                 // Serviço selecionado
-}
-
-// Estado de loading para diferentes operações
-export interface LoadingStates {
-  deleting: boolean;               // Indica se está deletando um lead
-  loading: boolean;                // Loading geral da página
+export interface ContactsTableProps {
+  contacts: ContactData[];
+  loading: boolean;
+  sortField: SortField;
+  sortOrder: SortOrder;
+  onSort: (field: SortField) => void;
+  onContactSelect: (contact: ContactData) => void;
 }
