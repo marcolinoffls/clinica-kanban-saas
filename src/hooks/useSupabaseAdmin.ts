@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -462,6 +461,30 @@ export const useSupabaseAdmin = () => {
     }
   };
 
+  // Método para buscar uma clínica específica por ID
+  const buscarClinicaPorId = async (clinicaId: string) => {
+    try {
+      console.log('🔍 [useSupabaseAdmin] Buscando detalhes da clínica:', clinicaId);
+      
+      const { data, error } = await supabase
+        .from('clinicas')
+        .select('*')
+        .eq('id', clinicaId)
+        .single();
+
+      if (error) {
+        console.error('❌ [useSupabaseAdmin] Erro ao buscar clínica:', error);
+        throw error;
+      }
+
+      console.log('✅ [useSupabaseAdmin] Clínica encontrada:', data?.nome);
+      return data;
+    } catch (error) {
+      console.error('❌ [useSupabaseAdmin] Erro geral ao buscar clínica:', error);
+      throw error;
+    }
+  };
+
   return {
     loading,
     clinicas,
@@ -478,5 +501,6 @@ export const useSupabaseAdmin = () => {
     atualizarApiKeyEvolution,
     atualizarInstagramUserHandle,
     buscarEstatisticasDeLeadsDaClinica,
+    buscarClinicaPorId,
   };
 };

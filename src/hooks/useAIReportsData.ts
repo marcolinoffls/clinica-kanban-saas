@@ -1,76 +1,67 @@
 
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { useClinica } from '@/contexts/ClinicaContext';
-import type { AIReport } from '@/types/aiReports';
-
 /**
- * Hook para buscar dados dos relatórios de IA
+ * Hook para gerenciar dados de relatórios de IA
+ * 
+ * CORREÇÃO: Ajustado para trabalhar corretamente com o novo sistema de administração
+ * e tipagem correta do useQuery
  * 
  * O que faz:
- * - Busca todos os relatórios de uma clínica específica
- * - Organiza os relatórios por status (pendente, completo, falha)
- * - Suporte a modo administrador com clinicaId específica
+ * - Busca relatórios de IA da clínica
+ * - Suporte a modo admin para buscar relatórios de clínicas específicas
+ * - Filtragem e ordenação dos relatórios
  * 
- * Onde é usado:
- * - No hook principal useAIReport
- * - Componentes que precisam listar relatórios
+ * Como se conecta:
+ * - Supabase para buscar dados de ai_reports
+ * - Aplica filtros por clínica automaticamente
+ * - Retorna dados prontos para exibição
  */
-export const useAIReportsData = (targetClinicaId?: string) => {
-  const { clinicaId: contextClinicaId } = useClinica();
-  
-  // Usar clinicaId fornecida ou do contexto
-  const effectiveClinicaId = targetClinicaId || contextClinicaId;
 
-  const { data: reports = [], isLoading, error, refetch } = useQuery<AIReport[]>({
-    queryKey: ['aiReports', effectiveClinicaId],
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useClinicaData } from './useClinicaData';
+import { useAdminCheck } from './useAdminCheck';
+import { AIReport } from '@/types/aiReports';
+
+interface UseAIReportsDataProps {
+  adminMode?: boolean;
+  targetClinicaId?: string;
+}
+
+export const useAIReportsData = ({ adminMode = false, targetClinicaId }: UseAIReportsDataProps = {}) => {
+  const { clinicaId: userClinicaId, loading: clinicaLoading } = useClinicaData();
+  const { isAdmin } = useAdminCheck();
+
+  // Determinar qual clinica_id usar
+  const clinicaId = adminMode && targetClinicaId ? targetClinicaId : userClinicaId;
+
+  return useQuery<AIReport[]>({
+    queryKey: ['ai-reports', clinicaId, adminMode],
     queryFn: async () => {
-      if (!effectiveClinicaId) {
-        console.log('🔍 [useAIReportsData] Nenhuma clínica especificada');
+      if (!clinicaId) {
+        console.warn('[useAIReportsData] Nenhuma clinica_id disponível');
         return [];
       }
 
-      console.log('📊 [useAIReportsData] Buscando relatórios para clínica:', effectiveClinicaId);
-
-      const { data, error } = await supabase
+      console.log('[useAIReportsData] Buscando relatórios para clinica_id:', clinicaId);
+      
+      let query = supabase
         .from('ai_reports')
         .select('*')
-        .eq('clinica_id', effectiveClinicaId)
+        .eq('clinica_id', clinicaId)
         .order('created_at', { ascending: false });
 
+      const { data, error } = await query;
+
       if (error) {
-        console.error('❌ [useAIReportsData] Erro ao buscar relatórios:', error);
+        console.error('[useAIReportsData] Erro ao buscar relatórios:', error);
         throw error;
       }
 
-      console.log(`✅ [useAIReportsData] Carregados ${data?.length || 0} relatórios`);
+      console.log(`[useAIReportsData] Encontrados ${data?.length || 0} relatórios`);
       return data || [];
     },
-    enabled: !!effectiveClinicaId,
-    staleTime: 1 * 60 * 1000, // 1 minuto
-    retry: 1
+    enabled: !!clinicaId && !clinicaLoading,
+    refetchOnWindowFocus: false,
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
-
-  // Organizar relatórios por status
-  const pendingReports = reports.filter(report => 
-    report.status === 'pending' || report.status === 'processing'
-  );
-  
-  const completedReports = reports.filter(report => 
-    report.status === 'completed'
-  );
-  
-  const failedReports = reports.filter(report => 
-    report.status === 'failed' || report.status === 'cancelled'
-  );
-
-  return {
-    reports,
-    pendingReports,
-    completedReports,
-    failedReports,
-    isLoading,
-    error,
-    refetch
-  };
 };

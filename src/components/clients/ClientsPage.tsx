@@ -1,3 +1,4 @@
+
 /**
  * =================================================================
  * ARQUIVO: ClientsPage.tsx
@@ -51,7 +52,7 @@ const ClientsPage = () => {
     sortedLeads,
     hasActiveFilters,
     handleSort,
-    handleAddLead, // <--- Função para abrir o modal de criação.
+    handleAddLead,
     handleClearFilters,
     handleEditLead,
     handleOpenChat,
@@ -80,8 +81,18 @@ const ClientsPage = () => {
       <ClientsActionsBar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-        filters={filters}
-        setFilters={setFilters}
+        filters={{
+          tag: filters.tagId,
+          origem: filters.origemLead,
+          servico: filters.servicoInteresse,
+          etapaId: filters.etapaId
+        }}
+        setFilters={(newFilters) => setFilters({
+          tagId: newFilters.tag,
+          origemLead: newFilters.origem,
+          servicoInteresse: newFilters.servico,
+          etapaId: newFilters.etapaId
+        })}
         isFilterOpen={isFilterOpen}
         setIsFilterOpen={setIsFilterOpen}
         tags={tags}
@@ -101,7 +112,7 @@ const ClientsPage = () => {
           onEdit={handleEditLead}
           onChat={handleOpenChat}
           onDelete={handleDeleteLead}
-          isDeleting={isDeleting}
+          isDeleting={typeof isDeleting === 'string' ? isDeleting : null}
         />
       ) : (
         <div className="flex items-center justify-center min-h-[400px] border rounded-lg bg-muted/10">

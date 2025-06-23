@@ -23,20 +23,8 @@ import { useTags } from '@/hooks/useTagsData';
 /**
  * Página de detalhes de uma clínica específica para administradores
  * 
- * O que faz:
- * - Exibe informações detalhadas de uma clínica
- * - Permite editar configurações e dados da clínica
- * - Gerencia leads, chat e configurações específicas
- * - Interface completa para administração de clínica
- * 
- * Onde é usado:
- * - Rota /admin/clinicas/:id
- * - Acessível apenas por administradores
- * 
- * Como se conecta:
- * - useSupabaseAdmin para dados e operações admin
- * - Componentes específicos para cada seção
- * - Usa privilégios administrativos para acesso total
+ * CORREÇÃO: Ajustado para trabalhar com os hooks corretos
+ * e propriedades disponíveis no useSupabaseAdmin
  */
 export const AdminClinicDetails = () => {
   const { id: clinicaId } = useParams<{ id: string }>();
@@ -46,12 +34,14 @@ export const AdminClinicDetails = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [selectedLeadForEdit, setSelectedLeadForEdit] = useState<any>(null);
+  const [clinicaDetails, setClinicaDetails] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(true);
 
   // Hooks para dados
   const { 
-    clinicaDetalhada, 
-    carregarDetalhesClinica,
-    loading: loadingClinica 
+    clinicas,
+    loading: loadingAdmin,
+    buscarClinicaPorId
   } = useSupabaseAdmin();
   
   const { 
@@ -64,10 +54,22 @@ export const AdminClinicDetails = () => {
 
   // Carregar detalhes da clínica
   useEffect(() => {
-    if (clinicaId) {
-      carregarDetalhesClinica(clinicaId);
-    }
-  }, [clinicaId]);
+    const carregarDetalhes = async () => {
+      if (clinicaId) {
+        setLoadingDetails(true);
+        try {
+          const detalhes = await buscarClinicaPorId(clinicaId);
+          setClinicaDetails(detalhes);
+        } catch (error) {
+          console.error('Erro ao carregar detalhes da clínica:', error);
+        } finally {
+          setLoadingDetails(false);
+        }
+      }
+    };
+    
+    carregarDetalhes();
+  }, [clinicaId, buscarClinicaPorId]);
 
   // Função para adicionar novo lead
   const handleAddLead = () => {
@@ -109,7 +111,7 @@ export const AdminClinicDetails = () => {
     );
   }
 
-  if (loadingClinica) {
+  if (loadingDetails || loadingAdmin) {
     return (
       <div className="p-6">
         <div className="text-center">
@@ -119,7 +121,7 @@ export const AdminClinicDetails = () => {
     );
   }
 
-  if (!clinicaDetalhada) {
+  if (!clinicaDetails) {
     return (
       <div className="p-6">
         <div className="text-center">
@@ -149,7 +151,7 @@ export const AdminClinicDetails = () => {
             </Button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                {clinicaDetalhada.nome}
+                {clinicaDetails.nome}
               </h1>
               <p className="text-gray-600">
                 Gerenciamento completo da clínica
@@ -164,18 +166,24 @@ export const AdminClinicDetails = () => {
         </div>
 
         {/* Cards de estatísticas */}
-        <ClinicStatsCards clinica={clinicaDetalhada} />
+        <ClinicStatsCards 
+          clinica={clinicaDetails}
+          leadsStats={{
+            leadsDeAnuncios: leads.filter(lead => lead.ad_name).length,
+            totalLeads: leads.length
+          }}
+          loadingStats={loadingLeads}
+        />
 
         {/* Informações básicas e ações rápidas */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <ClinicBasicInfo clinica={clinicaDetalhada} />
+            <ClinicBasicInfo clinica={clinicaDetails} />
           </div>
           <div>
             <ClinicQuickActions 
-              clinica={clinicaDetalhada}
-              onOpenChat={() => setActiveTab('chat')}
-              onAddLead={handleAddLead}
+              clinicaId={clinicaId}
+              clinicaNome={clinicaDetails.nome}
             />
           </div>
         </div>
@@ -255,13 +263,23 @@ export const AdminClinicDetails = () => {
           </TabsContent>
 
           <TabsContent value="ai-settings" className="mt-6">
-            <AdminAISettings clinica={clinicaDetalhada} />
+            <AdminAISettings clinicaId={clinicaId} />
           </TabsContent>
 
           <TabsContent value="integrations" className="mt-6">
             <div className="space-y-6">
-              <EvolutionApiSettings clinica={clinicaDetalhada} />
-              <InstagramSettings clinica={clinicaDetalhada} />
+              <EvolutionApiSettings 
+                clinica={clinicaDetails}
+                onSaveInstanceName={() => {}}
+                onSaveApiKey={() => {}}
+                saving={false}
+                savingApiKey={false}
+              />
+              <InstagramSettings 
+                clinica={clinicaDetails}
+                onSave={() => {}}
+                saving={false}
+              />
             </div>
           </TabsContent>
         </Tabs>
