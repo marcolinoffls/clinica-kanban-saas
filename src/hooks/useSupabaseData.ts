@@ -9,18 +9,7 @@ import { useUpdateLeadAiConversationStatus } from './mutations/useUpdateLeadAiCo
 /**
  * Hook principal para gerenciar dados do Supabase
  * 
- * Este hook combina todos os hooks especializados e gerencia:
- * - Integração dos dados de diferentes entidades (leads, etapas, tags, chat)
- * - Subscrições Realtime para atualizações em tempo real
- * - Coordenação entre diferentes hooks especializados
- * - Controle de estado da IA por lead (NOVO)
- * 
- * Utiliza os hooks especializados para cada domínio:
- * - useLeads: para dados de leads
- * - useEtapas: para etapas do kanban
- * - useTags: para tags/categorias
- * - useSupabaseChat: para mensagens e chat
- * - useUpdateLeadAiConversationStatus: para controle de IA por lead (NOVO)
+ * CORREÇÃO: Removidos useEffects desnecessários que causavam loops
  */
 
 export const useSupabaseData = () => {
