@@ -37,8 +37,9 @@ const AdminClinicDetailsPage = () => {
     navigate('/admin');
   };
 
-  // Renderiza o componente que mostra os detalhes da clínica, passando as props necessárias.
-  return <AdminClinicDetails clinicaId={clinicaId} onBack={handleBack} />;
+  // CORREÇÃO: O componente AdminClinicDetails não precisa de props aqui
+  // pois ele mesmo obtém o clinicaId dos parâmetros da URL
+  return <AdminClinicDetails />;
 };
 
 export default AdminClinicDetailsPage;

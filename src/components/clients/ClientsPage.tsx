@@ -87,18 +87,15 @@ const ClientsPage = () => {
           servico: filters.servicoInteresse || ''
         }}
         setFilters={(newFilters) => {
-          if (typeof newFilters === 'function') {
-            // Se newFilters é uma função, não podemos acessar as propriedades diretamente
-            console.warn('setFilters recebeu uma função, não um objeto');
-            return;
+          // Corrigido: verificar se newFilters é um objeto válido
+          if (typeof newFilters === 'object' && newFilters !== null) {
+            setFilters({
+              tagId: newFilters.tag || null,
+              origemLead: newFilters.origem || null,
+              servicoInteresse: newFilters.servico || null,
+              etapaId: null // Mantém a etapa como null já que não está nos filtros da barra
+            });
           }
-          
-          setFilters({
-            tagId: newFilters.tag || null,
-            origemLead: newFilters.origem || null,
-            servicoInteresse: newFilters.servico || null,
-            etapaId: null // Mantém a etapa como null já que não está nos filtros da barra
-          });
         }}
         isFilterOpen={isFilterOpen}
         setIsFilterOpen={setIsFilterOpen}

@@ -9,7 +9,6 @@ import { useTagsData } from './useTagsData';
 import { useEtapas } from './useEtapasData';
 import { useToast } from './use-toast';
 import { useClinica } from '@/contexts/ClinicaContext';
-import { useAdminCheck } from './useAdminCheck';
 import { supabase } from '@/integrations/supabase/client';
 
 // Interfaces para os filtros
@@ -28,7 +27,6 @@ export const useClientsPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { clinicaId } = useClinica();
-  const { isAdmin } = useAdminCheck();
 
   // Estados para filtros e ordenação
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,7 +47,7 @@ export const useClientsPage = () => {
     etapaId: null
   });
 
-  // Buscar dados - sem argumentos para useLeads
+  // Buscar dados
   const { 
     data: leads = [], 
     isLoading: leadsLoading 

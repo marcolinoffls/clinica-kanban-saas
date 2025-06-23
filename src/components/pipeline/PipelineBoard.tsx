@@ -199,12 +199,14 @@ export const PipelineBoard = ({ adminMode = false, targetClinicaId, onNavigateTo
         consultas={modals.consultasLead}
       />
 
+      {/* CORREÇÃO: Usar props corretas para o modal de mover leads */}
       <PipelineMoveLeadsModal
         isOpen={modals.isMoveLeadsModalOpen}
         onClose={modals.closeMoveLeadsModal}
-        targetEtapas={etapas.filter(etapa => etapa.id !== modals.editingEtapa?.id)}
-        leads={leads.filter(lead => lead.etapa_kanban_id === modals.editingEtapa?.id)}
-        onMoveLeads={() => {}} // Simplificado
+        etapaToDelete={modals.editingEtapa}
+        leadsCount={leads.filter(lead => lead.etapa_kanban_id === modals.editingEtapa?.id).length}
+        etapasDisponiveis={etapas.filter(etapa => etapa.id !== modals.editingEtapa?.id)}
+        onConfirm={() => {}} // Simplificado
       />
     </div>
   );
