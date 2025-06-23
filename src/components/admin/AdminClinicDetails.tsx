@@ -253,7 +253,7 @@ export const AdminClinicDetails = () => {
           <TabsContent value="evolution" className="space-y-6">
             <EvolutionApiSettings 
               clinicaId={clinica.id}
-              currentInstanceName={clinica.evolution_instance_name}
+              currentInstanceName={clinica.evolution_instance_name || ''} // ✅ Valor padrão
               onSave={async (instanceName) => {
                 console.log('Salvando instance name:', instanceName);
               }}
