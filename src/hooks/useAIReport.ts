@@ -1,3 +1,4 @@
+
 // src/hooks/useAIReport.ts
 
 import { useMemo } from 'react';
@@ -49,20 +50,17 @@ export const useAIReport = (adminTargetClinicaId?: string) => {
   );
 
   const currentProcessingReport = useMemo(() => {
-    if (!pendingReports) return undefined;
+    if (!pendingReports || pendingReports.length === 0) return undefined;
     return pendingReports.find(
       (report) =>
         report.status === 'pending' || report.status === 'processing',
     );
   }, [pendingReports]);
 
-  // **INÍCIO DA CORREÇÃO**
-  // Encontrar o último relatório finalizado (com sucesso ou falha).
-  // Usamos useMemo para garantir que `reports` não seja `undefined` ao usar `.find()`.
+  // **CORREÇÃO** - Verificar se reports existe e tem .find method
   const latestReport = useMemo(() => {
     // Se `reports` não existe ou está vazio, retorna null.
-    // Isso evita o erro "Cannot read properties of undefined (reading 'find')".
-    if (!reports || reports.length === 0) {
+    if (!reports || !Array.isArray(reports) || reports.length === 0) {
       return null;
     }
     // Agora o `.find()` é seguro.
@@ -71,7 +69,6 @@ export const useAIReport = (adminTargetClinicaId?: string) => {
         report.status === 'success' || report.status === 'failed',
     );
   }, [reports]);
-  // **FIM DA CORREÇÃO**
 
   return {
     isModalOpen,
@@ -89,7 +86,7 @@ export const useAIReport = (adminTargetClinicaId?: string) => {
     cancelReport: (reportId: string) => cancelReport(reportId),
     isCancellingReport: isCancelling,
     currentProcessingReport,
-    latestReport, // Adicionar o novo valor ao retorno
+    latestReport,
     refetchReports,
     clinicaId: effectiveClinicaId,
     isAdminMode,

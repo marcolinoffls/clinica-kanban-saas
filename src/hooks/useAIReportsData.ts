@@ -1,8 +1,8 @@
+
 // src/hooks/useAIReportsData.ts
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { AIReport } from '@/types/aiReports';
 import { useMemo } from 'react';
 
 /**
@@ -15,18 +15,20 @@ import { useMemo } from 'react';
  */
 export const useAIReportsData = (
   clinicaId: string | null,
-  // CORREÇÃO: Adicionamos um valor padrão ao options.
+  // CORREÇÃO: Adicionamos um valor padrão ao options e validação de null
   // Isso garante que, mesmo se o hook for chamado com `null` ou `undefined`,
   // `options` será um objeto `{}` e `options.adminMode` não causará um erro.
-  options: { adminMode?: boolean } = {},
+  options: { adminMode?: boolean } | null = null,
 ) => {
-  const { adminMode = false } = options;
+  // Garantir que options nunca seja null
+  const safeOptions = options || {};
+  const { adminMode = false } = safeOptions;
 
   const {
     data: reports,
     isLoading,
     refetch,
-  } = useQuery<AIReport[]>({
+  } = useQuery({
     queryKey: ['ai_reports', clinicaId, adminMode],
     queryFn: async () => {
       if (!clinicaId) return [];
@@ -48,7 +50,17 @@ export const useAIReportsData = (
         console.error('Erro ao buscar relatórios de IA:', error);
         throw new Error('Não foi possível buscar os relatórios de IA.');
       }
-      return data || [];
+      
+      // Converter tipos do Supabase para AIReport
+      return (data || []).map(report => ({
+        ...report,
+        delivery_method: report.delivery_method as 'in_app' | 'whatsapp',
+        status: report.status as 'pending' | 'processing' | 'success' | 'failed' | 'cancelled',
+        start_date: new Date(report.start_date),
+        end_date: new Date(report.end_date),
+        created_at: new Date(report.created_at),
+        updated_at: new Date(report.updated_at)
+      }));
     },
     enabled: !!clinicaId, // A query só executa se clinicaId existir.
   });

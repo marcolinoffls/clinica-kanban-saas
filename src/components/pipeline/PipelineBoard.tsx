@@ -92,7 +92,7 @@ export const PipelineBoard = ({ adminMode = false, targetClinicaId, onNavigateTo
 
   // Handlers corrigidos
   const handleAddLead = () => {
-    modals.openEditLeadModal(null); // Usar método disponível
+    modals.openEditLeadModal(null);
   };
 
   const handleEditLead = (lead: LeadPipeline) => {
@@ -100,7 +100,7 @@ export const PipelineBoard = ({ adminMode = false, targetClinicaId, onNavigateTo
   };
 
   const handleAddEtapa = () => {
-    modals.openEditEtapaModal(null); // Usar método disponível
+    modals.openEditEtapaModal(null);
   };
 
   const handleEditEtapa = (etapa: EtapaPipeline) => {
@@ -112,9 +112,12 @@ export const PipelineBoard = ({ adminMode = false, targetClinicaId, onNavigateTo
     console.log('Deletando lead:', leadId);
   };
 
-  const handleDeleteEtapa = (etapaId: string) => {
-    // Implementar lógica de deletar etapa
-    console.log('Deletando etapa:', etapaId);
+  const handleDeleteEtapa = async (etapa: EtapaPipeline, leads: LeadPipeline[]) => {
+    const result = await etapaActions.handleDeleteEtapa(etapa, leads);
+    if (result.needsMoveLeads && result.etapaToDelete && result.leadsToMove) {
+      // Abrir modal para mover leads se necessário
+      console.log('Precisa mover leads antes de deletar etapa');
+    }
   };
 
   if (!etapas || etapas.length === 0) {
@@ -161,9 +164,8 @@ export const PipelineBoard = ({ adminMode = false, targetClinicaId, onNavigateTo
                   etapa={etapa}
                   leads={etapaLeads}
                   onEditLead={handleEditLead}
-                  onDeleteLead={handleDeleteLead}
                   onEditEtapa={() => handleEditEtapa(etapa)}
-                  onDeleteEtapa={() => handleDeleteEtapa(etapa.id)}
+                  onDeleteEtapa={() => handleDeleteEtapa(etapa, etapaLeads)}
                   onMoveLeads={() => {}} // Simplificado
                   onNavigateToChat={onNavigateToChat || (() => {})}
                   onOpenHistory={leadActions.handleOpenHistory}
@@ -188,6 +190,7 @@ export const PipelineBoard = ({ adminMode = false, targetClinicaId, onNavigateTo
         isOpen={modals.isEtapaModalOpen}
         onClose={modals.closeEtapaModal}
         etapa={modals.editingEtapa}
+        etapasExistentes={etapas}
         onSave={(nome) => etapaActions.handleSaveEtapa(nome, modals.editingEtapa, etapas)}
       />
 

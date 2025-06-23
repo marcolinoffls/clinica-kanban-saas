@@ -1,134 +1,107 @@
 
-import { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, MessageSquare, Users, Calendar, Settings } from 'lucide-react';
+import { ArrowLeft, Building2, Users, TrendingUp, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
-import { useAdminChatData } from '@/hooks/useAdminChatData';
-import { AdminClinicDashboard } from './clinic-details/AdminClinicDashboard';
-import { AdminClinicChat } from './clinic-details/AdminClinicChat';
 import { ClinicBasicInfo } from './clinic-details/ClinicBasicInfo';
 import { ClinicStatsCards } from './clinic-details/ClinicStatsCards';
 import { ClinicQuickActions } from './clinic-details/ClinicQuickActions';
+import { AdminClinicDashboard } from './clinic-details/AdminClinicDashboard';
+import { AdminClinicChat } from './clinic-details/AdminClinicChat';
 import { AdminAISettings } from './clinic-details/AdminAISettings';
 import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
 import { InstagramSettings } from './clinic-details/InstagramSettings';
-import { ContactsTable } from '@/components/clients/ContactsTable';
-import { AdminClinicLeadModal } from './AdminClinicLeadModal';
-import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { useTags } from '@/hooks/useTagsData';
 
 /**
- * Página de detalhes de uma clínica específica para administradores
+ * Componente de detalhes de uma clínica específica no painel administrativo
  * 
- * CORREÇÃO: Ajustado para trabalhar com os hooks corretos
- * e propriedades disponíveis no useSupabaseAdmin
+ * Este componente exibe informações completas sobre uma clínica específica,
+ * incluindo estatísticas, configurações e dados de performance.
  */
 export const AdminClinicDetails = () => {
-  const { id: clinicaId } = useParams<{ id: string }>();
+  const { clinicaId } = useParams<{ clinicaId: string }>();
   const navigate = useNavigate();
-  
-  // Estados locais
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
-  const [selectedLeadForEdit, setSelectedLeadForEdit] = useState<any>(null);
-  const [clinicaDetails, setClinicaDetails] = useState<any>(null);
-  const [loadingDetails, setLoadingDetails] = useState(true);
-
-  // Hooks para dados
-  const { 
-    clinicas,
-    loading: loadingAdmin,
-    buscarClinicaPorId
-  } = useSupabaseAdmin();
   
-  const { 
-    leads, 
-    loading: loadingLeads 
-  } = useAdminChatData(clinicaId || null);
+  // Hook para dados administrativos
+  const adminHook = useSupabaseAdmin();
   
-  const { etapas = [] } = useSupabaseData();
-  const { data: tags = [] } = useTags();
+  // Estados locais para dados específicos da clínica
+  const [clinica, setClinica] = useState<any>(null);
+  const [leadsStats, setLeadsStats] = useState<any>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
 
-  // Carregar detalhes da clínica
+  // Carregar detalhes da clínica ao montar o componente
   useEffect(() => {
-    const carregarDetalhes = async () => {
-      if (clinicaId) {
-        setLoadingDetails(true);
-        try {
-          const detalhes = await buscarClinicaPorId(clinicaId);
-          setClinicaDetails(detalhes);
-        } catch (error) {
-          console.error('Erro ao carregar detalhes da clínica:', error);
-        } finally {
-          setLoadingDetails(false);
-        }
+    const carregarDados = async () => {
+      if (!clinicaId) return;
+      
+      try {
+        setLoadingStats(true);
+        
+        // Buscar dados da clínica
+        const clinicaData = await adminHook.buscarClinicaPorId(clinicaId);
+        setClinica(clinicaData);
+        
+        // Buscar estatísticas de leads
+        const stats = await adminHook.buscarEstatisticasDeLeadsDaClinica(clinicaId);
+        setLeadsStats(stats);
+        
+      } catch (error) {
+        console.error('Erro ao carregar dados da clínica:', error);
+      } finally {
+        setLoadingStats(false);
       }
     };
-    
-    carregarDetalhes();
-  }, [clinicaId, buscarClinicaPorId]);
 
-  // Função para adicionar novo lead
-  const handleAddLead = () => {
-    console.log('🆕 [AdminClinicDetails] Abrindo modal para novo lead');
-    setSelectedLeadForEdit(null);
-    setIsLeadModalOpen(true);
-  };
+    carregarDados();
+  }, [clinicaId]);
 
-  // Função para editar lead existente
-  const handleEditLead = (lead: any) => {
-    console.log('✏️ [AdminClinicDetails] Editando lead:', lead.id);
-    setSelectedLeadForEdit(lead);
-    setIsLeadModalOpen(true);
-  };
-
-  // Função para abrir chat do lead
-  const handleOpenChat = (lead: any) => {
-    console.log('💬 [AdminClinicDetails] Abrindo chat do lead:', lead.id);
+  // Handlers para ações
+  const handleOpenChat = () => {
     setActiveTab('chat');
   };
 
-  // Função para deletar lead
-  const handleDeleteLead = async (leadId: string) => {
-    console.log('🗑️ [AdminClinicDetails] Deletando lead:', leadId);
-    // TODO: Implementar deleção via admin
+  const handleAddLead = () => {
+    // Implementar lógica para adicionar lead
+    console.log('Adicionar lead para clínica:', clinicaId);
   };
 
-  if (!clinicaId) {
+  // Handlers para salvar configurações (implementação básica)
+  const handleSaveInstanceName = async (instanceName: string) => {
+    console.log('Salvando instance name:', instanceName);
+  };
+
+  const handleSaveApiKey = async (apiKey: string) => {
+    console.log('Salvando API key:', apiKey);
+  };
+
+  const handleSaveInstagramSettings = async (userHandle: string) => {
+    console.log('Salvando configurações Instagram:', userHandle);
+  };
+
+  if (adminHook.loading || loadingStats) {
     return (
-      <div className="p-6">
-        <div className="text-center">
-          <p className="text-red-600">ID da clínica não encontrado</p>
-          <Button onClick={() => navigate('/admin')} className="mt-4">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Voltar ao Painel Admin
-          </Button>
-        </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
-  if (loadingDetails || loadingAdmin) {
+  if (!clinica) {
     return (
-      <div className="p-6">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <p>Carregando detalhes da clínica...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!clinicaDetails) {
-    return (
-      <div className="p-6">
-        <div className="text-center">
-          <p className="text-red-600">Clínica não encontrada</p>
-          <Button onClick={() => navigate('/admin')} className="mt-4">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Clínica não encontrada</h2>
+          <p className="text-gray-600 mb-4">A clínica solicitada não existe ou você não tem permissão para acessá-la.</p>
+          <Button onClick={() => navigate('/admin')} variant="outline">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Voltar ao Painel Admin
+            Voltar ao Painel
           </Button>
         </div>
       </div>
@@ -136,167 +109,107 @@ export const AdminClinicDetails = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="outline" 
-              onClick={() => navigate('/admin')}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Voltar ao Painel
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {clinicaDetails.nome}
-              </h1>
-              <p className="text-gray-600">
-                Gerenciamento completo da clínica
-              </p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-4">
+              <Button
+                onClick={() => navigate('/admin')}
+                variant="ghost"
+                size="sm"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Voltar
+              </Button>
+              <Separator orientation="vertical" className="h-6" />
+              <div className="flex items-center gap-3">
+                <Building2 className="w-6 h-6 text-blue-600" />
+                <div>
+                  <h1 className="text-xl font-semibold text-gray-900">{clinica.nome}</h1>
+                  <p className="text-sm text-gray-600">{clinica.email}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Badge variant={clinica.status === 'ativo' ? 'default' : 'secondary'}>
+                {clinica.status}
+              </Badge>
+              <Badge variant="outline">
+                {clinica.plano_contratado}
+              </Badge>
             </div>
           </div>
-          
-          <Button onClick={handleAddLead} className="flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            Novo Lead
-          </Button>
+        </div>
+      </div>
+
+      {/* Conteúdo principal */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Cards de estatísticas rápidas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <ClinicStatsCards 
+            clinica={clinica}
+            leadsStats={leadsStats}
+            loadingStats={loadingStats}
+          />
         </div>
 
-        {/* Cards de estatísticas */}
-        <ClinicStatsCards 
-          clinica={clinicaDetails}
-          leadsStats={{
-            leadsDeAnuncios: leads.filter(lead => lead.ad_name).length,
-            totalLeads: leads.length
-          }}
-          loadingStats={loadingLeads}
-        />
-
         {/* Informações básicas e ações rápidas */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-2">
-            <ClinicBasicInfo clinica={clinicaDetails} />
+            <ClinicBasicInfo clinica={clinica} />
           </div>
           <div>
             <ClinicQuickActions 
-              clinicaId={clinicaId}
-              clinicaNome={clinicaDetails.nome}
+              clinicaId={clinica.id}
+              onOpenChat={handleOpenChat}
+              onAddLead={handleAddLead}
             />
           </div>
         </div>
 
-        {/* Abas principais */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="dashboard" className="flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="leads" className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Leads
-            </TabsTrigger>
-            <TabsTrigger value="chat" className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" />
-              Chat
-            </TabsTrigger>
-            <TabsTrigger value="ai-settings" className="flex items-center gap-2">
-              <Settings className="w-4 h-4" />
-              IA
-            </TabsTrigger>
-            <TabsTrigger value="integrations" className="flex items-center gap-2">
-              <Settings className="w-4 h-4" />
-              Integrações
-            </TabsTrigger>
+        {/* Tabs de conteúdo detalhado */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-4">
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="chat">Chat</TabsTrigger>
+            <TabsTrigger value="settings">Configurações</TabsTrigger>
+            <TabsTrigger value="integrations">Integrações</TabsTrigger>
           </TabsList>
-
+          
           <TabsContent value="dashboard" className="mt-6">
-            <AdminClinicDashboard clinicaId={clinicaId} />
+            <AdminClinicDashboard clinicaId={clinica.id} />
           </TabsContent>
-
-          <TabsContent value="leads" className="mt-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Leads da Clínica</CardTitle>
-                  <Button onClick={handleAddLead} size="sm">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Novo Lead
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {loadingLeads ? (
-                  <div className="text-center py-8">
-                    <p>Carregando leads...</p>
-                  </div>
-                ) : leads.length > 0 ? (
-                  <ContactsTable
-                    leads={leads}
-                    tags={tags}
-                    sortField="created_at"
-                    sortOrder="desc"
-                    onSort={() => {}}
-                    onEdit={handleEditLead}
-                    onChat={handleOpenChat}
-                    onDelete={handleDeleteLead}
-                    isDeleting={false}
-                  />
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-gray-500">Nenhum lead encontrado para esta clínica</p>
-                    <Button onClick={handleAddLead} className="mt-4" size="sm">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Criar Primeiro Lead
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
+          
           <TabsContent value="chat" className="mt-6">
-            <AdminClinicChat clinicaId={clinicaId} />
+            <AdminClinicChat clinicaId={clinica.id} />
           </TabsContent>
-
-          <TabsContent value="ai-settings" className="mt-6">
-            <AdminAISettings clinicaId={clinicaId} />
-          </TabsContent>
-
-          <TabsContent value="integrations" className="mt-6">
+          
+          <TabsContent value="settings" className="mt-6">
             <div className="space-y-6">
+              <AdminAISettings clinicaId={clinica.id} />
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="integrations" className="mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <EvolutionApiSettings 
-                clinica={clinicaDetails}
-                onSaveInstanceName={() => {}}
-                onSaveApiKey={() => {}}
+                clinica={clinica}
+                onSaveInstanceName={handleSaveInstanceName}
+                onSaveApiKey={handleSaveApiKey}
                 saving={false}
                 savingApiKey={false}
               />
               <InstagramSettings 
-                clinica={clinicaDetails}
-                onSave={() => {}}
+                clinica={clinica}
+                onSave={handleSaveInstagramSettings}
                 saving={false}
               />
             </div>
           </TabsContent>
         </Tabs>
-
-        {/* Modal de Lead */}
-        {clinicaId && (
-          <AdminClinicLeadModal
-            isOpen={isLeadModalOpen}
-            onClose={() => {
-              setIsLeadModalOpen(false);
-              setSelectedLeadForEdit(null);
-            }}
-            lead={selectedLeadForEdit}
-            targetClinicaId={clinicaId}
-            etapas={etapas}
-          />
-        )}
       </div>
     </div>
   );
