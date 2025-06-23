@@ -4,6 +4,8 @@ import { useLeads } from './useLeadsData';
 import { useEtapas } from './useEtapasData';
 import { useTags } from './useTagsData';
 import { useSupabaseChat } from './useSupabaseChat';
+import { useUpdateLeadAiConversationStatus } from './useSupabaseLeads';
+
 
 /**
  * 🎯 Hook Principal para Gerenciamento de Dados do Supabase
