@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -258,6 +259,67 @@ export const useSupabaseAdmin = () => {
     }
   };
 
+  // ✅ NOVA FUNÇÃO: Atualizar configurações da Evolution API
+  const atualizarConfiguracaoEvolution = async (
+    clinicaId: string, 
+    instanceName?: string, 
+    apiKey?: string
+  ): Promise<any> => {
+    if (!isAdmin) {
+      throw new Error('Acesso negado: usuário não é administrador');
+    }
+    
+    try {
+      console.log(`🔧 [useSupabaseAdmin] Atualizando configuração Evolution da clínica: ${clinicaId}`);
+      
+      const updateData: any = {
+        updated_at: new Date().toISOString()
+      };
+      
+      if (instanceName !== undefined) {
+        updateData.evolution_instance_name = instanceName;
+        console.log(`📝 [useSupabaseAdmin] Instance name: ${instanceName}`);
+      }
+      
+      if (apiKey !== undefined) {
+        updateData.evolution_api_key = apiKey;
+        console.log(`🔑 [useSupabaseAdmin] API key: ${apiKey ? '[FORNECIDA]' : '[VAZIA]'}`);
+      }
+      
+      if (Object.keys(updateData).length <= 1) {
+        console.warn('⚠️ [useSupabaseAdmin] Nenhum dado para atualizar além do timestamp');
+        return null;
+      }
+      
+      const { data, error } = await supabase
+        .from('clinicas')
+        .update(updateData)
+        .eq('id', clinicaId)
+        .select();
+
+      if (error) {
+        console.error('❌ [useSupabaseAdmin] Erro ao atualizar configuração Evolution:', error);
+        throw error;
+      }
+
+      console.log('✅ [useSupabaseAdmin] Configuração Evolution atualizada com sucesso:', data);
+      
+      // Atualizar estado local das clínicas se existir
+      setClinicas(prevClinicas => 
+        prevClinicas.map(clinica => 
+          clinica.id === clinicaId 
+            ? { ...clinica, ...updateData }
+            : clinica
+        )
+      );
+
+      return data?.[0] || null;
+    } catch (error) {
+      console.error('❌ [useSupabaseAdmin] Erro ao atualizar configuração Evolution:', error);
+      throw error;
+    }
+  };
+
   // Configurar como admin (para testes)
   const configurarComoAdmin = async (): Promise<boolean> => {
     try {
@@ -327,5 +389,6 @@ export const useSupabaseAdmin = () => {
     buscarEstatisticasDeLeadsDaClinica,
     buscarEstatisticasClinicas,
     buscarKPIsGlobais,
+    atualizarConfiguracaoEvolution, // ✅ NOVA FUNÇÃO EXPORTADA
   };
 };

@@ -33,3 +33,11 @@ export interface LoadingStates {
   deleting: boolean;               // Indica se está deletando um lead
   loading: boolean;                // Loading geral da página
 }
+
+// ✅ NOVA INTERFACE: Estado dos filtros para compatibilidade
+export interface FilterState {
+  tag: string;
+  origem: string; 
+  servico: string;
+  hasActiveFilters: boolean;
+}

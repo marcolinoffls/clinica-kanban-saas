@@ -101,6 +101,35 @@ export const AdminClinicDetails = () => {
     console.log('Adicionar lead para clínica:', clinicaId);
   };
 
+  // ✅ NOVA FUNÇÃO: Handler para salvar configurações da Evolution
+  const handleSaveEvolutionConfig = async (instanceName?: string, apiKey?: string) => {
+    if (!clinicaId) return;
+    
+    try {
+      console.log('🔧 [AdminClinicDetails] Salvando configuração Evolution...');
+      
+      const updatedClinica = await adminHook.atualizarConfiguracaoEvolution(
+        clinicaId,
+        instanceName,
+        apiKey
+      );
+      
+      if (updatedClinica) {
+        // Atualizar estado local da clínica
+        setClinica((prev: any) => ({
+          ...prev,
+          evolution_instance_name: updatedClinica.evolution_instance_name || prev.evolution_instance_name,
+          evolution_api_key: updatedClinica.evolution_api_key || prev.evolution_api_key
+        }));
+        
+        console.log('✅ [AdminClinicDetails] Configuração Evolution salva com sucesso');
+      }
+    } catch (error) {
+      console.error('❌ [AdminClinicDetails] Erro ao salvar configuração Evolution:', error);
+      throw error;
+    }
+  };
+
   // Estados de loading e erro
   if (adminHook.adminCheckLoading) {
     return (
@@ -252,21 +281,25 @@ export const AdminClinicDetails = () => {
 
           <TabsContent value="evolution" className="space-y-6">
             <EvolutionApiSettings 
-              clinicaId={clinica.id}
-              currentInstanceName={clinica.evolution_instance_name || ''} // ✅ Valor padrão
-              onSave={async (instanceName) => {
-                console.log('Salvando instance name:', instanceName);
+              clinica={clinica}
+              onSaveInstanceName={async (instanceName) => {
+                await handleSaveEvolutionConfig(instanceName, undefined);
               }}
+              onSaveApiKey={async (apiKey) => {
+                await handleSaveEvolutionConfig(undefined, apiKey);
+              }}
+              saving={false}
+              savingApiKey={false}
             />
           </TabsContent>
 
           <TabsContent value="instagram" className="space-y-6">
             <InstagramSettings 
-              clinicaId={clinica.id}
-              currentUserHandle={clinica.instagram_user_handle}
+              clinica={clinica}
               onSave={async (userHandle) => {
                 console.log('Salvando configurações Instagram:', userHandle);
               }}
+              saving={false}
             />
           </TabsContent>
         </Tabs>
