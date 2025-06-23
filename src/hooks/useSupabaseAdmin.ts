@@ -1,5 +1,6 @@
+
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 
 export const useSupabaseAdmin = () => {
@@ -23,8 +24,8 @@ export const useSupabaseAdmin = () => {
         // Verificar se o usuário tem role de admin
         const { data: profile, error } = await supabase
           .from('user_profiles')
-          .select('role')
-          .eq('id', user.id)
+          .select('profile_type')
+          .eq('user_id', user.id)
           .single();
 
         if (error) {
@@ -33,7 +34,7 @@ export const useSupabaseAdmin = () => {
           return;
         }
 
-        setIsAdmin(profile?.role === 'admin');
+        setIsAdmin(profile?.profile_type === 'admin');
       } catch (error) {
         console.error('Erro na verificação de admin:', error);
         setIsAdmin(false);
@@ -221,11 +222,17 @@ export const useSupabaseAdmin = () => {
     try {
       // Buscar totais de clínicas, leads, etc.
       const { data: clinicasData } = await supabase.from('clinicas').select('id');
-      const { data: leadsData } = await supabase.from('leads').select('id');
+      const { data: leadsData } = await supabase.from('leads').select('id, convertido');
+      
+      const leadsConvertidos = leadsData?.filter(lead => lead.convertido).length || 0;
+      const totalLeads = leadsData?.length || 0;
+      const taxaConversao = totalLeads > 0 ? (leadsConvertidos / totalLeads) * 100 : 0;
       
       return {
         totalClinicas: clinicasData?.length || 0,
-        totalLeads: leadsData?.length || 0,
+        totalLeads,
+        leadsConvertidos,
+        taxaConversao,
         clinicasAtivas: clinicasData?.length || 0,
         crescimentoMensal: 0
       };
