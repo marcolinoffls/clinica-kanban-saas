@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
-import { Loader2, ArrowLeft, Building2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ArrowLeft, Building2, Loader2, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,6 +15,14 @@ import { AdminAISettings } from './clinic-details/AdminAISettings';
 import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
 import { InstagramSettings } from './clinic-details/InstagramSettings';
 
+/**
+ * Componente de detalhes de uma clínica específica no painel administrativo
+ * 
+ * CORREÇÃO IMPLEMENTADA:
+ * - Melhor tratamento de erro na busca da clínica
+ * - Logs detalhados para debug
+ * - Estados de loading e erro mais robustos
+ */
 export const AdminClinicDetails = () => {
   const { clinicaId } = useParams<{ clinicaId: string }>();
   const navigate = useNavigate();
@@ -29,35 +37,50 @@ export const AdminClinicDetails = () => {
   const [loadingStats, setLoadingStats] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ ESTADOS PARA SAVING
-  const [savingEvolutionInstance, setSavingEvolutionInstance] = useState(false);
-  const [savingEvolutionApiKey, setSavingEvolutionApiKey] = useState(false);
-
-  // Carregar dados da clínica quando o componente montar
+  // Carregar detalhes da clínica ao montar o componente
   useEffect(() => {
-    if (!clinicaId || adminHook.adminCheckLoading) return;
-
-    if (!adminHook.isAdmin) {
-      setError('Acesso negado');
-      setLoadingStats(false);
-      return;
-    }
-
     const carregarDados = async () => {
+      if (!clinicaId) {
+        setError('ID da clínica não fornecido');
+        setLoadingStats(false);
+        return;
+      }
+      
       try {
+        console.log(`🔄 [AdminClinicDetails] Carregando dados da clínica: ${clinicaId}`);
         setLoadingStats(true);
         setError(null);
+        
+        // Verificar se é admin primeiro
+        if (!adminHook.isAdmin && !adminHook.adminCheckLoading) {
+          throw new Error('Acesso negado: usuário não é administrador');
+        }
 
+        // Aguardar verificação de admin se ainda estiver carregando
+        if (adminHook.adminCheckLoading) {
+          console.log('⏳ [AdminClinicDetails] Aguardando verificação de admin...');
+          return;
+        }
+        
         // Buscar dados da clínica
+        console.log('🏥 [AdminClinicDetails] Buscando dados da clínica...');
         const clinicaData = await adminHook.buscarClinicaPorId(clinicaId);
+        
+        if (!clinicaData) {
+          throw new Error('Clínica não encontrada no sistema');
+        }
+        
         setClinica(clinicaData);
-
+        console.log('✅ [AdminClinicDetails] Dados da clínica carregados:', clinicaData.nome);
+        
         // Buscar estatísticas de leads
-        const statsData = await adminHook.buscarEstatisticasDeLeadsDaClinica(clinicaId);
-        setLeadsStats(statsData);
-
+        console.log('📊 [AdminClinicDetails] Buscando estatísticas...');
+        const stats = await adminHook.buscarEstatisticasDeLeadsDaClinica(clinicaId);
+        setLeadsStats(stats);
+        console.log('✅ [AdminClinicDetails] Estatísticas carregadas:', stats);
+        
       } catch (error: any) {
-        console.error('Erro ao carregar dados da clínica:', error);
+        console.error('❌ [AdminClinicDetails] Erro ao carregar dados:', error);
         setError(error.message || 'Erro desconhecido ao carregar dados da clínica');
         setClinica(null);
         setLeadsStats(null);
@@ -69,97 +92,6 @@ export const AdminClinicDetails = () => {
     carregarDados();
   }, [clinicaId, adminHook.isAdmin, adminHook.adminCheckLoading]);
 
-  // ✅ IMPLEMENTAR FUNÇÕES PARA SALVAR CONFIGURAÇÕES EVOLUTION
-  const handleSaveInstanceName = async (instanceName: string) => {
-    console.log(`🔧 [AdminClinicDetails] Tentativa de salvar instance name: ${instanceName}`);
-    console.log(`🏥 [AdminClinicDetails] Clínica ID: ${clinica?.id}`);
-    console.log(`🔗 [AdminClinicDetails] adminHook disponível:`, !!adminHook);
-    console.log(`🔧 [AdminClinicDetails] Função atualizarConfiguracaoEvolution disponível:`, typeof adminHook.atualizarConfiguracaoEvolution);
-
-    if (!instanceName.trim()) {
-      alert('Por favor, insira um nome para a instância');
-      return;
-    }
-
-    if (!clinica?.id) {
-      alert('Erro: Dados da clínica não encontrados');
-      return;
-    }
-
-    try {
-      setSavingEvolutionInstance(true);
-      
-      // ✅ VERIFICAR SE adminHook tem a função
-      if (!adminHook.atualizarConfiguracaoEvolution) {
-        console.error('❌ [AdminClinicDetails] Função atualizarConfiguracaoEvolution não disponível no adminHook');
-        throw new Error('Função atualizarConfiguracaoEvolution não disponível');
-      }
-      
-      console.log(`🔄 [AdminClinicDetails] Chamando atualizarConfiguracaoEvolution...`);
-      const updatedClinica = await adminHook.atualizarConfiguracaoEvolution(
-        clinica.id, 
-        instanceName.trim(), 
-        undefined
-      );
-      
-      // Atualizar estado local da clínica
-      setClinica(prev => prev ? { ...prev, evolution_instance_name: instanceName.trim() } : null);
-      
-      console.log('✅ [AdminClinicDetails] Instance name salvo com sucesso');
-      alert('Nome da instância salvo com sucesso!');
-    } catch (error: any) {
-      console.error('❌ [AdminClinicDetails] Erro ao salvar instance name:', error);
-      alert(`Erro ao salvar: ${error.message || 'Erro desconhecido'}`);
-      throw error;
-    } finally {
-      setSavingEvolutionInstance(false);
-    }
-  };
-
-  const handleSaveApiKey = async (apiKey: string) => {
-    console.log(`🔑 [AdminClinicDetails] Tentativa de salvar API Key`);
-    console.log(`🏥 [AdminClinicDetails] Clínica ID: ${clinica?.id}`);
-
-    if (!apiKey.trim()) {
-      alert('Por favor, insira a API Key');
-      return;
-    }
-
-    if (!clinica?.id) {
-      alert('Erro: Dados da clínica não encontrados');
-      return;
-    }
-
-    try {
-      setSavingEvolutionApiKey(true);
-      
-      // ✅ VERIFICAR SE adminHook tem a função
-      if (!adminHook.atualizarConfiguracaoEvolution) {
-        console.error('❌ [AdminClinicDetails] Função atualizarConfiguracaoEvolution não disponível no adminHook');
-        throw new Error('Função atualizarConfiguracaoEvolution não disponível');
-      }
-      
-      console.log(`🔄 [AdminClinicDetails] Chamando atualizarConfiguracaoEvolution para API Key...`);
-      const updatedClinica = await adminHook.atualizarConfiguracaoEvolution(
-        clinica.id, 
-        undefined, 
-        apiKey.trim()
-      );
-      
-      // Atualizar estado local da clínica
-      setClinica(prev => prev ? { ...prev, evolution_api_key: apiKey.trim() } : null);
-      
-      console.log('✅ [AdminClinicDetails] API Key salva com sucesso');
-      alert('API Key salva com sucesso!');
-    } catch (error: any) {
-      console.error('❌ [AdminClinicDetails] Erro ao salvar API Key:', error);
-      alert(`Erro ao salvar API Key: ${error.message || 'Erro desconhecido'}`);
-      throw error;
-    } finally {
-      setSavingEvolutionApiKey(false);
-    }
-  };
-
   // Handlers para ações
   const handleOpenChat = () => {
     setActiveTab('chat');
@@ -168,20 +100,6 @@ export const AdminClinicDetails = () => {
   const handleAddLead = () => {
     console.log('Adicionar lead para clínica:', clinicaId);
   };
-
-  // ✅ DEBUG TEMPORÁRIO - REMOVER APÓS TESTE
-  useEffect(() => {
-    console.log('🔍 [AdminClinicDetails DEBUG] adminHook:', {
-      exists: !!adminHook,
-      isAdmin: adminHook?.isAdmin,
-      adminCheckLoading: adminHook?.adminCheckLoading,
-      functionsAvailable: {
-        atualizarConfiguracaoEvolution: typeof adminHook?.atualizarConfiguracaoEvolution,
-        buscarClinicaPorId: typeof adminHook?.buscarClinicaPorId,
-        buscarTodasClinicas: typeof adminHook?.buscarTodasClinicas,
-      }
-    });
-  }, [adminHook]);
 
   // Estados de loading e erro
   if (adminHook.adminCheckLoading) {
@@ -287,11 +205,11 @@ export const AdminClinicDetails = () => {
 
       {/* Conteúdo principal */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* ✅ PROTEÇÃO: Cards de estatísticas rápidas */}
+        {/* Cards de estatísticas rápidas */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <ClinicStatsCards 
             clinica={clinica}
-            leadsStats={leadsStats || {}} // ✅ Valor padrão
+            leadsStats={leadsStats}
             loadingStats={false}
           />
         </div>
@@ -332,21 +250,20 @@ export const AdminClinicDetails = () => {
             <AdminAISettings clinicaId={clinica.id} />
           </TabsContent>
 
-          {/* ✅ CORREÇÃO: Verificar se as funções existem antes de passar */}
           <TabsContent value="evolution" className="space-y-6">
             <EvolutionApiSettings 
-              clinica={clinica}
-              onSaveInstanceName={handleSaveInstanceName}
-              onSaveApiKey={handleSaveApiKey}
-              saving={savingEvolutionInstance}
-              savingApiKey={savingEvolutionApiKey}
+              clinicaId={clinica.id}
+              currentInstanceName={clinica.evolution_instance_name || ''} // ✅ Valor padrão
+              onSave={async (instanceName) => {
+                console.log('Salvando instance name:', instanceName);
+              }}
             />
           </TabsContent>
 
           <TabsContent value="instagram" className="space-y-6">
             <InstagramSettings 
               clinicaId={clinica.id}
-              currentUserHandle={clinica.instagram_user_handle || ''}
+              currentUserHandle={clinica.instagram_user_handle}
               onSave={async (userHandle) => {
                 console.log('Salvando configurações Instagram:', userHandle);
               }}

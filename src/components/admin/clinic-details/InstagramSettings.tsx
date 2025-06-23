@@ -1,173 +1,183 @@
-
-import { useState } from 'react';
-import { Instagram, Save, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-
 /**
- * 📱 Componente para configurar integração com Instagram
- * 
- * RECURSOS:
- * - Configuração do user handle do Instagram
- * - Configuração de webhook personalizado
- * - Validação de entrada
- * - Estados visuais de loading
- * - Feedback visual de sucesso/erro
+ * Componente para as Configurações de Integração com o Instagram
+ *
+ * O que faz:
+ * - Permite ao administrador configurar como o webhook do Instagram será enviado.
+ * - Adiciona um campo seguro para inserir um Token de API do Instagram.
+ * - Oferece duas opções: 'Padrão' (usando uma URL de webhook fixa) e 'Personalizado' (construindo a URL a partir do nome de usuário do Instagram).
+ * - Salva as configurações, incluindo o token, diretamente no banco de dados (tabela 'clinicas').
+ *
+ * Onde é usado:
+ * - Renderizado dentro de `AdminClinicDetails`.
+ *
+ * Como se conecta com outras partes:
+ * - Recebe o objeto `clinica` para exibir os valores atuais.
+ * - Utiliza o cliente Supabase para salvar as alterações diretamente.
+ * - Usa o componente 'PasswordInput' para garantir a segurança do campo de token.
+ * - Usa 'sonner' para exibir notificações de sucesso ou erro.
  */
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Instagram } from "lucide-react";
+import { PasswordInput } from '@/components/ui/password-input'; // Importa o componente de input seguro
 
 interface InstagramSettingsProps {
-  clinica: any;
-  onSave: (userHandle: string) => Promise<void>;
-  saving?: boolean;
+  clinica: {
+    id: string; // ID é necessário para salvar
+    instagram_user_handle?: string | null;
+    instagram_webhook_type?: string | null;
+    instagram_webhook_url?: string | null;
+    instagram_api_token?: string | null; // Adiciona o novo campo de token à interface
+  };
+  onSave: (userHandle: string) => Promise<void>; // Mantido por compatibilidade
+  saving: boolean; // Mantido por compatibilidade
 }
 
-export const InstagramSettings = ({ 
-  clinica, 
-  onSave, 
-  saving = false 
-}: InstagramSettingsProps) => {
-  // Estados locais
-  const [instagramUserHandle, setInstagramUserHandle] = useState(
-    clinica?.instagram_user_handle || ''
-  );
+export const InstagramSettings = ({ clinica, saving: parentSaving }: InstagramSettingsProps) => {
+  // Estados locais para gerenciar o formulário
+  const [webhookType, setWebhookType] = useState('personalizado');
+  const [userHandle, setUserHandle] = useState('');
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [apiToken, setApiToken] = useState(''); // Novo estado para o token da API
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = async () => {
-    if (!instagramUserHandle.trim()) {
-      alert('Por favor, insira o user handle do Instagram');
-      return;
+  // Efeito para popular os estados quando os dados da clínica são carregados
+  useEffect(() => {
+    if (clinica) {
+      setWebhookType(clinica.instagram_webhook_type || 'personalizado');
+      setUserHandle(clinica.instagram_user_handle || '');
+      setWebhookUrl(clinica.instagram_webhook_url || '');
+      setApiToken(clinica.instagram_api_token || ''); // Popula o estado do token com o valor do banco
     }
+  }, [clinica]);
 
-    try {
-      await onSave(instagramUserHandle.trim());
-    } catch (error) {
-      console.error('Erro ao salvar configurações Instagram:', error);
+  // Função para lidar com o envio do formulário e salvar os dados
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSaving(true);
+
+    const updates = {
+      instagram_webhook_type: webhookType,
+      instagram_user_handle: webhookType === 'personalizado' ? userHandle : null,
+      instagram_webhook_url: webhookType === 'padrao' ? webhookUrl : null,
+      instagram_api_token: apiToken, // Inclui o token nos dados a serem salvos
+      updated_at: new Date().toISOString(),
+    };
+
+    // Log para depuração
+    console.log("Salvando configurações do Instagram:", { clinicaId: clinica.id });
+
+    const { error } = await supabase
+      .from('clinicas')
+      .update(updates)
+      .eq('id', clinica.id);
+
+    if (error) {
+      toast.error("Ocorreu um erro ao salvar as configurações do Instagram.");
+      console.error("Erro ao salvar no Supabase:", error);
+    } else {
+      toast.success("Configurações do Instagram salvas com sucesso!");
     }
+    setIsSaving(false);
   };
-
-  const isConfigured = Boolean(clinica?.instagram_user_handle);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Instagram className="w-5 h-5" />
-          Configurações do Instagram
-        </CardTitle>
+        <div className="flex items-center gap-3">
+          <Instagram className="w-6 h-6 text-pink-600" />
+          <CardTitle>Integração com Instagram Direct</CardTitle>
+        </div>
         <CardDescription>
-          Configure a integração com Instagram Business para receber leads via Direct Messages
+          Configure como o sistema enviará webhooks para o Instagram e o token de acesso.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        
-        {/* Status da Configuração */}
-        <Alert className={isConfigured ? "border-green-200 bg-green-50" : "border-yellow-200 bg-yellow-50"}>
-          <div className="flex items-center gap-2">
-            {isConfigured ? (
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            ) : (
-              <AlertCircle className="h-4 w-4 text-yellow-600" />
-            )}
-            <AlertDescription className={isConfigured ? "text-green-700" : "text-yellow-700"}>
-              {isConfigured 
-                ? "✅ Instagram configurado e pronto para receber leads"
-                : "⚠️ Configure o user handle do Instagram para receber leads"
-              }
-            </AlertDescription>
-          </div>
-        </Alert>
-
-        {/* Configuração do User Handle */}
-        <div className="space-y-4">
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <Label htmlFor="instagram-user-handle" className="text-base font-medium">
-              User Handle do Instagram
-            </Label>
-            <p className="text-sm text-gray-500 mt-1">
-              Seu nome de usuário no Instagram (sem o @)
-            </p>
+            <Label className="font-semibold">Tipo de Webhook</Label>
+            <RadioGroup
+              value={webhookType}
+              onValueChange={setWebhookType}
+              className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4"
+            >
+              <Label htmlFor="tipo-personalizado" className="flex flex-col items-start space-y-2 rounded-md border border-gray-200 p-4 hover:bg-gray-50 cursor-pointer">
+                <div className="flex items-center space-x-3">
+                  <RadioGroupItem value="personalizado" id="tipo-personalizado" />
+                  <span className="font-medium">Personalizado</span>
+                </div>
+                <p className="text-sm text-muted-foreground pl-7">
+                  Gera a URL do webhook automaticamente a partir do seu nome de usuário do Instagram.
+                </p>
+              </Label>
+              <Label htmlFor="tipo-padrao" className="flex flex-col items-start space-y-2 rounded-md border border-gray-200 p-4 hover:bg-gray-50 cursor-pointer">
+                <div className="flex items-center space-x-3">
+                  <RadioGroupItem value="padrao" id="tipo-padrao" />
+                  <span className="font-medium">Padrão</span>
+                </div>
+                <p className="text-sm text-muted-foreground pl-7">
+                  Usa uma URL de webhook fixa que você define. Útil para fluxos centralizados no n8n.
+                </p>
+              </Label>
+            </RadioGroup>
           </div>
-          
-          {/* Valor Atual */}
-          {clinica?.instagram_user_handle && (
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <Label className="text-sm font-medium text-blue-700">User Handle Atual:</Label>
-              <p className="text-sm text-blue-600 font-mono mt-1">
-                @{clinica.instagram_user_handle}
+
+          {/* Campo condicional para Webhook Personalizado */}
+          {webhookType === 'personalizado' && (
+            <div className="space-y-2 animate-in fade-in">
+              <Label htmlFor="instagram_user_handle">Usuário do Instagram para Webhook</Label>
+              <Input
+                id="instagram_user_handle"
+                name="instagram_user_handle"
+                value={userHandle}
+                onChange={(e) => setUserHandle(e.target.value)}
+                placeholder="Ex: nome_da_sua_clinica"
+              />
+              <p className="text-sm text-muted-foreground">
+                Preencha apenas o nome de usuário, sem o '@'. A URL final será: <code className="text-xs bg-gray-100 p-1 rounded">.../webhook/{userHandle || '{usuario}'}</code>.
+              </p>
+            </div>
+          )}
+
+          {/* Campo condicional para Webhook Padrão */}
+          {webhookType === 'padrao' && (
+            <div className="space-y-2 animate-in fade-in">
+              <Label htmlFor="instagram_webhook_url">URL do Webhook Padrão</Label>
+              <Input
+                id="instagram_webhook_url"
+                name="instagram_webhook_url"
+                type="url"
+                value={webhookUrl}
+                onChange={(e) => setWebhookUrl(e.target.value)}
+                placeholder="https://seu.n8n.url/webhook/instagram-geral"
+              />
+              <p className="text-sm text-muted-foreground">
+                Cole a URL completa do seu webhook do n8n que receberá as mensagens do Instagram.
               </p>
             </div>
           )}
           
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-                @
-              </span>
-              <Input
-                id="instagram-user-handle"
-                placeholder="minha_clinica"
-                value={instagramUserHandle}
-                onChange={(e) => setInstagramUserHandle(e.target.value)}
-                className="pl-8"
-                disabled={saving}
-              />
-            </div>
-            <Button 
-              onClick={handleSave} 
-              disabled={saving || !instagramUserHandle.trim() || instagramUserHandle === clinica?.instagram_user_handle}
-              variant="outline"
-              className="flex items-center gap-2 min-w-[120px]"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Salvar
-                </>
-              )}
-            </Button>
+          {/* NOVO CAMPO: Token da API do Instagram */}
+          <div className="space-y-2">
+            <PasswordInput
+              value={apiToken}
+              onChange={setApiToken}
+              label="Token da API do Instagram (Opcional)"
+              placeholder="Cole seu token da API aqui"
+              description="Este token será usado pelo n8n para se comunicar com a API do Instagram. Mantenha-o seguro."
+            />
           </div>
-        </div>
 
-        {/* Instruções */}
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <h4 className="text-sm font-medium text-blue-800 mb-3">
-            📋 Como configurar:
-          </h4>
-          <ul className="text-sm text-blue-700 space-y-2">
-            <li className="flex items-start gap-2">
-              <span className="font-medium">1.</span>
-              <span>Insira o seu nome de usuário do Instagram (sem o @)</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-medium">2.</span>
-              <span>Certifique-se de que sua conta é do tipo Business ou Creator</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-medium">3.</span>
-              <span>Configure o webhook do Instagram para receber mensagens automaticamente</span>
-            </li>
-          </ul>
-        </div>
-
-        {/* Informações Técnicas */}
-        <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-          <h4 className="text-sm font-medium text-gray-800 mb-2">
-            🔧 Informações Técnicas:
-          </h4>
-          <div className="text-sm text-gray-700 space-y-1">
-            <p><strong>Clínica ID:</strong> <code className="bg-gray-100 px-1 rounded">{clinica?.id || 'N/A'}</code></p>
-            <p><strong>Status da Integração:</strong> {isConfigured ? '✅ Ativa' : '❌ Inativa'}</p>
-            <p><strong>Webhook Type:</strong> {clinica?.instagram_webhook_type || 'personalizado'}</p>
-          </div>
-        </div>
+          <Button type="submit" disabled={isSaving || parentSaving} className="mt-4">
+            {isSaving ? 'Salvando...' : 'Salvar Configuração do Instagram'}
+          </Button>
+        </form>
       </CardContent>
     </Card>
   );
