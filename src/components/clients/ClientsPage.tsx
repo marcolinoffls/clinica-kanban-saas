@@ -90,8 +90,8 @@ const ClientsPage = () => {
           // Corrigido: verificar se newFilters é um objeto válido e tem a estrutura correta
           if (typeof newFilters === 'object' && newFilters !== null && 'tag' in newFilters) {
             setFilters({
-              tagId: newFilters.tag || null,
-              origemLead: newFilters.origem || null,
+              tagId: newFilters.tag ? newFilters.tag : null,           // ✅ string para string | null
+              origemLead: newFilters.origem ? newFilters.origem : null, // ✅ string para string | null
               servicoInteresse: newFilters.servico || null,
               etapaId: null // Mantém a etapa como null já que não está nos filtros da barra
             });

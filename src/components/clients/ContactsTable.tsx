@@ -39,14 +39,14 @@ import { formatarData } from './utils';
  */
 
 interface ContactsTableProps {
-  leads: Lead[];
+  leads: any[];
   tags: any[];
   sortField: SortField;
   sortOrder: SortOrder;
   onSort: (field: SortField) => void;
-  onEdit: (lead: Lead) => void;
-  onChat: (lead: Lead) => void;
-  onDelete: (leadId: string) => void;
+  onEdit: (lead: any) => void;
+  onChat: (lead: any) => void;
+  onDelete: (lead: any) => void;
   isDeleting: boolean;
 }
 
