@@ -29,10 +29,12 @@ interface ChatWindowProps {
 
 export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   
   // 📊 ESTADO LOCAL PARA MENSAGENS (usuários normais)
   const [localMessages, setLocalMessages] = useState<any[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isFirstLoad, setIsFirstLoad] = useState(true); // NOVO: Flag para primeira carga
 
   // 🔗 HOOKS PARA DADOS
   const normalChatData = useSupabaseData();
@@ -85,10 +87,12 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
    */
   useEffect(() => {
     if (!shouldUseAdminMode && leadId) {
+      setIsFirstLoad(true); // NOVO: Marcar como primeira carga
       fetchNormalMessages();
     } else if (!leadId) {
       // Limpar mensagens quando não há lead selecionado
       setLocalMessages([]);
+      setIsFirstLoad(true); // NOVO: Reset flag
     }
   }, [fetchNormalMessages, leadId]);
 
@@ -102,15 +106,51 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   }, [leadId, shouldUseAdminMode, normalChatData.marcarMensagensComoLidas]);
 
   /**
-   * 📜 useEffect: Scroll Automático
+   * 📜 CORREÇÃO: Scroll Inteligente
+   * 
+   * - Na primeira carga: scroll instantâneo para o final (sem animação)
+   * - Em novas mensagens: scroll suave
    */
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const scrollToBottom = useCallback((instant = false) => {
+    if (messagesEndRef.current) {
+      if (instant) {
+        // SCROLL INSTANTÂNEO para primeira carga
+        messagesEndRef.current.scrollIntoView({ block: 'end' });
+      } else {
+        // SCROLL SUAVE para novas mensagens
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }
+    }
+  }, []);
 
+  /**
+   * 🔄 useEffect: Controle de Scroll Inteligente
+   * 
+   * CORREÇÃO PRINCIPAL: Diferencia primeira carga de novas mensagens
+   */
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (messages.length > 0) {
+      if (isFirstLoad) {
+        // PRIMEIRA CARGA: Scroll instantâneo após um pequeno delay para garantir renderização
+        setTimeout(() => {
+          scrollToBottom(true); // Scroll instantâneo
+          setIsFirstLoad(false); // Marcar que primeira carga foi concluída
+        }, 100);
+      } else {
+        // NOVAS MENSAGENS: Scroll suave
+        scrollToBottom(false);
+      }
+    }
+  }, [messages.length, isFirstLoad, scrollToBottom]);
+
+  /**
+   * 🔄 useEffect: Reset da Flag quando Lead Muda
+   */
+  useEffect(() => {
+    if (leadId) {
+      setIsFirstLoad(true);
+    }
+  }, [leadId]);
 
   /**
    * 🕐 Formatar Horário das Mensagens
@@ -228,7 +268,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     );
   }
 
-  // 🎨 RENDERIZAÇÃO PRINCIPAL
+  // 🎨 RENDERIZAÇÃO PRINCIPAL DO COMPONENTE
   return (
     <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
       
@@ -242,8 +282,11 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
         </div>
       )}
 
-      {/* 📋 Área de Mensagens */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* 📋 Área de Mensagens - CORREÇÃO: Ref adicionada ao container */}
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+      >
         {messages.length === 0 ? (
           // 📝 Estado Vazio
           <div className="text-center text-gray-500 py-8">
@@ -283,7 +326,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
           ))
         )}
         
-        {/* 📍 Referência para Scroll */}
+        {/* 📍 Referência para Scroll - MANTIDA */}
         <div ref={messagesEndRef} />
       </div>
     </div>
