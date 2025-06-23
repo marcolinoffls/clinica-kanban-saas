@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Building2, ChevronDown, Search } from 'lucide-react';
 import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
@@ -46,28 +45,76 @@ export const AdminClinicSelector = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
-  const { buscarEstatisticasClinicas } = useSupabaseAdmin();
+  const { 
+    buscarEstatisticasClinicas, 
+    buscarTodasClinicas, 
+    isAdmin, 
+    adminCheckLoading,
+    debug // Para logs de debug
+  } = useSupabaseAdmin();
 
   // Carregar lista de clínicas ao montar o componente
   useEffect(() => {
     const carregarClinicas = async () => {
       try {
         console.log('🏥 [AdminClinicSelector] Carregando lista de clínicas...');
+        console.log('🏥 [AdminClinicSelector] Status admin:', isAdmin);
+        console.log('🏥 [AdminClinicSelector] Admin loading:', adminCheckLoading);
+        
+        if (!isAdmin) {
+          console.warn('⚠️ [AdminClinicSelector] Usuário não é admin - não carregando clínicas');
+          setClinicas([]);
+          setLoading(false);
+          return;
+        }
+
         setLoading(true);
         
-        const dadosClinicas = await buscarEstatisticasClinicas();
-        setClinicas(dadosClinicas);
+        // CORREÇÃO: Usar buscarTodasClinicas primeiro, depois buscarEstatisticasClinicas se necessário
+        let dadosClinicas;
         
-        console.log(`✅ [AdminClinicSelector] ${dadosClinicas.length} clínicas carregadas`);
+        if (showStats) {
+          console.log('📊 [AdminClinicSelector] Buscando clínicas com estatísticas...');
+          dadosClinicas = await buscarEstatisticasClinicas();
+        } else {
+          console.log('🏥 [AdminClinicSelector] Buscando clínicas básicas...');
+          dadosClinicas = await buscarTodasClinicas();
+        }
+        
+        console.log('✅ [AdminClinicSelector] Dados recebidos:', dadosClinicas);
+        console.log('✅ [AdminClinicSelector] Total de clínicas:', dadosClinicas?.length || 0);
+        
+        setClinicas(dadosClinicas || []);
+        
+        console.log(`✅ [AdminClinicSelector] ${dadosClinicas?.length || 0} clínicas carregadas no estado`);
       } catch (error) {
         console.error('❌ [AdminClinicSelector] Erro ao carregar clínicas:', error);
+        setClinicas([]);
       } finally {
         setLoading(false);
       }
     };
 
-    carregarClinicas();
-  }, []);
+    // Só carrega se não estiver carregando verificação de admin
+    if (!adminCheckLoading) {
+      carregarClinicas();
+    }
+  }, [isAdmin, adminCheckLoading, showStats]);
+
+  // Log de debug adicional
+  useEffect(() => {
+    console.log('🔍 [AdminClinicSelector] Estado atual:', {
+      clinicas: clinicas.length,
+      loading,
+      isAdmin,
+      adminCheckLoading,
+      showStats
+    });
+    
+    if (debug) {
+      debug(); // Chama debug do hook useSupabaseAdmin
+    }
+  }, [clinicas, loading, isAdmin, adminCheckLoading]);
 
   // Filtrar clínicas por termo de busca
   const clinicasFiltradas = clinicas.filter(clinica =>
@@ -87,6 +134,25 @@ export const AdminClinicSelector = ({
     onClinicaSelected(null);
   };
 
+  // Loading state melhorado
+  if (adminCheckLoading) {
+    return (
+      <div className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
+        <Building2 className="w-4 h-4 text-blue-600 animate-pulse" />
+        <span className="text-sm text-blue-600">Verificando permissões...</span>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex items-center gap-2 p-2 bg-red-50 rounded-lg">
+        <Building2 className="w-4 h-4 text-red-600" />
+        <span className="text-sm text-red-600">Acesso restrito a administradores</span>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
@@ -98,6 +164,13 @@ export const AdminClinicSelector = ({
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Debug info temporário */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="text-xs text-gray-400 p-1 bg-gray-50 rounded">
+          Debug: {clinicas.length} clínicas carregadas
+        </div>
+      )}
+
       {/* Seletor de Clínica */}
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
         <DropdownMenuTrigger asChild>
@@ -182,8 +255,8 @@ export const AdminClinicSelector = ({
                     <div className="flex gap-4 mt-2 text-xs text-gray-600 w-full">
                       <span>{clinica.total_leads || 0} leads</span>
                       <span>{clinica.total_usuarios || 0} usuários</span>
-                      {clinica.taxa_conversao && (
-                        <span>{(clinica.taxa_conversao * 100).toFixed(1)}% conversão</span>
+                      {clinica.taxa_conversao !== undefined && (
+                        <span>{clinica.taxa_conversao.toFixed(1)}% conversão</span>
                       )}
                     </div>
                   )}
@@ -191,7 +264,13 @@ export const AdminClinicSelector = ({
               ))
             ) : (
               <div className="p-3 text-center text-gray-500 text-sm">
-                {searchTerm ? 'Nenhuma clínica encontrada' : 'Nenhuma clínica disponível'}
+                {searchTerm ? (
+                  'Nenhuma clínica encontrada'
+                ) : clinicas.length === 0 ? (
+                  'Nenhuma clínica disponível'
+                ) : (
+                  'Nenhuma clínica corresponde à busca'
+                )}
               </div>
             )}
           </div>
@@ -207,9 +286,9 @@ export const AdminClinicSelector = ({
           <Badge variant="outline" className="text-xs">
             {clinicaSelecionada.total_usuarios || 0} usuários
           </Badge>
-          {clinicaSelecionada.taxa_conversao && (
+          {clinicaSelecionada.taxa_conversao !== undefined && (
             <Badge variant="outline" className="text-xs">
-              {(clinicaSelecionada.taxa_conversao * 100).toFixed(1)}% conversão
+              {clinicaSelecionada.taxa_conversao.toFixed(1)}% conversão
             </Badge>
           )}
           <Badge variant="outline" className="text-xs">

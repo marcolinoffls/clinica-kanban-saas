@@ -170,9 +170,12 @@ export const useSupabaseAdmin = () => {
         throw clinicasError;
       }
 
-      // Buscar leads para cada clínica e calcular estatísticas
+      console.log('📊 [useSupabaseAdmin] Clínicas base carregadas:', clinicasData?.length || 0);
+
+      // Buscar leads e usuários para cada clínica de forma paralela
       const estatisticasPromises = clinicasData?.map(async (clinica) => {
         try {
+          // Buscar leads da clínica
           const { data: leadsData, error: leadsError } = await supabase
             .from('leads')
             .select('*')
@@ -180,14 +183,6 @@ export const useSupabaseAdmin = () => {
 
           if (leadsError) {
             console.error(`❌ [useSupabaseAdmin] Erro ao buscar leads da clínica ${clinica.nome}:`, leadsError);
-            return {
-              ...clinica,
-              total_leads: 0,
-              leads_convertidos: 0,
-              leads_anuncios_count: 0,
-              taxa_conversao: 0,
-              total_usuarios: 0
-            };
           }
 
           // Buscar usuários da clínica
@@ -200,11 +195,19 @@ export const useSupabaseAdmin = () => {
             console.warn(`⚠️ [useSupabaseAdmin] Erro ao buscar usuários da clínica ${clinica.nome}:`, usuariosError);
           }
 
+          // Calcular estatísticas
           const totalLeads = leadsData?.length || 0;
           const leadsConvertidos = leadsData?.filter(lead => lead.convertido).length || 0;
           const leadsAnuncios = leadsData?.filter(lead => lead.origem_lead === 'anuncio').length || 0;
           const taxaConversao = totalLeads > 0 ? (leadsConvertidos / totalLeads) * 100 : 0;
           const totalUsuarios = usuariosData?.length || 0;
+
+          console.log(`📊 [useSupabaseAdmin] Estatísticas calculadas para ${clinica.nome}:`, {
+            totalLeads,
+            leadsConvertidos,
+            taxaConversao: Math.round(taxaConversao * 100) / 100,
+            totalUsuarios
+          });
 
           return {
             ...clinica,
@@ -353,11 +356,15 @@ export const useSupabaseAdmin = () => {
         console.log('🔄 [useSupabaseAdmin] Carregando clínicas automaticamente...');
         try {
           const clinicasData = await buscarTodasClinicas();
+          console.log('🔄 [useSupabaseAdmin] Definindo clínicas no estado:', clinicasData?.length);
           setClinicas(clinicasData);
+          console.log('🔄 [useSupabaseAdmin] Estado atualizado!');
         } catch (error) {
           console.error('❌ [useSupabaseAdmin] Erro ao carregar clínicas automaticamente:', error);
           setClinicas([]);
         }
+      } else {
+        console.log('⏸️ [useSupabaseAdmin] Não carregando clínicas:', { isAdmin, adminCheckLoading });
       }
     };
 
@@ -377,5 +384,12 @@ export const useSupabaseAdmin = () => {
     buscarEstatisticasDeLeadsDaClinica,
     buscarEstatisticasClinicas,
     buscarKPIsGlobais,
+    
+    // LOG DE DEBUG:
+    debug: () => console.log('🔍 [useSupabaseAdmin] Estado atual:', { 
+      clinicas: clinicas.length, 
+      isAdmin, 
+      loading: loading || adminCheckLoading 
+    }),
   };
 };
