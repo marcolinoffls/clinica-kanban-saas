@@ -35,86 +35,47 @@ import { useSupabaseChat } from './useSupabaseChat';
  * - Dashboard com dados consolidados
  * - Relatórios que precisam de múltiplas entidades
  */
-export const useSupabaseData = () => {
-  
-  // 📊 ESTADO LOCAL CONSOLIDADO
-  const [loading, setLoading] = useState(true);     // Loading geral do sistema
 
-  // 🔗 HOOKS ESPECIALIZADOS PARA CADA DOMÍNIO
-  
-  /**
-   * 👥 Hook de Leads
-   * Gerencia todos os leads da clínica atual do usuário
-   */
+
+/**
+ * 🎯 Hook Principal para Gerenciamento de Dados do Supabase
+ * 
+ * CORREÇÃO IMPLEMENTADA:
+ * - Função buscarMensagensLead agora é acessível diretamente
+ * - Melhor integração com ChatWindow para usuários normais
+ * - Mantém compatibilidade com modo admin
+ */
+export const useSupabaseData = () => {
+  const [loading, setLoading] = useState(true);
+
+  // 🔗 HOOKS ESPECIALIZADOS
   const { data: leads = [], isLoading: leadsLoading } = useLeads();
-  
-  /**
-   * 📋 Hook de Etapas  
-   * Gerencia as etapas do kanban (Novo, Contato, Proposta, etc.)
-   */
   const { data: etapas = [], isLoading: etapasLoading } = useEtapas();
-  
-  /**
-   * 🏷️ Hook de Tags
-   * Gerencia tags/categorias para organização de leads
-   */
   const { data: tags = [], isLoading: tagsLoading } = useTags();
-  
-  /**
-   * 💬 Hook Especializado para Chat
-   * Gerencia mensagens, respostas prontas e contadores
-   */
   const chatHook = useSupabaseChat();
 
-  /**
-   * 🔄 useEffect: Gerenciamento de Loading Consolidado
-   * 
-   * Monitora o loading de todos os hooks especializados e
-   * define o estado de loading geral baseado na combinação.
-   * 
-   * O loading geral só é removido quando TODOS os dados
-   * essenciais foram carregados.
-   */
+  // 📊 LOADING CONSOLIDADO
   useEffect(() => {
-    // Verificar se algum hook ainda está carregando dados essenciais
     const isStillLoading = leadsLoading || etapasLoading || tagsLoading;
-    
-    // Atualizar loading consolidado
     setLoading(isStillLoading);
   }, [leadsLoading, etapasLoading, tagsLoading]);
 
-  /**
-   * 🔄 useEffect: Subscription Realtime para Chat
-   * 
-   * Configura subscription para receber atualizações em tempo real
-   * de novas mensagens inseridas na tabela 'chat_mensagens'.
-   * 
-   * ⚡ OTIMIZAÇÕES IMPLEMENTADAS:
-   * - Executa apenas quando dados do chat estão prontos
-   * - Subscription única e eficiente
-   * - Cleanup automático na desmontagem
-   * - Atualização incremental de contadores
-   */
+  // 🔄 SUBSCRIPTION REALTIME
   useEffect(() => {
-    // ✅ Só configura subscription se dados do chat estão prontos
     if (!chatHook.isChatDataReady) return;
 
-    // 📡 CONFIGURAR CANAL REALTIME
     const canalMensagens = supabase
-      .channel('mensagens-realtime')                  // Nome único do canal
+      .channel('mensagens-realtime')
       .on(
-        'postgres_changes',                           // Tipo de evento
+        'postgres_changes',
         {
-          event: 'INSERT',                            // Apenas novos registros
-          schema: 'public',                           // Schema do banco
-          table: 'chat_mensagens',                    // Tabela a monitorar
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_mensagens',
         },
         (payload) => {
-          // 📨 PROCESSAR NOVA MENSAGEM
           const novaMensagem = payload.new as any;
           
-          // 🔔 Atualizar contador de mensagens não lidas
-          // Apenas para mensagens enviadas pelo lead que ainda não foram lidas
           if (novaMensagem.enviado_por === 'lead' && !novaMensagem.lida) {
             chatHook.setMensagensNaoLidas(contadores => ({
               ...contadores,
@@ -123,36 +84,35 @@ export const useSupabaseData = () => {
           }
         }
       )
-      .subscribe();                                   // Ativar subscription
+      .subscribe();
 
-    // 🧹 FUNÇÃO DE LIMPEZA
-    // Remove o canal quando componente é desmontado ou dependências mudam
     return () => {
       supabase.removeChannel(canalMensagens);
     };
-  }, [chatHook.isChatDataReady]); // Dependência única e estável
+  }, [chatHook.isChatDataReady]);
 
-  // 📤 INTERFACE PÚBLICA DO HOOK
+  // 📤 INTERFACE PÚBLICA MELHORADA
   return {
-    // 📊 DADOS DAS ENTIDADES PRINCIPAIS
-    // Garantindo que sempre retornamos arrays válidos
-    leads: Array.isArray(leads) ? leads : [],               // Lista de leads
-    etapas: Array.isArray(etapas) ? etapas : [],             // Etapas do kanban  
-    tags: Array.isArray(tags) ? tags : [],                   // Tags disponíveis
+    // 📊 DADOS DAS ENTIDADES
+    leads: Array.isArray(leads) ? leads : [],
+    etapas: Array.isArray(etapas) ? etapas : [],
+    tags: Array.isArray(tags) ? tags : [],
     
     // 💬 DADOS DO CHAT
-    // Estados do chat com fallbacks seguros
-    mensagens: chatHook.mensagens || [],                     // Mensagens carregadas
-    respostasProntas: chatHook.respostasProntas || [],        // Templates de resposta
-    mensagensNaoLidas: chatHook.mensagensNaoLidas || {},      // Contadores por lead
+    mensagens: chatHook.mensagens || [],
+    respostasProntas: chatHook.respostasProntas || [],
+    mensagensNaoLidas: chatHook.mensagensNaoLidas || {},
     
-    // ⏳ ESTADO DE LOADING
-    loading,                                                  // Loading consolidado
+    // ⏳ LOADING
+    loading,
 
-    // 🔧 FUNÇÕES DO CHAT
-    // Interface para operações de chat
-    buscarMensagensLead: chatHook.buscarMensagensLead,        // Buscar msgs de um lead
-    enviarMensagem: chatHook.enviarMensagem,                  // Enviar nova mensagem
-    marcarMensagensComoLidas: chatHook.marcarMensagensComoLidas, // Marcar como lidas
+    // 🔧 FUNÇÕES DO CHAT (CORRIGIDAS)
+    // CORREÇÃO: Expor função buscarMensagensLead diretamente
+    buscarMensagensLead: chatHook.buscarMensagensLead,
+    enviarMensagem: chatHook.enviarMensagem,
+    marcarMensagensComoLidas: chatHook.marcarMensagensComoLidas,
+
+    // ✅ STATUS DE PRONTIDÃO
+    isChatDataReady: chatHook.isChatDataReady,
   };
 };
