@@ -167,7 +167,6 @@ export const PipelineBoard = ({ adminMode = false, targetClinicaId, onNavigateTo
                   onEditLead={handleEditLead}
                   onEditEtapa={() => handleEditEtapa(etapa)}
                   onDeleteEtapa={() => handleDeleteEtapa(etapa)}
-                  onNavigateToChat={onNavigateToChat || (() => {})}
                   onOpenHistory={leadActions.handleOpenHistory}
                   isAdminMode={adminMode}
                 />

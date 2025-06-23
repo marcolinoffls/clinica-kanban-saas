@@ -84,14 +84,13 @@ const ClientsPage = () => {
         filters={{
           tag: filters.tagId || '',
           origem: filters.origemLead || '',
-          servico: filters.servicoInteresse || '',
-          etapa: filters.etapaId || ''
+          servico: filters.servicoInteresse || ''
         }}
         setFilters={(newFilters) => setFilters({
           tagId: newFilters.tag || null,
           origemLead: newFilters.origem || null,
           servicoInteresse: newFilters.servico || null,
-          etapaId: newFilters.etapa || null
+          etapaId: null // Mantém a etapa como null já que não está nos filtros da barra
         })}
         isFilterOpen={isFilterOpen}
         setIsFilterOpen={setIsFilterOpen}

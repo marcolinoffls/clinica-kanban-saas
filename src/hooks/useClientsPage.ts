@@ -3,10 +3,10 @@
  * Hook para gerenciar o estado e lógica da página de clientes
  */
 import { useState, useMemo } from 'react';
-import { useRouter } from 'react-router-dom';
-import { useSupabaseLeads } from './useSupabaseLeads';
+import { useNavigate } from 'react-router-dom';
+import { useLeads } from './useSupabaseLeads';
 import { useTagsData } from './useTagsData';
-import { useEtapasData } from './useEtapasData';
+import { useEtapas } from './useEtapasData';
 import { useToast } from './use-toast';
 import { useClinica } from '@/contexts/ClinicaContext';
 import { useAdminCheck } from './useAdminCheck';
@@ -25,7 +25,7 @@ type SortField = 'nome' | 'created_at' | 'email';
 type SortOrder = 'asc' | 'desc';
 
 export const useClientsPage = () => {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { clinicaId } = useClinica();
   const { isAdmin } = useAdminCheck();
@@ -53,23 +53,23 @@ export const useClientsPage = () => {
   const { 
     data: leads = [], 
     isLoading: leadsLoading 
-  } = useSupabaseLeads({
-    clinicaId: isAdmin ? undefined : clinicaId, // Para admin, buscar de todas as clínicas
+  } = useLeads({
+    clinicaId: isAdmin ? undefined : clinicaId,
     enabled: !!clinicaId || isAdmin
   });
 
   const { data: tags = [], isLoading: tagsLoading } = useTagsData();
-  const { data: etapas = [], isLoading: etapasLoading } = useEtapasData();
+  const { data: etapas = [], isLoading: etapasLoading } = useEtapas();
 
   const loading = leadsLoading || tagsLoading || etapasLoading;
 
   // Valores únicos para filtros
   const uniqueOrigens = useMemo(() => {
-    return [...new Set(leads.map(lead => lead.origem_lead).filter(Boolean))];
+    return [...new Set(leads.map(lead => lead.origem_lead).filter(Boolean))] as string[];
   }, [leads]);
 
   const uniqueServicos = useMemo(() => {
-    return [...new Set(leads.map(lead => lead.servico_interesse).filter(Boolean))];
+    return [...new Set(leads.map(lead => lead.servico_interesse).filter(Boolean))] as string[];
   }, [leads]);
 
   // Aplicar filtros e ordenação
@@ -165,7 +165,7 @@ export const useClientsPage = () => {
   };
 
   const handleOpenChat = (lead: any) => {
-    router.push(`/chat?leadId=${lead.id}`);
+    navigate(`/chat?leadId=${lead.id}`);
   };
 
   const handleDeleteLead = async (leadId: string) => {
