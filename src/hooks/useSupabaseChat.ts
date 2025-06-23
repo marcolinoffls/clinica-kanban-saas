@@ -1,12 +1,20 @@
+
 // src/hooks/useSupabaseChat.ts
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useClinicaData } from './useClinicaData';
+import { useAuthUser } from './useAuthUser';
 import { toast } from 'sonner';
 
 /**
  * Hook para gerenciar chat com integração Supabase
+ * 
+ * CORREÇÃO IMPLEMENTADA:
+ * - Cadeia de dependências mais robusta: Auth -> UserProfile -> ClinicaData -> Chat
+ * - Validação explícita de clinica_id antes de qualquer operação
+ * - Logs detalhados para debug da cadeia de dependências
+ * - Fallback para buscar clinica_id do lead quando necessário
  * 
  * Funcionalidades principais:
  * - Busca mensagens de leads específicos
@@ -22,37 +30,111 @@ import { toast } from 'sonner';
  * - Suporta anexos de mídia (imagens e áudios) via anexo_url
  */
 export const useSupabaseChat = () => {
-  // Obter o clinicaId real do hook useClinicaData
+  // CORREÇÃO: Cadeia de dependências mais robusta
+  const { user, userProfile, loading: authLoading, isAuthenticated } = useAuthUser();
   const { clinicaId, loading: clinicaDataLoading, error: clinicaDataError } = useClinicaData();
 
   const [mensagens, setMensagens] = useState<any[]>([]);
   const [respostasProntas, setRespostasProntas] = useState<any[]>([]);
   const [mensagensNaoLidas, setMensagensNaoLidas] = useState<Record<string, number>>({});
 
-  // Log detalhado para diagnosticar problemas com clinica_id
+  // CORREÇÃO: Log detalhado da cadeia de dependências
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[useSupabaseChat DEBUG] Estado atual dos dados da clínica:');
-      console.log('- clinicaId:', clinicaId);
-      console.log('- clinicaDataLoading:', clinicaDataLoading);
-      console.log('- clinicaDataError:', clinicaDataError);
-      console.log('- Tipo do clinicaId:', typeof clinicaId);
-      console.log('- clinicaId é válido?', !!clinicaId && clinicaId !== 'undefined' && clinicaId !== 'null');
-    }
-  }, [clinicaId, clinicaDataLoading, clinicaDataError]);
+    console.log('[useSupabaseChat] Estado da cadeia de dependências:');
+    console.log('1. Auth loading:', authLoading);
+    console.log('2. User authenticated:', isAuthenticated);
+    console.log('3. User profile:', userProfile ? {
+      id: userProfile.id,
+      profile_type: userProfile.profile_type,
+      clinica_id: userProfile.clinica_id
+    } : null);
+    console.log('4. Clinica data loading:', clinicaDataLoading);
+    console.log('5. Clinica ID:', clinicaId);
+    console.log('6. Clinica data error:', clinicaDataError?.message);
+    console.log('7. Chat data ready:', isChatDataReady);
+  }, [authLoading, isAuthenticated, userProfile, clinicaDataLoading, clinicaId, clinicaDataError]);
 
-  // Função para validar clinica_id antes de operações
+  // CORREÇÃO: Função mais robusta para validar clinica_id
   const validarClinicaId = (operacao: string): boolean => {
-    if (!clinicaId || clinicaDataLoading || clinicaDataError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn(`[useSupabaseChat] ${operacao}: clinicaId não disponível ou dados da clínica carregando/com erro.`);
-        console.log(`- clinicaId: ${clinicaId}`);
-        console.log(`- clinicaDataLoading: ${clinicaDataLoading}`);
-        console.log(`- clinicaDataError:`, clinicaDataError);
-      }
+    // Verificar se a cadeia de dependências está completa
+    if (authLoading) {
+      console.log(`[useSupabaseChat] ${operacao}: Aguardando autenticação...`);
       return false;
     }
+
+    if (!isAuthenticated || !user) {
+      console.warn(`[useSupabaseChat] ${operacao}: Usuário não autenticado`);
+      return false;
+    }
+
+    if (!userProfile) {
+      console.warn(`[useSupabaseChat] ${operacao}: Perfil do usuário não encontrado`);
+      return false;
+    }
+
+    if (clinicaDataLoading) {
+      console.log(`[useSupabaseChat] ${operacao}: Carregando dados da clínica...`);
+      return false;
+    }
+
+    if (clinicaDataError) {
+      console.error(`[useSupabaseChat] ${operacao}: Erro nos dados da clínica:`, clinicaDataError);
+      return false;
+    }
+
+    if (!clinicaId) {
+      console.error(`[useSupabaseChat] ${operacao}: clinica_id não disponível`);
+      console.error('- userProfile.clinica_id:', userProfile.clinica_id);
+      console.error('- clinicaId do hook:', clinicaId);
+      return false;
+    }
+
+    // Validar formato UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(clinicaId)) {
+      console.error(`[useSupabaseChat] ${operacao}: clinica_id com formato inválido:`, clinicaId);
+      return false;
+    }
+
     return true;
+  };
+
+  // CORREÇÃO: Função mais robusta para buscar clinica_id como fallback
+  const obterClinicaIdSeguro = async (leadId?: string): Promise<string | null> => {
+    try {
+      // Primeira tentativa: usar clinica_id do contexto
+      if (clinicaId && validarClinicaId('fallback-check')) {
+        return clinicaId;
+      }
+
+      // Segunda tentativa: buscar do perfil do usuário diretamente
+      if (userProfile?.clinica_id) {
+        console.log('[useSupabaseChat] Usando clinica_id do perfil do usuário como fallback');
+        return userProfile.clinica_id;
+      }
+
+      // Terceira tentativa: se fornecido leadId, buscar clinica_id do lead
+      if (leadId) {
+        console.log('[useSupabaseChat] Buscando clinica_id do lead como fallback');
+        const { data: leadData, error } = await supabase
+          .from('leads')
+          .select('clinica_id')
+          .eq('id', leadId)
+          .single();
+
+        if (error) {
+          console.error('[useSupabaseChat] Erro ao buscar clinica_id do lead:', error);
+          return null;
+        }
+
+        return leadData?.clinica_id || null;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('[useSupabaseChat] Erro ao obter clinica_id seguro:', error);
+      return null;
+    }
   };
 
   // Função para buscar contador de mensagens não lidas por lead
@@ -89,16 +171,20 @@ export const useSupabaseChat = () => {
 
   // Função para marcar mensagens como lidas
   const marcarMensagensComoLidas = async (leadId: string) => {
-    if (!validarClinicaId('marcarMensagensComoLidas')) return;
+    const clinicaIdSeguro = await obterClinicaIdSeguro(leadId);
+    if (!clinicaIdSeguro) {
+      console.error('[useSupabaseChat] Não foi possível obter clinica_id para marcar mensagens como lidas');
+      return;
+    }
     
     try {
-      console.log(`[useSupabaseChat] Marcando mensagens como lidas para lead ${leadId} na clínica ${clinicaId}`);
+      console.log(`[useSupabaseChat] Marcando mensagens como lidas para lead ${leadId} na clínica ${clinicaIdSeguro}`);
       
       const { error } = await supabase
         .from('chat_mensagens')
         .update({ lida: true })
         .eq('lead_id', leadId)
-        .eq('clinica_id', clinicaId)
+        .eq('clinica_id', clinicaIdSeguro)
         .eq('enviado_por', 'lead')
         .eq('lida', false);
 
@@ -122,16 +208,20 @@ export const useSupabaseChat = () => {
 
   // Função para buscar mensagens de um lead específico
   const buscarMensagensLead = async (leadId: string) => {
-    if (!validarClinicaId('buscarMensagensLead')) return [];
+    const clinicaIdSeguro = await obterClinicaIdSeguro(leadId);
+    if (!clinicaIdSeguro) {
+      console.error('[useSupabaseChat] Não foi possível obter clinica_id para buscar mensagens');
+      return [];
+    }
     
     try {
-      console.log(`[useSupabaseChat] Buscando mensagens do lead ${leadId} na clínica ${clinicaId}`);
+      console.log(`[useSupabaseChat] Buscando mensagens do lead ${leadId} na clínica ${clinicaIdSeguro}`);
       
       const { data, error } = await supabase
         .from('chat_mensagens')
         .select('*')
         .eq('lead_id', leadId)
-        .eq('clinica_id', clinicaId)
+        .eq('clinica_id', clinicaIdSeguro)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -154,40 +244,18 @@ export const useSupabaseChat = () => {
     tipo: string = 'texto',
     anexoUrl?: string | null
   ) => {
-    // Para admin, permitir envio mesmo sem clinica_id do contexto
-    // O admin deve fornecer explicitamente o clinica_id correto
-    const targetClinicaId = clinicaId;
-    
-    if (!targetClinicaId && !validarClinicaId('enviarMensagem')) {
-      // Se não há clinica_id disponível, buscar pela mensagem do lead
-      try {
-        const { data: leadData, error: leadError } = await supabase
-          .from('leads')
-          .select('clinica_id')
-          .eq('id', leadId)
-          .single();
-
-        if (leadError || !leadData?.clinica_id) {
-          const errorMsg = 'Não é possível enviar mensagem: não foi possível determinar a clínica do lead.';
-          console.error(`[useSupabaseChat] enviarMensagem: ${errorMsg}`);
-          toast.error(errorMsg);
-          throw new Error(errorMsg);
-        }
-
-        // Usar clinica_id do lead
-        var finalClinicaId = leadData.clinica_id;
-      } catch (error) {
-        console.error('[useSupabaseChat] Erro ao buscar clinica_id do lead:', error);
-        throw error;
-      }
-    } else {
-      var finalClinicaId = targetClinicaId;
+    const clinicaIdSeguro = await obterClinicaIdSeguro(leadId);
+    if (!clinicaIdSeguro) {
+      const errorMsg = 'Não é possível enviar mensagem: não foi possível determinar a clínica do lead.';
+      console.error(`[useSupabaseChat] enviarMensagem: ${errorMsg}`);
+      toast.error(errorMsg);
+      throw new Error(errorMsg);
     }
 
     // Log detalhado dos dados que serão enviados
     console.log('[useSupabaseChat] Preparando para enviar mensagem:');
     console.log('- leadId:', leadId, 'type:', typeof leadId);
-    console.log('- finalClinicaId:', finalClinicaId, 'type:', typeof finalClinicaId);
+    console.log('- clinicaIdSeguro:', clinicaIdSeguro, 'type:', typeof clinicaIdSeguro);
     console.log('- conteudo:', conteudo.substring(0, 50) + '...');
     console.log('- tipo:', tipo);
     console.log('- anexoUrl:', anexoUrl);
@@ -198,7 +266,7 @@ export const useSupabaseChat = () => {
       // Preparar dados da mensagem com novos campos
       const mensagemData: any = {
         lead_id: leadId,
-        clinica_id: finalClinicaId,
+        clinica_id: clinicaIdSeguro,
         conteudo: conteudo.trim(),
         enviado_por: 'usuario',
         tipo: tipoCorrigido,
@@ -263,26 +331,33 @@ export const useSupabaseChat = () => {
     }
   };
   
-  // Efeito para buscar dados iniciais quando clinicaId estiver disponível
+  // CORREÇÃO: Indicador mais robusto de quando os dados estão prontos
+  const isChatDataReady = !authLoading && 
+                          isAuthenticated && 
+                          !!userProfile && 
+                          !clinicaDataLoading && 
+                          !clinicaDataError && 
+                          !!clinicaId;
+
+  // Efeito para buscar dados iniciais quando a cadeia de dependências estiver completa
   useEffect(() => {
-    if (clinicaId && !clinicaDataLoading && !clinicaDataError) {
-      console.log('🚀 [useSupabaseChat] clinicaId disponível, iniciando busca de dados do chat');
+    if (isChatDataReady) {
+      console.log('🚀 [useSupabaseChat] Cadeia de dependências completa, iniciando busca de dados do chat');
       console.log('- Clinica ID confirmado:', clinicaId);
       
       buscarMensagensNaoLidas();
       buscarRespostasProntas();
     } else {
-      if (process.env.NODE_ENV === 'development') {
-        if (clinicaDataLoading) {
-          console.log('⏳ [useSupabaseChat] Aguardando carregamento dos dados da clínica...');
-        } else if (clinicaDataError) {
-          console.error('❌ [useSupabaseChat] Erro ao carregar dados da clínica:', clinicaDataError);
-        } else if (!clinicaId) {
-          console.warn('⚠️ [useSupabaseChat] clinicaId não está disponível');
-        }
-      }
+      console.log('⏳ [useSupabaseChat] Aguardando cadeia de dependências:', {
+        authLoading,
+        isAuthenticated,
+        hasUserProfile: !!userProfile,
+        clinicaDataLoading,
+        hasClinicaDataError: !!clinicaDataError,
+        hasClinicaId: !!clinicaId
+      });
     }
-  }, [clinicaId, clinicaDataLoading, clinicaDataError]);
+  }, [isChatDataReady, clinicaId]);
 
   return {
     mensagens,
@@ -292,9 +367,16 @@ export const useSupabaseChat = () => {
     buscarMensagensNaoLidas,
     marcarMensagensComoLidas,
     buscarMensagensLead,
-    enviarMensagem, // Função atualizada com compatibilidade admin
+    enviarMensagem,
     buscarRespostasProntas,
-    // Indicador de que os dados do chat estão prontos para uso
-    isChatDataReady: !!clinicaId && !clinicaDataLoading && !clinicaDataError
+    // CORREÇÃO: Indicador mais confiável de quando os dados estão prontos
+    isChatDataReady,
+    // Informações adicionais para debug
+    authLoading,
+    isAuthenticated,
+    userProfile,
+    clinicaDataLoading,
+    clinicaDataError,
+    clinicaId
   };
 };

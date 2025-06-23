@@ -744,6 +744,7 @@ export type Database = {
           tag_id: string | null
           tag_id_alias: string | null
           telefone: string | null
+          "timestamp sp": string | null
           updated_at: string | null
         }
         Insert: {
@@ -776,6 +777,7 @@ export type Database = {
           tag_id?: string | null
           tag_id_alias?: string | null
           telefone?: string | null
+          "timestamp sp"?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -808,6 +810,7 @@ export type Database = {
           tag_id?: string | null
           tag_id_alias?: string | null
           telefone?: string | null
+          "timestamp sp"?: string | null
           updated_at?: string | null
         }
         Relationships: [
