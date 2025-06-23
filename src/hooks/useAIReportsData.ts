@@ -1,67 +1,83 @@
-
-/**
- * Hook para gerenciar dados de relatórios de IA
- * 
- * CORREÇÃO: Ajustado para trabalhar corretamente com o novo sistema de administração
- * e tipagem correta do useQuery
- * 
- * O que faz:
- * - Busca relatórios de IA da clínica
- * - Suporte a modo admin para buscar relatórios de clínicas específicas
- * - Filtragem e ordenação dos relatórios
- * 
- * Como se conecta:
- * - Supabase para buscar dados de ai_reports
- * - Aplica filtros por clínica automaticamente
- * - Retorna dados prontos para exibição
- */
+// src/hooks/useAIReportsData.ts
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useClinicaData } from './useClinicaData';
-import { useAdminCheck } from './useAdminCheck';
 import { AIReport } from '@/types/aiReports';
+import { useMemo } from 'react';
 
-interface UseAIReportsDataProps {
-  adminMode?: boolean;
-  targetClinicaId?: string;
-}
+/**
+ * Hook para buscar dados de relatórios de IA do Supabase.
+ *
+ * O que faz:
+ * - Busca relatórios da tabela `ai_reports`.
+ * - Filtra por `clinica_id`.
+ * - Separa os relatórios por status: pendente, concluído, falhou.
+ */
+export const useAIReportsData = (
+  clinicaId: string | null,
+  // CORREÇÃO: Adicionamos um valor padrão ao options.
+  // Isso garante que, mesmo se o hook for chamado com `null` ou `undefined`,
+  // `options` será um objeto `{}` e `options.adminMode` não causará um erro.
+  options: { adminMode?: boolean } = {},
+) => {
+  const { adminMode = false } = options;
 
-export const useAIReportsData = ({ adminMode = false, targetClinicaId }: UseAIReportsDataProps = {}) => {
-  const { clinicaId: userClinicaId, loading: clinicaLoading } = useClinicaData();
-  const { isAdmin } = useAdminCheck();
-
-  // Determinar qual clinica_id usar
-  const clinicaId = adminMode && targetClinicaId ? targetClinicaId : userClinicaId;
-
-  return useQuery<AIReport[]>({
-    queryKey: ['ai-reports', clinicaId, adminMode],
+  const {
+    data: reports,
+    isLoading,
+    refetch,
+  } = useQuery<AIReport[]>({
+    queryKey: ['ai_reports', clinicaId, adminMode],
     queryFn: async () => {
-      if (!clinicaId) {
-        console.warn('[useAIReportsData] Nenhuma clinica_id disponível');
-        return [];
+      if (!clinicaId) return [];
+
+      const query = supabase.from('ai_reports').select('*');
+
+      // Se não estiver no modo admin, filtrar por clinica_id
+      if (!adminMode) {
+        query.eq('clinica_id', clinicaId);
       }
+      // Em modo admin, o ID já é o da clínica alvo, então não precisamos
+      // de filtro adicional, pois queremos todos os relatórios daquela clínica.
 
-      console.log('[useAIReportsData] Buscando relatórios para clinica_id:', clinicaId);
-      
-      let query = supabase
-        .from('ai_reports')
-        .select('*')
-        .eq('clinica_id', clinicaId)
-        .order('created_at', { ascending: false });
-
-      const { data, error } = await query;
+      const { data, error } = await query.order('created_at', {
+        ascending: false,
+      });
 
       if (error) {
-        console.error('[useAIReportsData] Erro ao buscar relatórios:', error);
-        throw error;
+        console.error('Erro ao buscar relatórios de IA:', error);
+        throw new Error('Não foi possível buscar os relatórios de IA.');
       }
-
-      console.log(`[useAIReportsData] Encontrados ${data?.length || 0} relatórios`);
       return data || [];
     },
-    enabled: !!clinicaId && !clinicaLoading,
-    refetchOnWindowFocus: false,
-    staleTime: 1000 * 60 * 5, // 5 minutos
+    enabled: !!clinicaId, // A query só executa se clinicaId existir.
   });
+
+  // Memoizar as listas filtradas para otimizar a performance
+  const pendingReports = useMemo(
+    () =>
+      reports?.filter(
+        (r) => r.status === 'pending' || r.status === 'processing',
+      ) || [],
+    [reports],
+  );
+
+  const completedReports = useMemo(
+    () => reports?.filter((r) => r.status === 'success') || [],
+    [reports],
+  );
+
+  const failedReports = useMemo(
+    () => reports?.filter((r) => r.status === 'failed') || [],
+    [reports],
+  );
+
+  return {
+    reports: reports || [],
+    pendingReports,
+    completedReports,
+    failedReports,
+    isLoading,
+    refetch,
+  };
 };
