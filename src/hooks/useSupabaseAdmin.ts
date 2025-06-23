@@ -298,6 +298,50 @@ export const useSupabaseAdmin = () => {
     checkAdminStatus();
   }, []);
 
+    // ✅ FUNÇÃO DE ATUALIZAÇÃO QUE ESTAVA FALTANDO
+  const atualizarConfiguracaoEvolution = async (
+    clinicaId: string, 
+    instanceName?: string, 
+    apiKey?: string
+  ) => {
+    if (!isAdmin) {
+      toast.error("Acesso negado", { description: "Você não tem permissão para realizar esta ação." });
+      throw new Error('Acesso negado: usuário não é administrador');
+    }
+    
+    try {
+      console.log(`[useSupabaseAdmin] Atualizando config da clínica: ${clinicaId}`);
+      
+      const updateData: any = {};
+      if (instanceName !== undefined) updateData.evolution_instance_name = instanceName;
+      if (apiKey !== undefined) updateData.evolution_api_key = apiKey;
+
+      if (Object.keys(updateData).length === 0) {
+        toast.warning("Nenhuma alteração para salvar.");
+        return null;
+      }
+
+      const { data, error } = await supabase
+        .from('clinicas')
+        .update(updateData)
+        .eq('id', clinicaId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Erro ao atualizar configuração Evolution:', error);
+        throw new Error(`Falha ao salvar configuração: ${error.message}`);
+      }
+
+      console.log('✅ Configuração Evolution salva com sucesso:', data);
+      return data;
+    } catch (error: any) {
+      toast.error("Erro ao Salvar", { description: error.message });
+      throw error;
+    }
+  };
+
+
   // Carregar clínicas inicialmente quando usuário for admin
   useEffect(() => {
     const carregarClinicas = async () => {
