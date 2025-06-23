@@ -84,7 +84,8 @@ const ClientsPage = () => {
         filters={{
           tag: filters.tagId || '',
           origem: filters.origemLead || '',
-          servico: filters.servicoInteresse || ''
+          servico: filters.servicoInteresse || '',
+          hasActiveFilters: hasActiveFilters // ✅ CORREÇÃO: Agora passando boolean correto
         }}
         setFilters={(newFilters) => {
           // Corrigido: verificar se newFilters é um objeto válido e tem a estrutura correta
@@ -93,7 +94,8 @@ const ClientsPage = () => {
               tagId: newFilters.tag ? newFilters.tag : null,           // ✅ string para string | null
               origemLead: newFilters.origem ? newFilters.origem : null, // ✅ string para string | null
               servicoInteresse: newFilters.servico || null,
-              etapaId: null // Mantém a etapa como null já que não está nos filtros da barra
+              etapaId: null, // Mantém a etapa como null já que não está nos filtros da barra
+              hasActiveFilters: Boolean(newFilters.tag || newFilters.origem || newFilters.servico) // ✅ CORREÇÃO: Calcula boolean corretamente
             });
           }
         }}

@@ -1,30 +1,35 @@
 
 /**
- * Tipos e interfaces usados nos componentes de clientes/contatos
+ * Tipos para o sistema de clientes/contatos
+ * 
+ * Define as interfaces e tipos utilizados em toda a funcionalidade
+ * de gerenciamento de clientes, incluindo filtros, ordenação e estados.
  */
 
-// Interface para os filtros de contatos
-export interface FilterState {
-  tag: string;
-  origem: string;
-  servico: string;
-}
+// Campos disponíveis para ordenação na tabela de contatos
+export type SortField = 'nome' | 'email' | 'created_at' | 'data_ultimo_contato';
 
-// Tipo para campos de ordenação
-export type SortField = 'nome' | 'created_at' | 'email';
-
-// Tipo para direção da ordenação
+// Direção da ordenação
 export type SortOrder = 'asc' | 'desc';
 
-// Interface para props de componentes de filtro
-export interface ContactsFiltersProps {
-  filters: FilterState;
-  setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
-  isFilterOpen: boolean;
-  setIsFilterOpen: (open: boolean) => void;
-  tags: any[];
-  uniqueOrigens: string[];
-  uniqueServicos: string[];
-  onClearFilters: () => void;
-  hasActiveFilters: boolean;
+// Interface para os filtros aplicados na lista de contatos
+export interface ContactsFilters {
+  tagId?: string | null;           // ID da tag selecionada
+  origemLead?: string | null;      // Origem do lead (ex: "WhatsApp", "Instagram")
+  servicoInteresse?: string | null; // Serviço de interesse
+  etapaId?: string | null;         // ID da etapa no kanban
+  hasActiveFilters: boolean;       // Indica se há filtros ativos
+}
+
+// Interface para os filtros da barra de ações (versão simplificada)
+export interface ContactsFiltersBarProps {
+  tag: string;                     // Tag selecionada
+  origem: string;                  // Origem selecionada
+  servico: string;                 // Serviço selecionado
+}
+
+// Estado de loading para diferentes operações
+export interface LoadingStates {
+  deleting: boolean;               // Indica se está deletando um lead
+  loading: boolean;                // Loading geral da página
 }

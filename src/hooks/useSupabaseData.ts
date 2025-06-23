@@ -1,11 +1,10 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLeads } from './useLeadsData';
 import { useEtapas } from './useEtapasData';
 import { useTags } from './useTagsData';
 import { useSupabaseChat } from './useSupabaseChat';
-import { useUpdateLeadAiConversationStatus } from './useSupabaseLeads';
-
 
 /**
  * 🎯 Hook Principal para Gerenciamento de Dados do Supabase
@@ -36,16 +35,6 @@ import { useUpdateLeadAiConversationStatus } from './useSupabaseLeads';
  * - Página principal do chat/kanban
  * - Dashboard com dados consolidados
  * - Relatórios que precisam de múltiplas entidades
- */
-
-
-/**
- * 🎯 Hook Principal para Gerenciamento de Dados do Supabase
- * 
- * CORREÇÃO IMPLEMENTADA:
- * - Função buscarMensagensLead agora é acessível diretamente
- * - Melhor integração com ChatWindow para usuários normais
- * - Mantém compatibilidade com modo admin
  */
 export const useSupabaseData = () => {
   const [loading, setLoading] = useState(true);
@@ -93,7 +82,7 @@ export const useSupabaseData = () => {
     };
   }, [chatHook.isChatDataReady]);
 
-  // 📤 INTERFACE PÚBLICA MELHORADA
+  // 📤 INTERFACE PÚBLICA
   return {
     // 📊 DADOS DAS ENTIDADES
     leads: Array.isArray(leads) ? leads : [],
@@ -108,8 +97,7 @@ export const useSupabaseData = () => {
     // ⏳ LOADING
     loading,
 
-    // 🔧 FUNÇÕES DO CHAT (CORRIGIDAS)
-    // CORREÇÃO: Expor função buscarMensagensLead diretamente
+    // 🔧 FUNÇÕES DO CHAT
     buscarMensagensLead: chatHook.buscarMensagensLead,
     enviarMensagem: chatHook.enviarMensagem,
     marcarMensagensComoLidas: chatHook.marcarMensagensComoLidas,
