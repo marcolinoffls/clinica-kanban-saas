@@ -8,7 +8,7 @@ import { useCreateAIReport } from './useCreateAIReport';
 import { useCancelAIReport } from './useCancelAIReport';
 import { useAIReportModal } from './useAIReportModal';
 import { useAdminCheck } from './useAdminCheck';
-import type { CreateReportData, AIReport } from '@/types/aiReports';
+import type { CreateReportData } from '@/types/aiReports';
 
 /**
  * Hook principal para gerenciar relatórios de análise de IA
@@ -57,15 +57,13 @@ export const useAIReport = (adminTargetClinicaId?: string) => {
     );
   }, [pendingReports]);
 
-  // **CORREÇÃO** - Verificar se reports existe e tem .find method
+  // Correção: Usar o status correto 'success' em vez de 'completed'
   const latestReport = useMemo(() => {
-    // Se `reports` não existe ou está vazio, retorna null.
     if (!reports || !Array.isArray(reports) || reports.length === 0) {
       return null;
     }
-    // Agora o `.find()` é seguro.
     return reports.find(
-      (report: AIReport) =>
+      (report) =>
         report.status === 'success' || report.status === 'failed',
     );
   }, [reports]);

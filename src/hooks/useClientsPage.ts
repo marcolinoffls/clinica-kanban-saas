@@ -1,47 +1,18 @@
 
-import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useClinicaData } from './useClinicaData';
-import { useAdminCheck } from './useAdminCheck';
-import { useTagsData } from './useTagsData';
-import { useEtapasKanban } from './useEtapasKanban';
-import { useLeads, useCreateLead, useUpdateLead, useDeleteLead } from './useSupabaseLeads';
-import { toast } from 'sonner';
-
 /**
- * Hook para gerenciar a página de contatos/leads
- * 
- * CORREÇÃO IMPLEMENTADA:
- * - Filtro explícito por clinica_id para usuários comuns
- * - Para administradores, busca apenas dados da clínica selecionada
- * - Não depende mais apenas de RLS para filtrar os dados
- * 
- * O que faz:
- * - Gerencia todos os estados da página de contatos
- * - Controla filtros, ordenação e modais
- * - Aplica filtros explícitos por clínica
- * 
- * Como se conecta:
- * - useClinicaData para obter clinica_id do usuário
- * - useAdminCheck para verificar se é admin
- * - useLeads com filtro explícito por clínica
+ * Hook para gerenciar o estado e lógica da página de clientes
  */
+import { useState, useMemo } from 'react';
+import { useRouter } from 'react-router-dom';
+import { useSupabaseLeads } from './useSupabaseLeads';
+import { useTagsData } from './useTagsData';
+import { useEtapasData } from './useEtapasData';
+import { useToast } from './use-toast';
+import { useClinica } from '@/contexts/ClinicaContext';
+import { useAdminCheck } from './useAdminCheck';
+import { supabase } from '@/integrations/supabase/client';
 
-interface Contact {
-  id: string;
-  created_at: string;
-  nome: string;
-  telefone: string;
-  email: string;
-  origem_lead: string;
-  servico_interesse: string;
-  anotacoes: string;
-  tag_id: string | null;
-  clinica_id: string;
-  etapa_kanban_id: string;
-  updated_at: string;
-}
-
+// Interfaces para os filtros
 interface Filters {
   tagId: string | null;
   origemLead: string | null;
@@ -49,114 +20,99 @@ interface Filters {
   etapaId: string | null;
 }
 
+// Tipos para ordenação
+type SortField = 'nome' | 'created_at' | 'email';
+type SortOrder = 'asc' | 'desc';
+
 export const useClientsPage = () => {
-  // Estados básicos
+  const router = useRouter();
+  const { toast } = useToast();
+  const { clinicaId } = useClinica();
+  const { isAdmin } = useAdminCheck();
+
+  // Estados para filtros e ordenação
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [sortField, setSortField] = useState<'nome' | 'created_at' | 'updated_at'>('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   
-  // Estados dos modais
+  // Estados para modais
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
-  const [selectedLeadForEdit, setSelectedLeadForEdit] = useState<Contact | null>(null);
+  const [selectedLeadForEdit, setSelectedLeadForEdit] = useState<any>(null);
   
-  // Estados dos filtros
+  // Filtros
   const [filters, setFilters] = useState<Filters>({
     tagId: null,
     origemLead: null,
     servicoInteresse: null,
-    etapaId: null,
+    etapaId: null
   });
 
-  // Hooks de dados - com correção do problema crítico
-  const { clinicaId, loading: clinicaLoading } = useClinicaData();
-  const { isAdmin } = useAdminCheck();
-  
-  // CORREÇÃO: Buscar leads apenas da clínica específica
-  // Para usuários comuns: usar clinica_id do perfil
-  // Para admins: permitir seleção de clínica (implementado em outros componentes)
-  const targetClinicaId = clinicaId;
-  
-  const { data: leads, isLoading: leadsLoading, refetch: refetchLeads } = useLeads({
-    enabled: !!targetClinicaId, // Só busca se tiver clinica_id definido
-    // Aplicar filtro explícito via query params se necessário
+  // Buscar dados - com filtro explícito por clinica_id
+  const { 
+    data: leads = [], 
+    isLoading: leadsLoading 
+  } = useSupabaseLeads({
+    clinicaId: isAdmin ? undefined : clinicaId, // Para admin, buscar de todas as clínicas
+    enabled: !!clinicaId || isAdmin
   });
 
-  const { data: tags } = useTagsData();
-  const { data: etapas } = useEtapasKanban();
-  
-  // Mutations
-  const createLeadMutation = useCreateLead();
-  const updateLeadMutation = useUpdateLead();
-  const deleteLeadMutation = useDeleteLead();
+  const { data: tags = [], isLoading: tagsLoading } = useTagsData();
+  const { data: etapas = [], isLoading: etapasLoading } = useEtapasData();
 
-  // CORREÇÃO: Filtrar leads explicitamente por clinica_id
-  const filteredLeadsByClinica = useMemo(() => {
-    if (!leads || !targetClinicaId) return [];
-    
-    // Filtro explícito por clínica - não depende apenas de RLS
-    return leads.filter(lead => lead.clinica_id === targetClinicaId);
-  }, [leads, targetClinicaId]);
+  const loading = leadsLoading || tagsLoading || etapasLoading;
 
-  // Aplicar filtros de busca e outros filtros
-  const filteredLeads = useMemo(() => {
-    let result = filteredLeadsByClinica;
+  // Valores únicos para filtros
+  const uniqueOrigens = useMemo(() => {
+    return [...new Set(leads.map(lead => lead.origem_lead).filter(Boolean))];
+  }, [leads]);
 
-    // Filtro por termo de busca
-    if (searchQuery.trim()) {
-      const searchTerm = searchQuery.toLowerCase();
-      result = result.filter(lead =>
-        (lead.nome || '').toLowerCase().includes(searchTerm) ||
-        (lead.telefone || '').includes(searchTerm) ||
-        (lead.email || '').toLowerCase().includes(searchTerm) ||
-        (lead.origem_lead || '').toLowerCase().includes(searchTerm) ||
-        (lead.servico_interesse || '').toLowerCase().includes(searchTerm)
+  const uniqueServicos = useMemo(() => {
+    return [...new Set(leads.map(lead => lead.servico_interesse).filter(Boolean))];
+  }, [leads]);
+
+  // Aplicar filtros e ordenação
+  const sortedLeads = useMemo(() => {
+    let filteredLeads = leads;
+
+    // Aplicar busca
+    if (searchQuery) {
+      filteredLeads = filteredLeads.filter(lead => 
+        lead.nome?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        lead.telefone?.includes(searchQuery) ||
+        lead.email?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    // Aplicar outros filtros
+    // Aplicar filtros
     if (filters.tagId) {
-      result = result.filter(lead => lead.tag_id === filters.tagId);
+      filteredLeads = filteredLeads.filter(lead => lead.tag_id === filters.tagId);
     }
-    
+
     if (filters.origemLead) {
-      result = result.filter(lead => lead.origem_lead === filters.origemLead);
+      filteredLeads = filteredLeads.filter(lead => lead.origem_lead === filters.origemLead);
     }
-    
+
     if (filters.servicoInteresse) {
-      result = result.filter(lead => lead.servico_interesse === filters.servicoInteresse);
+      filteredLeads = filteredLeads.filter(lead => lead.servico_interesse === filters.servicoInteresse);
     }
-    
+
     if (filters.etapaId) {
-      result = result.filter(lead => lead.etapa_kanban_id === filters.etapaId);
+      filteredLeads = filteredLeads.filter(lead => lead.etapa_kanban_id === filters.etapaId);
     }
 
-    return result;
-  }, [filteredLeadsByClinica, searchQuery, filters]);
+    // Aplicar ordenação
+    return filteredLeads.sort((a, b) => {
+      let aValue = a[sortField];
+      let bValue = b[sortField];
 
-  // Ordenar leads
-  const sortedLeads = useMemo(() => {
-    return [...filteredLeads].sort((a, b) => {
-      let aValue: any;
-      let bValue: any;
-
-      switch (sortField) {
-        case 'nome':
-          aValue = (a.nome || '').toLowerCase();
-          bValue = (b.nome || '').toLowerCase();
-          break;
-        case 'created_at':
-          aValue = new Date(a.created_at).getTime();
-          bValue = new Date(b.created_at).getTime();
-          break;
-        case 'updated_at':
-          aValue = new Date(a.updated_at).getTime();
-          bValue = new Date(b.updated_at).getTime();
-          break;
-        default:
-          aValue = a.created_at;
-          bValue = b.created_at;
+      if (sortField === 'created_at') {
+        aValue = new Date(aValue).getTime();
+        bValue = new Date(bValue).getTime();
+      } else {
+        aValue = aValue?.toLowerCase() || '';
+        bValue = bValue?.toLowerCase() || '';
       }
 
       if (sortOrder === 'asc') {
@@ -165,35 +121,26 @@ export const useClientsPage = () => {
         return aValue < bValue ? 1 : -1;
       }
     });
-  }, [filteredLeads, sortField, sortOrder]);
-
-  // Valores únicos para filtros
-  const uniqueOrigens = useMemo(() => {
-    const origens = filteredLeadsByClinica
-      .map(lead => lead.origem_lead)
-      .filter(Boolean);
-    return [...new Set(origens)];
-  }, [filteredLeadsByClinica]);
-
-  const uniqueServicos = useMemo(() => {
-    const servicos = filteredLeadsByClinica
-      .map(lead => lead.servico_interesse)
-      .filter(Boolean);
-    return [...new Set(servicos)];
-  }, [filteredLeadsByClinica]);
+  }, [leads, searchQuery, filters, sortField, sortOrder]);
 
   // Verificar se há filtros ativos
   const hasActiveFilters = useMemo(() => {
-    return Object.values(filters).some(value => value !== null) || searchQuery.trim() !== '';
-  }, [filters, searchQuery]);
+    return Boolean(
+      searchQuery ||
+      filters.tagId ||
+      filters.origemLead ||
+      filters.servicoInteresse ||
+      filters.etapaId
+    );
+  }, [searchQuery, filters]);
 
   // Handlers
-  const handleSort = (field: 'nome' | 'created_at' | 'updated_at') => {
+  const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
-      setSortOrder('desc');
+      setSortOrder('asc');
     }
   };
 
@@ -202,117 +149,145 @@ export const useClientsPage = () => {
     setIsLeadModalOpen(true);
   };
 
-  const handleEditLead = (lead: Contact) => {
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setFilters({
+      tagId: null,
+      origemLead: null,
+      servicoInteresse: null,
+      etapaId: null
+    });
+  };
+
+  const handleEditLead = (lead: any) => {
     setSelectedLeadForEdit(lead);
     setIsLeadModalOpen(true);
   };
 
+  const handleOpenChat = (lead: any) => {
+    router.push(`/chat?leadId=${lead.id}`);
+  };
+
   const handleDeleteLead = async (leadId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este lead?')) return;
-    
-    setIsDeleting(leadId);
+    if (!confirm('Tem certeza que deseja deletar este lead?')) {
+      return;
+    }
+
     try {
-      await deleteLeadMutation.mutateAsync(leadId);
-      toast.success('Lead excluído com sucesso');
-      refetchLeads();
-    } catch (error) {
-      toast.error('Erro ao excluir lead');
-      console.error('Erro ao excluir lead:', error);
+      setIsDeleting(leadId);
+      
+      const { error } = await supabase
+        .from('leads')
+        .delete()
+        .eq('id', leadId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso",
+        description: "Lead deletado com sucesso!",
+      });
+
+      // Atualizar lista (o hook já fará isso automaticamente)
+    } catch (error: any) {
+      console.error('Erro ao deletar lead:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao deletar lead. Tente novamente.",
+        variant: "destructive",
+      });
     } finally {
       setIsDeleting(null);
     }
   };
 
-  const handleSaveLead = async (leadData: Partial<Contact>) => {
+  const handleSaveLead = async (leadData: any) => {
     try {
       if (selectedLeadForEdit) {
         // Atualizar lead existente
-        await updateLeadMutation.mutateAsync({
-          leadId: selectedLeadForEdit.id,
-          ...leadData
+        const updateData = {
+          nome: leadData.nome,
+          telefone: leadData.telefone,
+          email: leadData.email,
+          etapa_kanban_id: leadData.etapa_kanban_id,
+          tag_id: leadData.tag_id,
+          anotacoes: leadData.anotacoes,
+          origem_lead: leadData.origem_lead,
+          servico_interesse: leadData.servico_interesse,
+          updated_at: new Date().toISOString()
+        };
+
+        const { error } = await supabase
+          .from('leads')
+          .update(updateData)
+          .eq('id', selectedLeadForEdit.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Sucesso",
+          description: "Lead atualizado com sucesso!",
         });
-        toast.success('Lead atualizado com sucesso');
       } else {
         // Criar novo lead
-        await createLeadMutation.mutateAsync({
+        const newLeadData = {
           ...leadData,
-          clinica_id: targetClinicaId // Garantir que o lead seja criado na clínica correta
+          clinica_id: clinicaId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        const { error } = await supabase
+          .from('leads')
+          .insert([newLeadData]);
+
+        if (error) throw error;
+
+        toast({
+          title: "Sucesso",
+          description: "Lead criado com sucesso!",
         });
-        toast.success('Lead criado com sucesso');
       }
-      
+
       setIsLeadModalOpen(false);
       setSelectedLeadForEdit(null);
-      refetchLeads();
-    } catch (error) {
-      toast.error('Erro ao salvar lead');
+    } catch (error: any) {
       console.error('Erro ao salvar lead:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao salvar lead. Tente novamente.",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleOpenChat = (lead: Contact) => {
-    // Navegar para o chat com o lead selecionado
-    window.location.href = `/chat?lead=${lead.id}`;
-  };
-
-  const handleClearFilters = () => {
-    setFilters({
-      tagId: null,
-      origemLead: null,
-      servicoInteresse: null,
-      etapaId: null,
-    });
-    setSearchQuery('');
-  };
-
-  // Estado de carregamento combinado
-  const loading = clinicaLoading || leadsLoading;
-
   return {
-    // Dados
-    leads: sortedLeads,
-    tags: tags || [],
-    etapas: etapas || [],
     loading,
-    
-    // Estados de busca e filtro
+    tags,
+    etapas,
     searchQuery,
     setSearchQuery,
-    filters,
-    setFilters,
     isFilterOpen,
     setIsFilterOpen,
-    
-    // Estados de ordenação
     sortField,
     sortOrder,
-    handleSort,
-    
-    // Estados de modal
+    isDeleting,
     isLeadModalOpen,
     setIsLeadModalOpen,
     selectedLeadForEdit,
     setSelectedLeadForEdit,
-    
-    // Estados de operações
-    isDeleting,
-    
-    // Dados processados
+    filters,
+    setFilters,
     uniqueOrigens,
     uniqueServicos,
     sortedLeads,
     hasActiveFilters,
-    
-    // Handlers
+    handleSort,
     handleAddLead,
+    handleClearFilters,
     handleEditLead,
+    handleOpenChat,
     handleDeleteLead,
     handleSaveLead,
-    handleOpenChat,
-    handleClearFilters,
-    
-    // Informações de contexto
-    targetClinicaId,
-    isAdmin
   };
 };

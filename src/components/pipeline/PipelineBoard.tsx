@@ -67,7 +67,7 @@ export const PipelineBoard = ({ adminMode = false, targetClinicaId, onNavigateTo
     }
   }
 
-  // Hooks de modais
+  // Hooks de modals
   const modals = usePipelineModals();
 
   // Hooks de ações
@@ -107,13 +107,14 @@ export const PipelineBoard = ({ adminMode = false, targetClinicaId, onNavigateTo
     modals.openEditEtapaModal(etapa);
   };
 
-  const handleDeleteLead = (leadId: string) => {
+  const handleDeleteLead = async (leadId: string) => {
     // Implementar lógica de deletar lead
     console.log('Deletando lead:', leadId);
   };
 
-  const handleDeleteEtapa = async (etapa: EtapaPipeline, leads: LeadPipeline[]) => {
-    const result = await etapaActions.handleDeleteEtapa(etapa, leads);
+  const handleDeleteEtapa = async (etapa: EtapaPipeline) => {
+    const etapaLeads = leads.filter(lead => lead.etapa_kanban_id === etapa.id);
+    const result = await etapaActions.handleDeleteEtapa(etapa, etapaLeads);
     if (result.needsMoveLeads && result.etapaToDelete && result.leadsToMove) {
       // Abrir modal para mover leads se necessário
       console.log('Precisa mover leads antes de deletar etapa');
@@ -165,8 +166,7 @@ export const PipelineBoard = ({ adminMode = false, targetClinicaId, onNavigateTo
                   leads={etapaLeads}
                   onEditLead={handleEditLead}
                   onEditEtapa={() => handleEditEtapa(etapa)}
-                  onDeleteEtapa={() => handleDeleteEtapa(etapa, etapaLeads)}
-                  onMoveLeads={() => {}} // Simplificado
+                  onDeleteEtapa={() => handleDeleteEtapa(etapa)}
                   onNavigateToChat={onNavigateToChat || (() => {})}
                   onOpenHistory={leadActions.handleOpenHistory}
                   isAdminMode={adminMode}

@@ -1,7 +1,6 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAdminCheck } from './useAdminCheck';
 
 /**
  * Hook para operações administrativas no Supabase
@@ -10,9 +9,29 @@ import { useAdminCheck } from './useAdminCheck';
  * incluindo busca de clínicas, usuários, estatísticas e configurações.
  */
 export const useSupabaseAdmin = () => {
-  const { isAdmin, loading: adminCheckLoading } = useAdminCheck();
   const [loading, setLoading] = useState(false);
   const [clinicas, setClinicas] = useState<any[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminCheckLoading, setAdminCheckLoading] = useState(true);
+
+  // Verificar permissão de admin internamente (sem usar useAdminCheck para evitar recursão)
+  const verificarPermissaoAdmin = async (): Promise<boolean> => {
+    try {
+      const userId = await obterUserIdAtual();
+      
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('profile_type')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) throw error;
+      return data?.profile_type === 'admin';
+    } catch (error) {
+      console.error('Erro ao verificar permissão:', error);
+      return false;
+    }
+  };
 
   // Buscar todas as clínicas (apenas para admin)
   const buscarTodasClinicas = async () => {
@@ -91,6 +110,51 @@ export const useSupabaseAdmin = () => {
     }
   };
 
+  // Buscar estatísticas de todas as clínicas
+  const buscarEstatisticasClinicas = async () => {
+    if (!isAdmin) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('clinicas_stats')
+        .select('*')
+        .order('nome');
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Erro ao buscar estatísticas das clínicas:', error);
+      return [];
+    }
+  };
+
+  // Buscar KPIs globais
+  const buscarKPIsGlobais = async () => {
+    if (!isAdmin) return null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*');
+
+      if (error) throw error;
+
+      const totalLeads = data?.length || 0;
+      const leadsConvertidos = data?.filter(lead => lead.convertido).length || 0;
+      const taxaConversao = totalLeads > 0 ? (leadsConvertidos / totalLeads) * 100 : 0;
+
+      return {
+        totalLeads,
+        leadsConvertidos,
+        taxaConversao: Math.round(taxaConversao * 100) / 100,
+        totalClinicas: clinicas.length
+      };
+    } catch (error) {
+      console.error('Erro ao buscar KPIs globais:', error);
+      return null;
+    }
+  };
+
   // Obter ID do usuário atual
   const obterUserIdAtual = async (): Promise<string> => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -116,24 +180,23 @@ export const useSupabaseAdmin = () => {
     }
   };
 
-  // Verificar permissão de admin
-  const verificarPermissaoAdmin = async (): Promise<boolean> => {
-    try {
-      const userId = await obterUserIdAtual();
-      
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('profile_type')
-        .eq('user_id', userId)
-        .single();
+  // Verificar status de admin na inicialização
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      try {
+        setAdminCheckLoading(true);
+        const adminStatus = await verificarPermissaoAdmin();
+        setIsAdmin(adminStatus);
+      } catch (error) {
+        console.error('Erro ao verificar status de admin:', error);
+        setIsAdmin(false);
+      } finally {
+        setAdminCheckLoading(false);
+      }
+    };
 
-      if (error) throw error;
-      return data?.profile_type === 'admin';
-    } catch (error) {
-      console.error('Erro ao verificar permissão:', error);
-      return false;
-    }
-  };
+    checkAdminStatus();
+  }, []);
 
   // Carregar clínicas inicialmente
   useEffect(() => {
@@ -145,11 +208,15 @@ export const useSupabaseAdmin = () => {
   return {
     loading: loading || adminCheckLoading,
     clinicas,
+    isAdmin,
+    adminCheckLoading,
     obterUserIdAtual,
     configurarComoAdmin,
     verificarPermissaoAdmin,
     buscarTodasClinicas,
     buscarClinicaPorId,
     buscarEstatisticasDeLeadsDaClinica,
+    buscarEstatisticasClinicas,
+    buscarKPIsGlobais,
   };
 };

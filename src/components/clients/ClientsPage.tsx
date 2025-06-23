@@ -82,16 +82,16 @@ const ClientsPage = () => {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         filters={{
-          tag: filters.tagId,
-          origem: filters.origemLead,
-          servico: filters.servicoInteresse,
-          etapa: filters.etapaId
+          tag: filters.tagId || '',
+          origem: filters.origemLead || '',
+          servico: filters.servicoInteresse || '',
+          etapa: filters.etapaId || ''
         }}
         setFilters={(newFilters) => setFilters({
-          tagId: newFilters.tag,
-          origemLead: newFilters.origem,
-          servicoInteresse: newFilters.servico,
-          etapaId: newFilters.etapa
+          tagId: newFilters.tag || null,
+          origemLead: newFilters.origem || null,
+          servicoInteresse: newFilters.servico || null,
+          etapaId: newFilters.etapa || null
         })}
         isFilterOpen={isFilterOpen}
         setIsFilterOpen={setIsFilterOpen}
@@ -112,7 +112,7 @@ const ClientsPage = () => {
           onEdit={handleEditLead}
           onChat={handleOpenChat}  
           onDelete={handleDeleteLead}
-          isDeleting={typeof isDeleting === 'boolean' ? null : isDeleting}
+          isDeleting={typeof isDeleting === 'string' ? isDeleting : null}
         />
       ) : (
         <div className="flex items-center justify-center min-h-[400px] border rounded-lg bg-muted/10">
