@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -10,78 +9,101 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 
 /**
- * Componente de janela de chat que exibe mensagens
+ * 💬 Componente de Janela de Chat
  * 
- * O que faz:
+ * 📋 FUNCIONALIDADES:
  * - Exibe histórico de mensagens entre usuário e lead
  * - Suporta diferentes tipos de mídia (texto, imagem, áudio)
  * - Adapta-se automaticamente para modo admin
  * - Gerencia scroll automático para novas mensagens
+ * - CORREÇÃO: Carregamento adequado para usuários normais
  * 
- * Onde é usado:
- * - ChatPage para exibir conversas selecionadas
- * 
- * Como se conecta:
- * - useSupabaseData para usuários normais
- * - useAdminChatMessages para administradores
- * - Detecta automaticamente se é admin e usa dados apropriados
+ * 🔄 FLUXO CORRIGIDO:
+ * - Usuários normais: usa buscarMensagensLead + estado local
+ * - Administradores: usa useAdminChatMessages
  */
 
 interface ChatWindowProps {
   leadId: string | null;
-  adminMode?: boolean;
-  targetClinicaId?: string | null;
 }
 
-export const ChatWindow = ({ leadId, adminMode = false, targetClinicaId }: ChatWindowProps) => {
+export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   
-  // Verificar se usuário é admin
+  // 📊 ESTADO LOCAL PARA MENSAGENS (usuários normais)
+  const [localMessages, setLocalMessages] = useState<any[]>([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+
+  // 🔗 HOOKS PARA DADOS
+  const normalChatData = useSupabaseData();
   const { isAdmin } = useAdminCheck();
   
-  // Hooks de dados - usar admin ou normal dependendo do contexto
-  const normalChatData = useSupabaseData();
+  // Hook admin para mensagens (apenas se for admin)
   const adminChatMessages = useAdminChatMessages(
-    leadId, 
-    (isAdmin && adminMode) ? targetClinicaId : null
+    isAdmin ? leadId : null,
+    isAdmin ? normalChatData.leads.find(l => l.id === leadId)?.clinica_id : null
   );
 
-  // Determinar quais dados usar
-  const shouldUseAdminMode = isAdmin && adminMode && targetClinicaId;
-  const messages = shouldUseAdminMode ? adminChatMessages.messages : [];
-  const isLoading = shouldUseAdminMode ? adminChatMessages.loading : false;
+  // 🎯 DETERMINAR MODO DE OPERAÇÃO
+  const shouldUseAdminMode = isAdmin && leadId;
+  
+  // 📨 SELECIONAR MENSAGENS BASEADO NO MODO
+  const messages = shouldUseAdminMode 
+    ? adminChatMessages.messages || []
+    : localMessages || [];
 
-  // Buscar mensagens para usuários normais
+  // ⏳ LOADING STATE
+  const isLoading = shouldUseAdminMode 
+    ? adminChatMessages.loading 
+    : isLoadingMessages;
+
+  /**
+   * 📥 Buscar Mensagens para Usuários Normais
+   * 
+   * CORREÇÃO PRINCIPAL: Agora atualiza estado local adequadamente
+   */
   const fetchNormalMessages = useCallback(async () => {
     if (!leadId || shouldUseAdminMode) return;
     
     setIsLoadingMessages(true);
     try {
+      // 📊 BUSCAR MENSAGENS E ATUALIZAR ESTADO LOCAL
       const mensagens = await normalChatData.buscarMensagensLead(leadId);
-      // As mensagens são gerenciadas pelo hook useSupabaseData
+      setLocalMessages(mensagens || []);
+      
+      console.log(`📥 [ChatWindow] Mensagens carregadas para usuário normal:`, mensagens?.length || 0);
     } catch (error) {
-      console.error('Erro ao carregar mensagens:', error);
+      console.error('❌ [ChatWindow] Erro ao carregar mensagens:', error);
+      setLocalMessages([]); // Limpar em caso de erro
     } finally {
       setIsLoadingMessages(false);
     }
   }, [leadId, shouldUseAdminMode, normalChatData.buscarMensagensLead]);
 
-  // Carregar mensagens para usuários normais
+  /**
+   * 🔄 useEffect: Carregar Mensagens Quando Lead Muda
+   */
   useEffect(() => {
-    if (!shouldUseAdminMode) {
+    if (!shouldUseAdminMode && leadId) {
       fetchNormalMessages();
+    } else if (!leadId) {
+      // Limpar mensagens quando não há lead selecionado
+      setLocalMessages([]);
     }
-  }, [fetchNormalMessages]);
+  }, [fetchNormalMessages, leadId]);
 
-  // Marcar mensagens como lidas quando componente é montado
+  /**
+   * ✅ useEffect: Marcar Mensagens como Lidas
+   */
   useEffect(() => {
     if (leadId && !shouldUseAdminMode) {
       normalChatData.marcarMensagensComoLidas(leadId);
     }
   }, [leadId, shouldUseAdminMode, normalChatData.marcarMensagensComoLidas]);
 
-  // Scroll automático para o final
+  /**
+   * 📜 useEffect: Scroll Automático
+   */
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -90,7 +112,9 @@ export const ChatWindow = ({ leadId, adminMode = false, targetClinicaId }: ChatW
     scrollToBottom();
   }, [messages]);
 
-  // Função para formatar data/hora das mensagens
+  /**
+   * 🕐 Formatar Horário das Mensagens
+   */
   const formatMessageTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -105,7 +129,9 @@ export const ChatWindow = ({ leadId, adminMode = false, targetClinicaId }: ChatW
     }
   };
 
-  // Função para renderizar conteúdo baseado no tipo
+  /**
+   * 🎨 Renderizar Conteúdo da Mensagem por Tipo
+   */
   const renderMessageContent = (mensagem: any) => {
     const { tipo, conteudo, anexo_url } = mensagem;
 
@@ -173,6 +199,7 @@ export const ChatWindow = ({ leadId, adminMode = false, targetClinicaId }: ChatW
     }
   };
 
+  // 🚫 ESTADO: Nenhum Lead Selecionado
   if (!leadId) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
@@ -183,7 +210,8 @@ export const ChatWindow = ({ leadId, adminMode = false, targetClinicaId }: ChatW
     );
   }
 
-  if (isLoading || isLoadingMessages) {
+  // ⏳ ESTADO: Carregando Mensagens
+  if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -200,9 +228,11 @@ export const ChatWindow = ({ leadId, adminMode = false, targetClinicaId }: ChatW
     );
   }
 
+  // 🎨 RENDERIZAÇÃO PRINCIPAL
   return (
     <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
-      {/* Header indicando modo admin */}
+      
+      {/* 🛡️ Header Modo Admin */}
       {shouldUseAdminMode && (
         <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
           <div className="flex items-center gap-2 text-sm text-blue-700">
@@ -212,14 +242,16 @@ export const ChatWindow = ({ leadId, adminMode = false, targetClinicaId }: ChatW
         </div>
       )}
 
-      {/* Área de mensagens com scroll próprio */}
+      {/* 📋 Área de Mensagens */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
+          // 📝 Estado Vazio
           <div className="text-center text-gray-500 py-8">
             <p>Nenhuma mensagem ainda.</p>
             <p className="text-sm mt-1">Comece a conversa enviando uma mensagem!</p>
           </div>
         ) : (
+          // 💬 Lista de Mensagens
           messages.map((mensagem) => (
             <div
               key={mensagem.id}
@@ -232,7 +264,10 @@ export const ChatWindow = ({ leadId, adminMode = false, targetClinicaId }: ChatW
                     : 'bg-white text-gray-900 border border-gray-200'
                 }`}
               >
+                {/* 📄 Conteúdo da Mensagem */}
                 {renderMessageContent(mensagem)}
+                
+                {/* 🕐 Timestamp */}
                 <div
                   className={`text-xs mt-1 ${
                     mensagem.enviado_por === 'usuario' ? 'text-blue-100' : 'text-gray-500'
@@ -247,6 +282,8 @@ export const ChatWindow = ({ leadId, adminMode = false, targetClinicaId }: ChatW
             </div>
           ))
         )}
+        
+        {/* 📍 Referência para Scroll */}
         <div ref={messagesEndRef} />
       </div>
     </div>
