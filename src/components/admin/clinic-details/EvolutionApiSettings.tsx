@@ -1,122 +1,121 @@
-
-import { useState } from 'react';
-import { Link2, Key, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PasswordInput } from '@/components/ui/password-input';
-
-/**
- * Componente para configurar integração com Evolution API
- * 
- * Permite configurar:
- * - Nome da instância Evolution para WhatsApp
- * - API Key para autenticação na Evolution API
- * 
- * Essas configurações são essenciais para a integração
- * do sistema com o WhatsApp Business via Evolution API.
- */
+import { Badge } from '@/components/ui/badge';
+import { Settings, Save, Loader2 } from 'lucide-react';
 
 interface EvolutionApiSettingsProps {
-  clinica: any;
-  onSaveInstanceName: (instanceName: string) => Promise<void>;
-  onSaveApiKey: (apiKey: string) => Promise<void>;
-  saving: boolean;
-  savingApiKey: boolean;
+  clinicaId: string;
+  currentInstanceName?: string; // ✅ CORREÇÃO: Tornar opcional
+  onSave: (instanceName: string) => Promise<void>;
 }
 
+/**
+ * 🔧 Componente para Configurações da Evolution API
+ * 
+ * CORREÇÃO IMPLEMENTADA:
+ * - Props opcionais com valores padrão
+ * - Proteção contra undefined
+ * - Validação adequada de entrada
+ */
 export const EvolutionApiSettings = ({ 
-  clinica, 
-  onSaveInstanceName, 
-  onSaveApiKey, 
-  saving, 
-  savingApiKey 
+  clinicaId, 
+  currentInstanceName = '', // ✅ VALOR PADRÃO
+  onSave 
 }: EvolutionApiSettingsProps) => {
-  const [evolutionInstanceName, setEvolutionInstanceName] = useState(clinica.evolution_instance_name || '');
-  const [evolutionApiKey, setEvolutionApiKey] = useState('');
+  const [instanceName, setInstanceName] = useState(currentInstanceName || ''); // ✅ PROTEÇÃO
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSaveInstanceName = async () => {
-    await onSaveInstanceName(evolutionInstanceName);
-  };
+  const handleSave = async () => {
+    if (!instanceName.trim()) {
+      alert('Por favor, insira um nome para a instância');
+      return;
+    }
 
-  const handleSaveApiKey = async () => {
-    await onSaveApiKey(evolutionApiKey);
+    try {
+      setIsSaving(true);
+      await onSave(instanceName.trim());
+      console.log('✅ [EvolutionApiSettings] Instance name salvo com sucesso');
+    } catch (error) {
+      console.error('❌ [EvolutionApiSettings] Erro ao salvar:', error);
+      alert('Erro ao salvar configurações. Tente novamente.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Configurações da Evolution API</CardTitle>
+        <div className="flex items-center gap-2">
+          <Settings className="w-5 h-5" />
+          <CardTitle>Configurações Evolution API</CardTitle>
+        </div>
         <CardDescription>
-          Configurações de integração com a Evolution API para WhatsApp
+          Configure a integração com a Evolution API para WhatsApp Business
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Nome da Instância Evolution */}
-        <div>
-          <Label htmlFor="evolution-instance-name">
-            Nome da Instância Evolution
-          </Label>
-          <div className="flex gap-2 mt-2">
-            <Input
-              id="evolution-instance-name"
-              placeholder="Digite o nome da instância (ex: minha-clinica-instance)"
-              value={evolutionInstanceName}
-              onChange={(e) => setEvolutionInstanceName(e.target.value)}
-              className="flex-1"
-            />
-            <Button 
-              onClick={handleSaveInstanceName} 
-              disabled={saving}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              {saving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Link2 className="w-4 h-4" />
-              )}
-              {saving ? 'Salvando...' : 'Salvar'}
-            </Button>
+        {/* Status da Integração */}
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="text-sm font-medium">Status da Integração</Label>
+            <p className="text-sm text-gray-600">
+              Status atual da conexão com Evolution API
+            </p>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Nome único da sua instância na Evolution API
+          <Badge variant={currentInstanceName ? 'default' : 'secondary'}>
+            {currentInstanceName ? 'Configurado' : 'Não configurado'}
+          </Badge>
+        </div>
+
+        {/* Nome da Instância */}
+        <div className="space-y-2">
+          <Label htmlFor="instanceName">Nome da Instância</Label>
+          <Input
+            id="instanceName"
+            value={instanceName}
+            onChange={(e) => setInstanceName(e.target.value)}
+            placeholder="Digite o nome da instância Evolution API"
+            disabled={isSaving}
+          />
+          <p className="text-sm text-gray-600">
+            Nome único da instância na Evolution API para esta clínica
           </p>
         </div>
 
-        {/* API Key da Evolution */}
-        <div>
-          <Label htmlFor="evolution-api-key">
-            API Key da Evolution
-          </Label>
-          <div className="flex gap-2 mt-2">
-            <PasswordInput
-              value={evolutionApiKey}
-              onChange={setEvolutionApiKey}
-              placeholder="Digite a API Key da Evolution"
-              className="flex-1"
-              label=""
-              description=""
-            />
-            <Button 
-              onClick={handleSaveApiKey} 
-              disabled={savingApiKey}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              {savingApiKey ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Key className="w-4 h-4" />
-              )}
-              {savingApiKey ? 'Salvando...' : 'Salvar API Key'}
-            </Button>
+        {/* Instância Atual */}
+        {currentInstanceName && (
+          <div className="p-3 bg-blue-50 rounded-lg">
+            <Label className="text-sm font-medium text-blue-700">
+              Instância Atual
+            </Label>
+            <p className="text-sm text-blue-600 font-mono">
+              {currentInstanceName}
+            </p>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Chave de autenticação para acesso à Evolution API
-          </p>
-        </div>
+        )}
+
+        {/* Botão Salvar */}
+        <Button 
+          onClick={handleSave} 
+          disabled={isSaving || !instanceName.trim()}
+          className="w-full"
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Salvando...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-2" />
+              Salvar Configurações
+            </>
+          )}
+        </Button>
       </CardContent>
     </Card>
   );
