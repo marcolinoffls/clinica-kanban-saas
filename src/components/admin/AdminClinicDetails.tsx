@@ -1,15 +1,13 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, Users, TrendingUp, MessageSquare } from 'lucide-react';
+import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ArrowLeft, Building2, Loader2, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
-import { ClinicBasicInfo } from './clinic-details/ClinicBasicInfo';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClinicStatsCards } from './clinic-details/ClinicStatsCards';
+import { ClinicBasicInfo } from './clinic-details/ClinicBasicInfo';
 import { ClinicQuickActions } from './clinic-details/ClinicQuickActions';
 import { AdminClinicDashboard } from './clinic-details/AdminClinicDashboard';
 import { AdminClinicChat } from './clinic-details/AdminClinicChat';
@@ -20,8 +18,10 @@ import { InstagramSettings } from './clinic-details/InstagramSettings';
 /**
  * Componente de detalhes de uma clínica específica no painel administrativo
  * 
- * Este componente exibe informações completas sobre uma clínica específica,
- * incluindo estatísticas, configurações e dados de performance.
+ * CORREÇÃO IMPLEMENTADA:
+ * - Melhor tratamento de erro na busca da clínica
+ * - Logs detalhados para debug
+ * - Estados de loading e erro mais robustos
  */
 export const AdminClinicDetails = () => {
   const { clinicaId } = useParams<{ clinicaId: string }>();
@@ -35,32 +35,62 @@ export const AdminClinicDetails = () => {
   const [clinica, setClinica] = useState<any>(null);
   const [leadsStats, setLeadsStats] = useState<any>(null);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Carregar detalhes da clínica ao montar o componente
   useEffect(() => {
     const carregarDados = async () => {
-      if (!clinicaId) return;
+      if (!clinicaId) {
+        setError('ID da clínica não fornecido');
+        setLoadingStats(false);
+        return;
+      }
       
       try {
+        console.log(`🔄 [AdminClinicDetails] Carregando dados da clínica: ${clinicaId}`);
         setLoadingStats(true);
+        setError(null);
+        
+        // Verificar se é admin primeiro
+        if (!adminHook.isAdmin && !adminHook.adminCheckLoading) {
+          throw new Error('Acesso negado: usuário não é administrador');
+        }
+
+        // Aguardar verificação de admin se ainda estiver carregando
+        if (adminHook.adminCheckLoading) {
+          console.log('⏳ [AdminClinicDetails] Aguardando verificação de admin...');
+          return;
+        }
         
         // Buscar dados da clínica
+        console.log('🏥 [AdminClinicDetails] Buscando dados da clínica...');
         const clinicaData = await adminHook.buscarClinicaPorId(clinicaId);
+        
+        if (!clinicaData) {
+          throw new Error('Clínica não encontrada no sistema');
+        }
+        
         setClinica(clinicaData);
+        console.log('✅ [AdminClinicDetails] Dados da clínica carregados:', clinicaData.nome);
         
         // Buscar estatísticas de leads
+        console.log('📊 [AdminClinicDetails] Buscando estatísticas...');
         const stats = await adminHook.buscarEstatisticasDeLeadsDaClinica(clinicaId);
         setLeadsStats(stats);
+        console.log('✅ [AdminClinicDetails] Estatísticas carregadas:', stats);
         
-      } catch (error) {
-        console.error('Erro ao carregar dados da clínica:', error);
+      } catch (error: any) {
+        console.error('❌ [AdminClinicDetails] Erro ao carregar dados:', error);
+        setError(error.message || 'Erro desconhecido ao carregar dados da clínica');
+        setClinica(null);
+        setLeadsStats(null);
       } finally {
         setLoadingStats(false);
       }
     };
 
     carregarDados();
-  }, [clinicaId]);
+  }, [clinicaId, adminHook.isAdmin, adminHook.adminCheckLoading]);
 
   // Handlers para ações
   const handleOpenChat = () => {
@@ -68,41 +98,69 @@ export const AdminClinicDetails = () => {
   };
 
   const handleAddLead = () => {
-    // Implementar lógica para adicionar lead
     console.log('Adicionar lead para clínica:', clinicaId);
   };
 
-  // Handlers para salvar configurações (implementação básica)
-  const handleSaveInstanceName = async (instanceName: string) => {
-    console.log('Salvando instance name:', instanceName);
-  };
-
-  const handleSaveApiKey = async (apiKey: string) => {
-    console.log('Salvando API key:', apiKey);
-  };
-
-  const handleSaveInstagramSettings = async (userHandle: string) => {
-    console.log('Salvando configurações Instagram:', userHandle);
-  };
-
-  if (adminHook.loading || loadingStats) {
+  // Estados de loading e erro
+  if (adminHook.adminCheckLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Verificando permissões...</p>
+        </div>
       </div>
     );
   }
 
-  if (!clinica) {
+  if (!adminHook.isAdmin) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Clínica não encontrada</h2>
-          <p className="text-gray-600 mb-4">A clínica solicitada não existe ou você não tem permissão para acessá-la.</p>
-          <Button onClick={() => navigate('/admin')} variant="outline">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Voltar ao Painel
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Acesso Negado</h2>
+          <p className="text-gray-600 mb-4">Você não tem permissão para acessar o painel administrativo.</p>
+          <Button onClick={() => navigate('/')} variant="outline">
+            Voltar ao Início
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadingStats) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Carregando dados da clínica...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !clinica) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Clínica não encontrada</h2>
+          <p className="text-gray-600 mb-4">
+            {error || 'A clínica solicitada não existe ou você não tem permissão para acessá-la.'}
+          </p>
+          <div className="space-y-2">
+            <Button onClick={() => navigate('/admin')} variant="outline" className="w-full">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar ao Painel
+            </Button>
+            <Button 
+              onClick={() => window.location.reload()} 
+              variant="ghost" 
+              className="w-full"
+            >
+              Tentar Novamente
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -152,7 +210,7 @@ export const AdminClinicDetails = () => {
           <ClinicStatsCards 
             clinica={clinica}
             leadsStats={leadsStats}
-            loadingStats={loadingStats}
+            loadingStats={false}
           />
         </div>
 
@@ -171,43 +229,45 @@ export const AdminClinicDetails = () => {
         </div>
 
         {/* Tabs de conteúdo detalhado */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="chat">Chat</TabsTrigger>
-            <TabsTrigger value="settings">Configurações</TabsTrigger>
-            <TabsTrigger value="integrations">Integrações</TabsTrigger>
+            <TabsTrigger value="ai">IA</TabsTrigger>
+            <TabsTrigger value="evolution">Evolution</TabsTrigger>
+            <TabsTrigger value="instagram">Instagram</TabsTrigger>
           </TabsList>
-          
-          <TabsContent value="dashboard" className="mt-6">
+
+          <TabsContent value="dashboard" className="space-y-6">
             <AdminClinicDashboard clinicaId={clinica.id} />
           </TabsContent>
-          
-          <TabsContent value="chat" className="mt-6">
+
+          <TabsContent value="chat" className="space-y-6">
             <AdminClinicChat clinicaId={clinica.id} />
           </TabsContent>
-          
-          <TabsContent value="settings" className="mt-6">
-            <div className="space-y-6">
-              <AdminAISettings clinicaId={clinica.id} />
-            </div>
+
+          <TabsContent value="ai" className="space-y-6">
+            <AdminAISettings clinicaId={clinica.id} />
           </TabsContent>
-          
-          <TabsContent value="integrations" className="mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <EvolutionApiSettings 
-                clinica={clinica}
-                onSaveInstanceName={handleSaveInstanceName}
-                onSaveApiKey={handleSaveApiKey}
-                saving={false}
-                savingApiKey={false}
-              />
-              <InstagramSettings 
-                clinica={clinica}
-                onSave={handleSaveInstagramSettings}
-                saving={false}
-              />
-            </div>
+
+          <TabsContent value="evolution" className="space-y-6">
+            <EvolutionApiSettings 
+              clinicaId={clinica.id}
+              currentInstanceName={clinica.evolution_instance_name}
+              onSave={async (instanceName) => {
+                console.log('Salvando instance name:', instanceName);
+              }}
+            />
+          </TabsContent>
+
+          <TabsContent value="instagram" className="space-y-6">
+            <InstagramSettings 
+              clinicaId={clinica.id}
+              currentUserHandle={clinica.instagram_user_handle}
+              onSave={async (userHandle) => {
+                console.log('Salvando configurações Instagram:', userHandle);
+              }}
+            />
           </TabsContent>
         </Tabs>
       </div>
