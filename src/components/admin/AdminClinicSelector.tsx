@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Building2, ChevronDown, Search } from 'lucide-react';
 import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
 import { Button } from '@/components/ui/button';
@@ -40,32 +40,15 @@ export const AdminClinicSelector = ({
   onClinicaSelected, 
   showStats = true 
 }: AdminClinicSelectorProps) => {
-  // CORREÇÃO: Remover estado local de clínicas e usar do hook
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
   const { 
-    clinicas,           // ← USAR CLÍNICAS DO HOOK
-    loading,            // ← USAR LOADING DO HOOK
+    clinicas,
+    loading,
     isAdmin, 
     adminCheckLoading,
-    debug
   } = useSupabaseAdmin();
-
-  // Log de debug para acompanhar o estado
-  useEffect(() => {
-    console.log('🔍 [AdminClinicSelector] Estado atual:', {
-      clinicasDoHook: clinicas.length,
-      loading,
-      isAdmin,
-      adminCheckLoading,
-      showStats
-    });
-    
-    if (debug) {
-      debug();
-    }
-  }, [clinicas, loading, isAdmin, adminCheckLoading]);
 
   // Filtrar clínicas por termo de busca
   const clinicasFiltradas = clinicas.filter(clinica =>
@@ -74,14 +57,12 @@ export const AdminClinicSelector = ({
   );
 
   const handleClinicaSelect = (clinica: any) => {
-    console.log('🏥 [AdminClinicSelector] Clínica selecionada:', clinica.nome);
     onClinicaSelected(clinica);
     setIsOpen(false);
     setSearchTerm('');
   };
 
   const handleClearSelection = () => {
-    console.log('🔄 [AdminClinicSelector] Limpando seleção de clínica');
     onClinicaSelected(null);
   };
 
@@ -115,13 +96,6 @@ export const AdminClinicSelector = ({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Debug info temporário */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="text-xs text-gray-400 p-1 bg-gray-50 rounded">
-          Debug: {clinicas.length} clínicas do hook - {clinicasFiltradas.length} filtradas
-        </div>
-      )}
-
       {/* Seletor de Clínica */}
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
         <DropdownMenuTrigger asChild>
