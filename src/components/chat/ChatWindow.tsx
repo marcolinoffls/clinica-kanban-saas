@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { format, isToday, isYesterday, isSameWeek, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Loader2, FileText, Headphones, Image as ImageIcon, Shield } from 'lucide-react';
@@ -142,7 +142,6 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   };
 
   const renderMessageContent = (mensagem: any) => {
-    // ... (código de renderização de mensagem permanece o mesmo)
     const { tipo, conteudo, anexo_url } = mensagem;
     switch (tipo) {
       case 'imagem':
@@ -222,3 +221,4 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
       </div>
     </div>
   );
+};
