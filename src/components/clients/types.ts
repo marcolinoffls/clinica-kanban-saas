@@ -34,10 +34,17 @@ export interface LoadingStates {
   loading: boolean;                // Loading geral da página
 }
 
-// ✅ NOVA INTERFACE: Estado dos filtros para compatibilidade
+// ✅ Interface para estado dos filtros - compatibilidade
 export interface FilterState {
   tag: string;
   origem: string; 
   servico: string;
   hasActiveFilters: boolean;
+}
+
+// ✅ Interface para filtros internos do componente
+export interface Filters {
+  tag: string;
+  origem: string;
+  servico: string;
 }
