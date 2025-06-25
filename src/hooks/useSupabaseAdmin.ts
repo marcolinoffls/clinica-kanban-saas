@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -342,6 +341,51 @@ export const useSupabaseAdmin = () => {
     }
   };
 
+  // Atualizar configurações de webhook da clínica
+  const atualizarConfiguracaoWebhook = async (
+    clinicaId: string,
+    webhookType?: string,
+    webhookUrl?: string
+  ) => {
+    try {
+      console.log(`🔧 [useSupabaseAdmin] Atualizando configuração de webhook da clínica: ${clinicaId}`);
+      console.log('- Tipo:', webhookType);
+      console.log('- URL:', webhookUrl);
+
+      // Preparar dados para atualização
+      const updateData: any = {};
+      
+      if (webhookType !== undefined) {
+        updateData.webhook_type = webhookType;
+      }
+      
+      if (webhookType === 'personalizado' && webhookUrl !== undefined) {
+        updateData.webhook_url = webhookUrl;
+      } else if (webhookType === 'padrao') {
+        // Limpar URL quando volta para padrão
+        updateData.webhook_url = null;
+      }
+
+      const { data, error } = await supabase
+        .from('clinicas')
+        .update(updateData)
+        .eq('id', clinicaId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ [useSupabaseAdmin] Erro ao atualizar configuração de webhook:', error);
+        throw error;
+      }
+
+      console.log('✅ [useSupabaseAdmin] Configuração de webhook atualizada com sucesso');
+      return data;
+    } catch (error) {
+      console.error('❌ [useSupabaseAdmin] Erro na função atualizarConfiguracaoWebhook:', error);
+      throw error;
+    }
+  };
+
   // Verificar status de admin na inicialização
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -390,5 +434,6 @@ export const useSupabaseAdmin = () => {
     buscarEstatisticasClinicas,
     buscarKPIsGlobais,
     atualizarConfiguracaoEvolution, // ✅ NOVA FUNÇÃO EXPORTADA
+    atualizarConfiguracaoWebhook, // Nova função adicionada
   };
 };

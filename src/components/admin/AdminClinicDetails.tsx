@@ -14,6 +14,7 @@ import { AdminClinicChat } from './clinic-details/AdminClinicChat';
 import { AdminAISettings } from './clinic-details/AdminAISettings';
 import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
 import { InstagramSettings } from './clinic-details/InstagramSettings';
+import { WebhookSettings } from './clinic-details/WebhookSettings';
 
 /**
  * Componente de detalhes de uma clínica específica no painel administrativo
@@ -22,6 +23,9 @@ import { InstagramSettings } from './clinic-details/InstagramSettings';
  * - Melhor tratamento de erro na busca da clínica
  * - Logs detalhados para debug
  * - Estados de loading e erro mais robustos
+ * - Adicionada nova aba "Webhook" para configuração de webhook por clínica
+ * - Handler para salvar configurações de webhook
+ * - Sistema mantém compatibilidade total com configurações existentes
  */
 export const AdminClinicDetails = () => {
   const { clinicaId } = useParams<{ clinicaId: string }>();
@@ -126,6 +130,35 @@ export const AdminClinicDetails = () => {
       }
     } catch (error) {
       console.error('❌ [AdminClinicDetails] Erro ao salvar configuração Evolution:', error);
+      throw error;
+    }
+  };
+
+  // ✅ NOVA FUNÇÃO: Handler para salvar configurações de webhook
+  const handleSaveWebhookConfig = async (webhookType: string, webhookUrl?: string) => {
+    if (!clinicaId) return;
+    
+    try {
+      console.log('🔧 [AdminClinicDetails] Salvando configuração de webhook...');
+      
+      const updatedClinica = await adminHook.atualizarConfiguracaoWebhook(
+        clinicaId,
+        webhookType,
+        webhookUrl
+      );
+      
+      if (updatedClinica) {
+        // Atualizar estado local da clínica
+        setClinica((prev: any) => ({
+          ...prev,
+          webhook_type: updatedClinica.webhook_type || prev.webhook_type,
+          webhook_url: updatedClinica.webhook_url || prev.webhook_url
+        }));
+        
+        console.log('✅ [AdminClinicDetails] Configuração de webhook salva com sucesso');
+      }
+    } catch (error) {
+      console.error('❌ [AdminClinicDetails] Erro ao salvar configuração de webhook:', error);
       throw error;
     }
   };
@@ -259,12 +292,13 @@ export const AdminClinicDetails = () => {
 
         {/* Tabs de conteúdo detalhado */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="chat">Chat</TabsTrigger>
             <TabsTrigger value="ai">IA</TabsTrigger>
             <TabsTrigger value="evolution">Evolution</TabsTrigger>
             <TabsTrigger value="instagram">Instagram</TabsTrigger>
+            <TabsTrigger value="webhook">Webhook</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
@@ -299,6 +333,14 @@ export const AdminClinicDetails = () => {
               onSave={async (userHandle) => {
                 console.log('Salvando configurações Instagram:', userHandle);
               }}
+              saving={false}
+            />
+          </TabsContent>
+
+          <TabsContent value="webhook" className="space-y-6">
+            <WebhookSettings 
+              clinica={clinica}
+              onSave={handleSaveWebhookConfig}
               saving={false}
             />
           </TabsContent>

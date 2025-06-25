@@ -8,21 +8,13 @@ const corsHeaders = {
 }
 
 /**
- * Edge Function para envio de webhooks - VERSÃO ROBUSTA COM SUPORTE A MÍDIA
+ * Edge Function para envio de webhooks - VERSÃO COM WEBHOOK PERSONALIZADO POR CLÍNICA
  * 
- * Funcionalidades:
- * - Envia webhook automaticamente após nova mensagem no chat
- * - Inclui estado do botão de IA (evento_boolean)
- * - NOVO: Suporte completo a mensagens de mídia (imagens e áudios)
- * - NOVO: Usa anexo_url (do MinIO) para construir payload específico de mídia
- * - Usa URL fixa para webhook do n8n com multi-tenancy via clinica_id
- * - Inclui autenticação JWT segura usando djwt
- * - Busca e valida evolution_instance_name da clínica com tratamento robusto de erro
- * - Ajusta timestamp para fuso horário de São Paulo
- * - Registra logs para auditoria
- * - Tenta reenvio em caso de falha
- * - Nova estrutura de payload inspirada na Evolution API
- * - CORREÇÃO: Tratamento robusto para clínicas não encontradas
+ * NOVA FUNCIONALIDADE:
+ * - Suporte a webhook personalizado por clínica
+ * - Busca configurações webhook_type e webhook_url da clínica
+ * - Mantém compatibilidade total com clínicas existentes
+ * - Fallback automático para webhook padrão se configuração não encontrada
  */
 
 // Interface atualizada para suportar diferentes tipos de mensagem
@@ -83,11 +75,11 @@ serve(async (req) => {
       mensagem_id, 
       lead_id, 
       clinica_id, 
-      conteudo, // Para texto: o texto. Para mídia: nome do arquivo ou legenda
-      tipo,     // 'text', 'image', 'audio'
+      conteudo,
+      tipo,
       created_at,
-      evento_boolean = false, // Estado do botão IA
-      anexo_url // NOVO: URL do anexo (do MinIO para mídias)
+      evento_boolean = false,
+      anexo_url
     } = requestBody
 
     // Validações detalhadas do payload (incluindo anexo_url)
@@ -128,14 +120,13 @@ serve(async (req) => {
       )
     }
 
-    // CORREÇÃO: Buscar dados da clínica com tratamento robusto
-    console.log('🔍 [send-webhook] Buscando dados da clínica...');
-    console.log('- Executando query: SELECT id, evolution_instance_name FROM clinicas WHERE id =', clinica_id);
+    // CORREÇÃO: Buscar dados da clínica incluindo configurações de webhook
+    console.log('🔍 [send-webhook] Buscando dados da clínica com configurações de webhook...');
+    console.log('- Executando query: SELECT id, evolution_instance_name, webhook_type, webhook_url FROM clinicas WHERE id =', clinica_id);
 
-    // Usar array ao invés de .single() para tratamento mais robusto
     const { data: clinicasEncontradas, error: clinicaError } = await supabaseClient
       .from('clinicas')
-      .select('id, evolution_instance_name')
+      .select('id, evolution_instance_name, webhook_type, webhook_url')
       .eq('id', clinica_id)
 
     console.log('📊 [send-webhook] Resultado da query:');
@@ -215,8 +206,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'Instância Evolution não configurada para esta clínica',
-          clinica_id: clinica_id,
-          clinica_nome: clinica.nome || 'Nome não disponível'
+          clinica_id: clinica_id
         }),
         { 
           status: 400, 
@@ -228,9 +218,21 @@ serve(async (req) => {
     console.log('✅ [send-webhook] Clínica encontrada com sucesso:');
     console.log('- ID:', clinica.id);
     console.log('- Evolution Instance:', clinica.evolution_instance_name);
+    console.log('- Webhook Type:', clinica.webhook_type || 'padrao');
+    console.log('- Webhook URL:', clinica.webhook_url || 'padrão');
 
-    // URL fixa para webhook do n8n (multi-tenancy via payload)
-    const webhookUrl = `https://webhooks.marcolinofernades.site/webhook/crm`
+    // 🆕 LÓGICA DE WEBHOOK PERSONALIZADO: Determinar URL do webhook baseado na configuração da clínica
+    let webhookUrl: string;
+    
+    if (clinica.webhook_type === 'personalizado' && clinica.webhook_url) {
+      // Usar webhook personalizado da clínica
+      webhookUrl = clinica.webhook_url;
+      console.log('🔗 [send-webhook] Usando webhook personalizado da clínica:', webhookUrl);
+    } else {
+      // Usar webhook padrão (compatibilidade com clínicas existentes)
+      webhookUrl = `https://webhooks.marcolinofernades.site/webhook/crm`;
+      console.log('🔗 [send-webhook] Usando webhook padrão do sistema:', webhookUrl);
+    }
 
     // Buscar dados do lead para contexto adicional (incluindo telefone e nome)
     const { data: lead } = await supabaseClient
@@ -296,7 +298,7 @@ serve(async (req) => {
       timestamp_sp: timestampSP // Timestamp formatado para São Paulo
     }
 
-    // Log do payload final que será enviado para o n8n
+    // Log do payload final que será enviado para o n8n/Evolution API
     console.log('📤 [send-webhook] Payload final para n8n/Evolution API:', JSON.stringify(webhookPayload, null, 2));
 
     // Gerar JWT seguro usando djwt
@@ -327,8 +329,9 @@ serve(async (req) => {
     let statusCode = 0
     let resposta = ''
 
-    console.log('🚀 [send-webhook] Enviando webhook para n8n:');
+    console.log('🚀 [send-webhook] Enviando webhook:');
     console.log('- URL:', webhookUrl);
+    console.log('- Tipo:', clinica.webhook_type || 'padrao');
     console.log('- Instância Evolution:', clinica.evolution_instance_name);
     console.log('- Telefone formatado:', formatarTelefone(lead?.telefone));
     console.log('- Tipo de mensagem:', tipo);

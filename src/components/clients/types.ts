@@ -26,6 +26,7 @@ export interface ContactsFiltersBarProps {
   tag: string;                     // Tag selecionada
   origem: string;                  // Origem selecionada
   servico: string;                 // Serviço selecionado
+  hasActiveFilters: boolean;       // ✅ CORREÇÃO: Adicionado campo que estava faltando
 }
 
 // Estado de loading para diferentes operações

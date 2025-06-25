@@ -396,6 +396,8 @@ export type Database = {
           status: string | null
           telefone: string | null
           updated_at: string | null
+          webhook_type: string | null
+          webhook_url: string | null
           webhook_usuario: string | null
         }
         Insert: {
@@ -439,6 +441,8 @@ export type Database = {
           status?: string | null
           telefone?: string | null
           updated_at?: string | null
+          webhook_type?: string | null
+          webhook_url?: string | null
           webhook_usuario?: string | null
         }
         Update: {
@@ -482,6 +486,8 @@ export type Database = {
           status?: string | null
           telefone?: string | null
           updated_at?: string | null
+          webhook_type?: string | null
+          webhook_url?: string | null
           webhook_usuario?: string | null
         }
         Relationships: []

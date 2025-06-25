@@ -1,4 +1,3 @@
-
 /**
  * =================================================================
  * ARQUIVO: ClientsPage.tsx
@@ -85,17 +84,17 @@ const ClientsPage = () => {
           tag: filters.tagId || '',
           origem: filters.origemLead || '',
           servico: filters.servicoInteresse || '',
-          hasActiveFilters: hasActiveFilters // ✅ CORREÇÃO: Agora passando boolean correto
+          hasActiveFilters: hasActiveFilters // ✅ CORREÇÃO: Passando boolean diretamente
         }}
         setFilters={(newFilters) => {
-          // Corrigido: verificar se newFilters é um objeto válido e tem a estrutura correta
+          // ✅ CORREÇÃO: Tratamento correto dos tipos
           if (typeof newFilters === 'object' && newFilters !== null && 'tag' in newFilters) {
             setFilters({
-              tagId: newFilters.tag ? newFilters.tag : null,           // ✅ string para string | null
-              origemLead: newFilters.origem ? newFilters.origem : null, // ✅ string para string | null
+              tagId: newFilters.tag || null,
+              origemLead: newFilters.origem || null,
               servicoInteresse: newFilters.servico || null,
-              etapaId: null, // Mantém a etapa como null já que não está nos filtros da barra
-              hasActiveFilters: Boolean(newFilters.tag || newFilters.origem || newFilters.servico) // ✅ CORREÇÃO: Calcula boolean corretamente
+              etapaId: null,
+              hasActiveFilters: Boolean(newFilters.tag || newFilters.origem || newFilters.servico)
             });
           }
         }}
