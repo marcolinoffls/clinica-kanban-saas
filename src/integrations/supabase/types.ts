@@ -492,6 +492,54 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_ads: {
+        Row: {
+          active: boolean
+          ad_name: string
+          ad_phrase: string
+          ad_source: string
+          clinica_id: string
+          created_at: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          ad_name: string
+          ad_phrase: string
+          ad_source: string
+          clinica_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          ad_name?: string
+          ad_phrase?: string
+          ad_source?: string
+          clinica_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_ads_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_ads_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       etapas_kanban: {
         Row: {
           clinica_id: string | null

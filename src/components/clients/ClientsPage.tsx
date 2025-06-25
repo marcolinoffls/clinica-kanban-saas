@@ -1,3 +1,4 @@
+
 /**
  * =================================================================
  * ARQUIVO: ClientsPage.tsx
@@ -84,11 +85,29 @@ const ClientsPage = () => {
           tag: filters.tagId || '',
           origem: filters.origemLead || '',
           servico: filters.servicoInteresse || '',
-          hasActiveFilters: hasActiveFilters // ✅ CORREÇÃO: Passando boolean diretamente
+          hasActiveFilters: hasActiveFilters
         }}
         setFilters={(newFilters) => {
           // ✅ CORREÇÃO: Tratamento correto dos tipos
-          if (typeof newFilters === 'object' && newFilters !== null && 'tag' in newFilters) {
+          if (typeof newFilters === 'function') {
+            // Se for função, aplicar ao estado atual
+            setFilters(prevFilters => {
+              const updatedFilters = newFilters({
+                tag: prevFilters.tagId || '',
+                origem: prevFilters.origemLead || '',
+                servico: prevFilters.servicoInteresse || ''
+              });
+              
+              return {
+                tagId: updatedFilters.tag || null,
+                origemLead: updatedFilters.origem || null,
+                servicoInteresse: updatedFilters.servico || null,
+                etapaId: null,
+                hasActiveFilters: Boolean(updatedFilters.tag || updatedFilters.origem || updatedFilters.servico)
+              };
+            });
+          } else if (typeof newFilters === 'object' && newFilters !== null && 'tag' in newFilters) {
+            // Se for objeto direto
             setFilters({
               tagId: newFilters.tag || null,
               origemLead: newFilters.origem || null,
