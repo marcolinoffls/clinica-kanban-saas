@@ -15,6 +15,7 @@ import { AdminAISettings } from './clinic-details/AdminAISettings';
 import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
 import { InstagramSettings } from './clinic-details/InstagramSettings';
 import { WebhookSettings } from './clinic-details/WebhookSettings';
+import { CustomAdsSettings } from './clinic-details/CustomAdsSettings';
 
 /**
  * Componente de detalhes de uma clínica específica no painel administrativo
@@ -26,6 +27,7 @@ import { WebhookSettings } from './clinic-details/WebhookSettings';
  * - Adicionada nova aba "Webhook" para configuração de webhook por clínica
  * - Handler para salvar configurações de webhook
  * - Sistema mantém compatibilidade total com configurações existentes
+ * - ✅ NOVA FUNCIONALIDADE: Aba "Anúncios Personalizados" para configuração de anúncios
  */
 export const AdminClinicDetails = () => {
   const { clinicaId } = useParams<{ clinicaId: string }>();
@@ -292,13 +294,14 @@ export const AdminClinicDetails = () => {
 
         {/* Tabs de conteúdo detalhado */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="chat">Chat</TabsTrigger>
             <TabsTrigger value="ai">IA</TabsTrigger>
             <TabsTrigger value="evolution">Evolution</TabsTrigger>
             <TabsTrigger value="instagram">Instagram</TabsTrigger>
             <TabsTrigger value="webhook">Webhook</TabsTrigger>
+            <TabsTrigger value="custom-ads">Anúncios</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
@@ -343,6 +346,10 @@ export const AdminClinicDetails = () => {
               onSave={handleSaveWebhookConfig}
               saving={false}
             />
+          </TabsContent>
+
+          <TabsContent value="custom-ads" className="space-y-6">
+            <CustomAdsSettings clinica={clinica} />
           </TabsContent>
         </Tabs>
       </div>
