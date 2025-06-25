@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSupabaseAdmin } from '@/hooks/useSupabaseAdmin';
@@ -15,17 +16,21 @@ import { AdminAISettings } from './clinic-details/AdminAISettings';
 import { EvolutionApiSettings } from './clinic-details/EvolutionApiSettings';
 import { InstagramSettings } from './clinic-details/InstagramSettings';
 import { WebhookSettings } from './clinic-details/WebhookSettings';
+import { CustomAdsSettings } from './clinic-details/CustomAdsSettings';
 
 /**
  * Componente de detalhes de uma clínica específica no painel administrativo
  * 
- * CORREÇÃO IMPLEMENTADA:
+ * FUNCIONALIDADES:
  * - Melhor tratamento de erro na busca da clínica
  * - Logs detalhados para debug
  * - Estados de loading e erro mais robustos
- * - Adicionada nova aba "Webhook" para configuração de webhook por clínica
- * - Handler para salvar configurações de webhook
+ * - Abas para configuração: Dashboard, Chat, IA, Evolution, Instagram, Webhook, Anúncios Personalizados
+ * - Handlers para salvar configurações de webhook e Evolution API
  * - Sistema mantém compatibilidade total com configurações existentes
+ * 
+ * NOVA FUNCIONALIDADE ADICIONADA:
+ * - Aba "Anúncios Personalizados" para gerenciar regras de identificação automática de origem de leads
  */
 export const AdminClinicDetails = () => {
   const { clinicaId } = useParams<{ clinicaId: string }>();
@@ -105,7 +110,7 @@ export const AdminClinicDetails = () => {
     console.log('Adicionar lead para clínica:', clinicaId);
   };
 
-  // ✅ NOVA FUNÇÃO: Handler para salvar configurações da Evolution
+  // Handler para salvar configurações da Evolution
   const handleSaveEvolutionConfig = async (instanceName?: string, apiKey?: string) => {
     if (!clinicaId) return;
     
@@ -134,7 +139,7 @@ export const AdminClinicDetails = () => {
     }
   };
 
-  // ✅ NOVA FUNÇÃO: Handler para salvar configurações de webhook
+  // Handler para salvar configurações de webhook
   const handleSaveWebhookConfig = async (webhookType: string, webhookUrl?: string) => {
     if (!clinicaId) return;
     
@@ -292,13 +297,14 @@ export const AdminClinicDetails = () => {
 
         {/* Tabs de conteúdo detalhado */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="chat">Chat</TabsTrigger>
             <TabsTrigger value="ai">IA</TabsTrigger>
             <TabsTrigger value="evolution">Evolution</TabsTrigger>
             <TabsTrigger value="instagram">Instagram</TabsTrigger>
             <TabsTrigger value="webhook">Webhook</TabsTrigger>
+            <TabsTrigger value="ads">Anúncios Personalizados</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
@@ -343,6 +349,10 @@ export const AdminClinicDetails = () => {
               onSave={handleSaveWebhookConfig}
               saving={false}
             />
+          </TabsContent>
+
+          <TabsContent value="ads" className="space-y-6">
+            <CustomAdsSettings clinicaId={clinica.id} />
           </TabsContent>
         </Tabs>
       </div>

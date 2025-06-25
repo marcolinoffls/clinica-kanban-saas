@@ -1,3 +1,4 @@
+
 /**
  * =================================================================
  * ARQUIVO: ClientsPage.tsx
@@ -83,11 +84,10 @@ const ClientsPage = () => {
         filters={{
           tag: filters.tagId || '',
           origem: filters.origemLead || '',
-          servico: filters.servicoInteresse || '',
-          hasActiveFilters: hasActiveFilters // ✅ CORREÇÃO: Passando boolean diretamente
+          servico: filters.servicoInteresse || ''
         }}
         setFilters={(newFilters) => {
-          // ✅ CORREÇÃO: Tratamento correto dos tipos
+          // Tratamento correto dos tipos
           if (typeof newFilters === 'object' && newFilters !== null && 'tag' in newFilters) {
             setFilters({
               tagId: newFilters.tag || null,
