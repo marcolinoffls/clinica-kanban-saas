@@ -92,11 +92,14 @@ const ClientsPage = () => {
           if (typeof newFilters === 'function') {
             // Se for função, aplicar ao estado atual
             setFilters(prevFilters => {
-              const updatedFilters = newFilters({
+              const currentFilters = {
                 tag: prevFilters.tagId || '',
                 origem: prevFilters.origemLead || '',
-                servico: prevFilters.servicoInteresse || ''
-              });
+                servico: prevFilters.servicoInteresse || '',
+                hasActiveFilters: Boolean(prevFilters.tagId || prevFilters.origemLead || prevFilters.servicoInteresse)
+              };
+              
+              const updatedFilters = newFilters(currentFilters);
               
               return {
                 tagId: updatedFilters.tag || null,

@@ -1,3 +1,4 @@
+
 /**
  * =================================================================
  * HOOK: useSupabaseAdmin
@@ -29,6 +30,8 @@ export const useSupabaseAdmin = () => {
   // Estados para controle de admin
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminCheckLoading, setAdminCheckLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [clinicas, setClinicas] = useState<any[]>([]);
   const { toast } = useToast();
 
   // ===============================
@@ -84,6 +87,7 @@ export const useSupabaseAdmin = () => {
 
     try {
       console.log('🏥 [useSupabaseAdmin] Buscando todas as clínicas...');
+      setLoading(true);
 
       const { data, error } = await supabase
         .from('clinicas')
@@ -96,10 +100,13 @@ export const useSupabaseAdmin = () => {
       }
 
       console.log('✅ [useSupabaseAdmin] Clínicas carregadas:', data.length);
+      setClinicas(data);
       return data;
     } catch (error) {
       console.error('❌ [useSupabaseAdmin] Erro na busca de clínicas:', error);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -395,10 +402,58 @@ export const useSupabaseAdmin = () => {
     }
   };
 
+  // ===============================
+  // FUNÇÕES MOCK PARA COMPATIBILIDADE
+  // ===============================
+  
+  /**
+   * Obter ID do usuário atual (função mock para compatibilidade)
+   */
+  const obterUserIdAtual = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.id || null;
+  };
+
+  /**
+   * Configurar como admin (função mock - seria implementada conforme necessário)
+   */
+  const configurarComoAdmin = async (userId: string) => {
+    console.log('🔧 [useSupabaseAdmin] Configurar como admin:', userId);
+    // Implementação seria adicionada conforme necessidade
+    return true;
+  };
+
+  /**
+   * Verificar permissão admin (função mock - já implementada no useEffect)
+   */
+  const verificarPermissaoAdmin = async () => {
+    return isAdmin;
+  };
+
+  /**
+   * Buscar KPIs globais (função mock - seria implementada conforme necessário)
+   */
+  const buscarKPIsGlobais = async () => {
+    console.log('📊 [useSupabaseAdmin] Buscar KPIs globais');
+    // Implementação seria adicionada conforme necessidade
+    return {};
+  };
+
+  /**
+   * Buscar estatísticas de clínicas (função mock - seria implementada conforme necessário)
+   */
+  const buscarEstatisticasClinicas = async () => {
+    console.log('📊 [useSupabaseAdmin] Buscar estatísticas de clínicas');
+    // Implementação seria adicionada conforme necessidade
+    return [];
+  };
+
   return {
     // Estados de verificação admin
     isAdmin,
     adminCheckLoading,
+    loading,
+    clinicas,
     
     // Funções de busca
     buscarTodasClinicas,
@@ -414,5 +469,12 @@ export const useSupabaseAdmin = () => {
     criarAnuncioPersonalizadoParaClinica,
     atualizarAnuncioPersonalizado,
     deletarAnuncioPersonalizado,
+
+    // Funções mock para compatibilidade
+    obterUserIdAtual,
+    configurarComoAdmin,
+    verificarPermissaoAdmin,
+    buscarKPIsGlobais,
+    buscarEstatisticasClinicas,
   };
 };
