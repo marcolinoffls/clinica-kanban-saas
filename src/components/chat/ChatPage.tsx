@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -9,13 +10,15 @@ import { Button } from "@/components/ui/button"
 import { Send } from 'lucide-react';
 import { ChatWindow } from './ChatWindow';
 
-// Interface para representar uma conversa
+// Interface para representar uma conversa baseada em leads
 interface Conversation {
   id: string;
   created_at: string;
-  lead_id: string;
+  nome: string;
+  telefone: string;
   clinica_id: string;
-  // Adicione outros campos conforme necessário
+  origem_lead?: string;
+  // Outros campos do lead conforme necessário
 }
 
 export default function ChatPage() {
@@ -23,30 +26,57 @@ export default function ChatPage() {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Buscar conversas do lead
+  // Buscar leads que têm mensagens (representam conversas ativas)
   const { data: conversations = [], isLoading, error } = useQuery({
-    queryKey: ['conversations', searchQuery],
+    queryKey: ['chat-conversations', searchQuery],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('conversations')
-        .select('*')
-        .ilike('lead_id', `%${searchQuery}%`)
+      console.log('🔍 [ChatPage] Buscando conversas ativas...');
+      
+      // Buscar leads que têm mensagens de chat
+      const { data: leadsWithMessages, error: leadsError } = await supabase
+        .from('leads')
+        .select(`
+          id,
+          nome,
+          telefone,
+          clinica_id,
+          origem_lead,
+          created_at,
+          chat_mensagens!inner(id)
+        `)
+        .ilike('nome', `%${searchQuery}%`)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Erro ao buscar conversas:', error);
+      if (leadsError) {
+        console.error('❌ [ChatPage] Erro ao buscar conversas:', leadsError);
         throw new Error('Erro ao buscar conversas');
       }
 
-      return data as Conversation[];
+      // Remover duplicatas e mapear para o formato esperado
+      const uniqueLeads = leadsWithMessages.reduce((acc: any[], lead) => {
+        if (!acc.find(existing => existing.id === lead.id)) {
+          acc.push({
+            id: lead.id,
+            created_at: lead.created_at,
+            nome: lead.nome || 'Sem nome',
+            telefone: lead.telefone || 'Sem telefone',
+            clinica_id: lead.clinica_id,
+            origem_lead: lead.origem_lead
+          });
+        }
+        return acc;
+      }, []);
+
+      console.log('✅ [ChatPage] Conversas carregadas:', uniqueLeads.length);
+      return uniqueLeads as Conversation[];
     },
   });
 
   // Efeito para selecionar a conversa do lead da URL
   useEffect(() => {
     const leadId = searchParams.get('leadId');
-    if (leadId) {
-      const conversation = conversations.find(c => c.lead_id === leadId);
+    if (leadId && conversations.length > 0) {
+      const conversation = conversations.find(c => c.id === leadId);
       setSelectedConversation(conversation || null);
     }
   }, [searchParams, conversations]);
@@ -61,7 +91,7 @@ export default function ChatPage() {
         <div className="mb-4">
           <Input
             type="search"
-            placeholder="Buscar por Lead ID..."
+            placeholder="Buscar por nome do lead..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -81,14 +111,21 @@ export default function ChatPage() {
                 onClick={() => setSelectedConversation(conversation)}
               >
                 <Avatar className="w-8 h-8">
-                  <AvatarImage src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${conversation.lead_id}`} />
-                  <AvatarFallback>LID</AvatarFallback>
+                  <AvatarImage src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${conversation.nome}`} />
+                  <AvatarFallback>
+                    {conversation.nome ? conversation.nome.charAt(0).toUpperCase() : 'L'}
+                  </AvatarFallback>
                 </Avatar>
-                <div>
-                  <p className="text-sm font-medium">Lead ID: {conversation.lead_id}</p>
+                <div className="text-left">
+                  <p className="text-sm font-medium">{conversation.nome}</p>
                   <p className="text-xs text-gray-500">
-                    {new Date(conversation.created_at).toLocaleDateString()}
+                    {conversation.telefone}
                   </p>
+                  {conversation.origem_lead && (
+                    <Badge variant="outline" className="text-xs mt-1">
+                      {conversation.origem_lead}
+                    </Badge>
+                  )}
                 </div>
               </button>
             ))}
@@ -99,8 +136,8 @@ export default function ChatPage() {
       {/* Chat Window */}
       {selectedConversation && (
         <ChatWindow
-          leadId={selectedConversation.lead_id}
-          targetClinicaId={selectedConversation.clinica_id}
+          leadId={selectedConversation.id}
+          clinicaId={selectedConversation.clinica_id}
         />
       )}
       

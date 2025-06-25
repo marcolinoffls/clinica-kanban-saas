@@ -92,28 +92,28 @@ const ClientsPage = () => {
           if (typeof newFilters === 'function') {
             // Se for função, aplicar ao estado atual
             setFilters(prevFilters => {
-              const updatedFilters = newFilters({
+              const currentState = {
                 tag: prevFilters.tagId || '',
                 origem: prevFilters.origemLead || '',
-                servico: prevFilters.servicoInteresse || ''
-              });
+                servico: prevFilters.servicoInteresse || '',
+                hasActiveFilters: Boolean(prevFilters.tagId || prevFilters.origemLead || prevFilters.servicoInteresse)
+              };
+              const updatedFilters = newFilters(currentState);
               
               return {
                 tagId: updatedFilters.tag || null,
                 origemLead: updatedFilters.origem || null,
                 servicoInteresse: updatedFilters.servico || null,
                 etapaId: null,
-                hasActiveFilters: Boolean(updatedFilters.tag || updatedFilters.origem || updatedFilters.servico)
               };
             });
-          } else if (typeof newFilters === 'object' && newFilters !== null && 'tag' in newFilters) {
+          } else {
             // Se for objeto direto
             setFilters({
               tagId: newFilters.tag || null,
               origemLead: newFilters.origem || null,
               servicoInteresse: newFilters.servico || null,
               etapaId: null,
-              hasActiveFilters: Boolean(newFilters.tag || newFilters.origem || newFilters.servico)
             });
           }
         }}
