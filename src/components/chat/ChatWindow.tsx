@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { format, isToday, isYesterday, isSameWeek, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Loader2, FileText, Headphones, Image as ImageIcon, Shield } from 'lucide-react';
+import { Loader2, FileText, Headphones, Shield, MessageSquare } from 'lucide-react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAdminChatMessages } from '@/hooks/useAdminChatMessages';
 import { useAdminCheck } from '@/hooks/useAdminCheck';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 
 /**
@@ -129,7 +128,6 @@ export const ChatWindow = ({ leadId, adminMode, targetClinicaId }: ChatWindowPro
     try {
       const mensagens = await normalChatData.buscarMensagensLead(leadId);
       setLocalMessages(mensagens || []);
-      console.log(`📥 [ChatWindow] Mensagens carregadas:`, mensagens?.length || 0);
     } catch (error) {
       console.error('❌ [ChatWindow] Erro ao carregar mensagens:', error);
       setLocalMessages([]);
@@ -176,7 +174,6 @@ export const ChatWindow = ({ leadId, adminMode, targetClinicaId }: ChatWindowPro
         // Define a posição de scroll diretamente para o final
         container.scrollTop = container.scrollHeight;
         setHasInitialScrolled(true);
-        console.log('📜 [ChatWindow] Scroll inicial executado');
       }
     }
   }, [isLoading, messages.length, hasInitialScrolled]);
@@ -342,30 +339,8 @@ export const ChatWindow = ({ leadId, adminMode, targetClinicaId }: ChatWindowPro
       {/* 📋 Área de Mensagens - SCROLL LIVRE E CONTROLADO */}
       <div 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
-        style={{
-          scrollbarWidth: 'thin', // Firefox
-          scrollbarColor: '#cbd5e1 #f1f5f9' // Firefox
-        }}
+        className="flex-1 overflow-y-scroll p-4 space-y-4"
       >
-        {/* Estilos personalizados para a barra de rolagem no WebKit (Chrome, Safari) */}
-        <style jsx>{`
-          .flex-1::-webkit-scrollbar {
-            width: 8px;
-          }
-          .flex-1::-webkit-scrollbar-track {
-            background: #f1f5f9;
-            border-radius: 4px;
-          }
-          .flex-1::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-          }
-          .flex-1::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-          }
-        `}</style>
-
         {messagesWithSeparators.length === 0 ? (
           // 📝 Estado Vazio
           <div className="text-center text-gray-500 py-12">
