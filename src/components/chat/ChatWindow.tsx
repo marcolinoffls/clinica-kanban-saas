@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { format, isToday, isYesterday, isSameWeek, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Loader2, FileText, Headphones, Shield, MessageSquare } from 'lucide-react';
@@ -9,13 +9,6 @@ import { Badge } from '@/components/ui/badge';
 
 /**
  * 💬 Componente de Janela de Chat
- * 
- * 📋 FUNCIONALIDADES:
- * - Exibe histórico de mensagens entre usuário e lead
- * - Suporta diferentes tipos de mídia (texto, imagem, áudio)
- * - Adapta-se automaticamente para modo admin
- * - Gerencia scroll inteligente para novas mensagens
- * - Exibe separadores de data para organizar conversas
  * 
  * 🔄 FLUXO DE SCROLL CORRIGIDO:
  * - Carregamento direto no final (sem animação visível) usando useLayoutEffect
@@ -30,7 +23,7 @@ interface ChatWindowProps {
   targetClinicaId?: string;
 }
 
-export const ChatWindow = ({ leadId, adminMode, targetClinicaId }: ChatWindowProps) => {
+export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   
@@ -119,46 +112,40 @@ export const ChatWindow = ({ leadId, adminMode, targetClinicaId }: ChatWindowPro
   };
 
   /**
-   * 📥 Buscar Mensagens para Usuários Normais
-   */
-  const fetchNormalMessages = useCallback(async () => {
-    if (!leadId || shouldUseAdminMode) return;
-    
-    setIsLoadingMessages(true);
-    try {
-      const mensagens = await normalChatData.buscarMensagensLead(leadId);
-      setLocalMessages(mensagens || []);
-    } catch (error) {
-      console.error('❌ [ChatWindow] Erro ao carregar mensagens:', error);
-      setLocalMessages([]);
-    } finally {
-      setIsLoadingMessages(false);
-    }
-  }, [leadId, shouldUseAdminMode, normalChatData.buscarMensagensLead]);
-
-  /**
-   * 🔄 useEffect: Carregar Mensagens e Resetar Estado quando Lead Muda
+   * 📥 Buscar Mensagens para Usuários Normais - VERSÃO SIMPLIFICADA
    */
   useEffect(() => {
-    if (leadId) {
-      setHasInitialScrolled(false); // Reset flag quando lead muda
-      if (!shouldUseAdminMode) {
-        fetchNormalMessages();
-      }
-    } else {
+    if (!leadId || shouldUseAdminMode) {
       setLocalMessages([]);
       setHasInitialScrolled(false);
+      return;
     }
-  }, [leadId, shouldUseAdminMode, fetchNormalMessages]);
+    
+    const fetchMessages = async () => {
+      setIsLoadingMessages(true);
+      setHasInitialScrolled(false);
+      try {
+        const mensagens = await normalChatData.buscarMensagensLead(leadId);
+        setLocalMessages(mensagens || []);
+      } catch (error) {
+        console.error('❌ [ChatWindow] Erro ao carregar mensagens:', error);
+        setLocalMessages([]);
+      } finally {
+        setIsLoadingMessages(false);
+      }
+    };
+
+    fetchMessages();
+  }, [leadId, shouldUseAdminMode]); // Dependências mínimas
 
   /**
-   * ✅ useEffect: Marcar Mensagens como Lidas
+   * ✅ useEffect: Marcar Mensagens como Lidas - VERSÃO SIMPLIFICADA
    */
   useEffect(() => {
-    if (leadId && !shouldUseAdminMode) {
+    if (leadId && !shouldUseAdminMode && messages.length > 0) {
       normalChatData.marcarMensagensComoLidas(leadId);
     }
-  }, [leadId, messages.length, shouldUseAdminMode, normalChatData.marcarMensagensComoLidas]);
+  }, [leadId, shouldUseAdminMode, messages.length]);
 
   /**
    * ✅ CORREÇÃO 1: SCROLL INICIAL INVISÍVEL
@@ -339,7 +326,11 @@ export const ChatWindow = ({ leadId, adminMode, targetClinicaId }: ChatWindowPro
       {/* 📋 Área de Mensagens - SCROLL LIVRE E CONTROLADO */}
       <div 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-scroll p-4 space-y-4"
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#cbd5e1 #f1f5f9'
+        }}
       >
         {messagesWithSeparators.length === 0 ? (
           // 📝 Estado Vazio
