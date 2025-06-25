@@ -137,7 +137,6 @@ export default function ChatPage() {
       {selectedConversation && (
         <ChatWindow
           leadId={selectedConversation.id}
-          clinicaId={selectedConversation.clinica_id}
         />
       )}
       

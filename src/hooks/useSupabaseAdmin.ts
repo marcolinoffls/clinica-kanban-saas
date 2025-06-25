@@ -1,3 +1,4 @@
+
 /**
  * =================================================================
  * HOOK: useSupabaseAdmin
@@ -29,6 +30,8 @@ export const useSupabaseAdmin = () => {
   // Estados para controle de admin
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminCheckLoading, setAdminCheckLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [clinicas, setClinicas] = useState<any[]>([]);
   const { toast } = useToast();
 
   // ===============================
@@ -63,6 +66,11 @@ export const useSupabaseAdmin = () => {
         setIsAdmin(isAdminUser);
         console.log(`✅ [useSupabaseAdmin] Status admin: ${isAdminUser}`);
         
+        // Se é admin, carregar as clínicas automaticamente
+        if (isAdminUser) {
+          await carregarClinicas();
+        }
+        
       } catch (error) {
         console.error('❌ [useSupabaseAdmin] Erro na verificação:', error);
         setIsAdmin(false);
@@ -73,6 +81,172 @@ export const useSupabaseAdmin = () => {
 
     verificarPermissaoAdmin();
   }, []);
+
+  // ===============================
+  // OBTER USER ID ATUAL
+  // ===============================
+  const obterUserIdAtual = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      return user?.id || null;
+    } catch (error) {
+      console.error('❌ [useSupabaseAdmin] Erro ao obter user ID:', error);
+      return null;
+    }
+  };
+
+  // ===============================
+  // CONFIGURAR USUÁRIO COMO ADMIN
+  // ===============================
+  const configurarComoAdmin = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ profile_type: 'admin' })
+        .eq('user_id', user.id);
+
+      if (error) {
+        throw new Error(error.message || 'Erro ao configurar como administrador');
+      }
+
+      console.log('✅ [useSupabaseAdmin] Usuário configurado como administrador');
+    } catch (error) {
+      console.error('❌ [useSupabaseAdmin] Erro ao configurar admin:', error);
+      throw error;
+    }
+  };
+
+  // ===============================
+  // VERIFICAR PERMISSÃO ADMIN
+  // ===============================
+  const verificarPermissaoAdmin = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+      
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('profile_type')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) return false;
+      
+      return data?.profile_type === 'admin';
+    } catch (error) {
+      console.error('❌ [useSupabaseAdmin] Erro na verificação de permissão:', error);
+      return false;
+    }
+  };
+
+  // ===============================
+  // CARREGAR CLÍNICAS
+  // ===============================
+  const carregarClinicas = async () => {
+    try {
+      setLoading(true);
+      console.log('🏥 [useSupabaseAdmin] Carregando clínicas...');
+
+      const { data, error } = await supabase
+        .from('clinicas')
+        .select('*')
+        .order('nome', { ascending: true });
+
+      if (error) {
+        console.error('❌ [useSupabaseAdmin] Erro ao carregar clínicas:', error);
+        throw new Error(error.message || 'Erro ao carregar clínicas');
+      }
+
+      console.log('✅ [useSupabaseAdmin] Clínicas carregadas:', data.length);
+      setClinicas(data);
+      return data;
+    } catch (error) {
+      console.error('❌ [useSupabaseAdmin] Erro no carregamento:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ===============================
+  // BUSCAR KPIs GLOBAIS
+  // ===============================
+  const buscarKPIsGlobais = async () => {
+    try {
+      console.log('📊 [useSupabaseAdmin] Buscando KPIs globais...');
+
+      // Total de clínicas ativas
+      const { count: totalClinicas } = await supabase
+        .from('clinicas')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'ativo');
+
+      // Total de leads
+      const { count: totalLeads } = await supabase
+        .from('leads')
+        .select('*', { count: 'exact', head: true });
+
+      // Leads convertidos (últimos 30 dias)
+      const dataLimite = new Date();
+      dataLimite.setDate(dataLimite.getDate() - 30);
+      
+      const { count: leadsConvertidos } = await supabase
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('convertido', true)
+        .gte('created_at', dataLimite.toISOString());
+
+      // Total de usuários ativos
+      const { count: totalUsuarios } = await supabase
+        .from('user_profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('status_usuario', 'ativo');
+
+      const kpis = {
+        totalClinicas: totalClinicas || 0,
+        totalLeads: totalLeads || 0,
+        leadsConvertidos: leadsConvertidos || 0,
+        taxaConversao: totalLeads ? ((leadsConvertidos || 0) / totalLeads * 100) : 0,
+        totalUsuarios: totalUsuarios || 0
+      };
+
+      console.log('✅ [useSupabaseAdmin] KPIs carregados:', kpis);
+      return kpis;
+    } catch (error) {
+      console.error('❌ [useSupabaseAdmin] Erro ao buscar KPIs:', error);
+      throw error;
+    }
+  };
+
+  // ===============================
+  // BUSCAR ESTATÍSTICAS DAS CLÍNICAS
+  // ===============================
+  const buscarEstatisticasClinicas = async () => {
+    try {
+      console.log('📈 [useSupabaseAdmin] Buscando estatísticas das clínicas...');
+      
+      const { data, error } = await supabase
+        .from('clinicas_stats')
+        .select('*')
+        .order('nome', { ascending: true });
+
+      if (error) {
+        console.error('❌ [useSupabaseAdmin] Erro ao buscar estatísticas:', error);
+        throw new Error(error.message || 'Erro ao buscar estatísticas das clínicas');
+      }
+
+      console.log('✅ [useSupabaseAdmin] Estatísticas carregadas:', data.length);
+      return data;
+    } catch (error) {
+      console.error('❌ [useSupabaseAdmin] Erro nas estatísticas:', error);
+      throw error;
+    }
+  };
 
   // ===============================
   // BUSCAR TODAS AS CLÍNICAS
@@ -399,11 +573,20 @@ export const useSupabaseAdmin = () => {
     // Estados de verificação admin
     isAdmin,
     adminCheckLoading,
+    loading,
+    clinicas,
     
-    // Funções de busca
+    // Funções de controle de usuário
+    obterUserIdAtual,
+    configurarComoAdmin,
+    verificarPermissaoAdmin,
+    
+    // Funções de busca de dados
     buscarTodasClinicas,
     buscarClinicaPorId,
     buscarEstatisticasDeLeadsDaClinica,
+    buscarKPIsGlobais,
+    buscarEstatisticasClinicas,
 
     // Funções de atualização de configuração
     atualizarConfiguracaoEvolution,
