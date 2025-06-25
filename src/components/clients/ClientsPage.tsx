@@ -1,4 +1,3 @@
-
 /**
  * =================================================================
  * ARQUIVO: ClientsPage.tsx
@@ -85,35 +84,17 @@ const ClientsPage = () => {
           tag: filters.tagId || '',
           origem: filters.origemLead || '',
           servico: filters.servicoInteresse || '',
-          hasActiveFilters: hasActiveFilters
+          hasActiveFilters: hasActiveFilters // ✅ CORREÇÃO: Passando boolean diretamente
         }}
         setFilters={(newFilters) => {
           // ✅ CORREÇÃO: Tratamento correto dos tipos
-          if (typeof newFilters === 'function') {
-            // Se for função, aplicar ao estado atual
-            setFilters(prevFilters => {
-              const currentState = {
-                tag: prevFilters.tagId || '',
-                origem: prevFilters.origemLead || '',
-                servico: prevFilters.servicoInteresse || '',
-                hasActiveFilters: Boolean(prevFilters.tagId || prevFilters.origemLead || prevFilters.servicoInteresse)
-              };
-              const updatedFilters = newFilters(currentState);
-              
-              return {
-                tagId: updatedFilters.tag || null,
-                origemLead: updatedFilters.origem || null,
-                servicoInteresse: updatedFilters.servico || null,
-                etapaId: null,
-              };
-            });
-          } else {
-            // Se for objeto direto
+          if (typeof newFilters === 'object' && newFilters !== null && 'tag' in newFilters) {
             setFilters({
               tagId: newFilters.tag || null,
               origemLead: newFilters.origem || null,
               servicoInteresse: newFilters.servico || null,
               etapaId: null,
+              hasActiveFilters: Boolean(newFilters.tag || newFilters.origem || newFilters.servico)
             });
           }
         }}
