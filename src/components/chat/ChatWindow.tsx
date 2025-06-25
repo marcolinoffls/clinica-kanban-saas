@@ -1,5 +1,4 @@
-
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { format, isToday, isYesterday, isSameWeek, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Loader2, FileText, Headphones, Image as ImageIcon, Shield } from 'lucide-react';
@@ -20,23 +19,26 @@ import { Badge } from '@/components/ui/badge';
  * - Exibe separadores de data para organizar conversas
  * 
  * 🔄 FLUXO DE SCROLL CORRIGIDO:
- * - Carregamento direto no final (sem animação visível)
- * - Liberdade total para scroll up/down
- * - Scroll suave apenas para novas mensagens
+ * - Carregamento direto no final (sem animação visível) usando useLayoutEffect
+ * - Barra de rolagem sempre visível quando há conteúdo suficiente
+ * - Liberdade total para scroll up/down sem interrupções
+ * - Scroll suave apenas para novas mensagens se usuário estiver no final
  */
 
 interface ChatWindowProps {
   leadId: string | null;
+  adminMode?: boolean;
+  targetClinicaId?: string;
 }
 
-export const ChatWindow = ({ leadId }: ChatWindowProps) => {
+export const ChatWindow = ({ leadId, adminMode, targetClinicaId }: ChatWindowProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   
   // 📊 ESTADO LOCAL PARA MENSAGENS (usuários normais)
   const [localMessages, setLocalMessages] = useState<any[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
+  const [hasInitialScrolled, setHasInitialScrolled] = useState(false);
 
   // 🔗 HOOKS PARA DADOS
   const normalChatData = useSupabaseData();
@@ -92,7 +94,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     const messagesWithSeparators: any[] = [];
     let lastDate: string | null = null;
 
-    messages.forEach((message, index) => {
+    messages.forEach((message) => {
       const messageDate = new Date(message.created_at);
       const currentDateString = format(messageDate, 'yyyy-MM-dd');
 
@@ -127,8 +129,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     try {
       const mensagens = await normalChatData.buscarMensagensLead(leadId);
       setLocalMessages(mensagens || []);
-      
-      console.log(`📥 [ChatWindow] Mensagens carregadas para usuário normal:`, mensagens?.length || 0);
+      console.log(`📥 [ChatWindow] Mensagens carregadas:`, mensagens?.length || 0);
     } catch (error) {
       console.error('❌ [ChatWindow] Erro ao carregar mensagens:', error);
       setLocalMessages([]);
@@ -138,17 +139,19 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   }, [leadId, shouldUseAdminMode, normalChatData.buscarMensagensLead]);
 
   /**
-   * 🔄 useEffect: Carregar Mensagens Quando Lead Muda
+   * 🔄 useEffect: Carregar Mensagens e Resetar Estado quando Lead Muda
    */
   useEffect(() => {
-    if (!shouldUseAdminMode && leadId) {
-      setHasScrolledToBottom(false); // Reset flag quando lead muda
-      fetchNormalMessages();
-    } else if (!leadId) {
+    if (leadId) {
+      setHasInitialScrolled(false); // Reset flag quando lead muda
+      if (!shouldUseAdminMode) {
+        fetchNormalMessages();
+      }
+    } else {
       setLocalMessages([]);
-      setHasScrolledToBottom(false);
+      setHasInitialScrolled(false);
     }
-  }, [fetchNormalMessages, leadId]);
+  }, [leadId, shouldUseAdminMode, fetchNormalMessages]);
 
   /**
    * ✅ useEffect: Marcar Mensagens como Lidas
@@ -157,76 +160,61 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     if (leadId && !shouldUseAdminMode) {
       normalChatData.marcarMensagensComoLidas(leadId);
     }
-  }, [leadId, shouldUseAdminMode, normalChatData.marcarMensagensComoLidas]);
+  }, [leadId, messages.length, shouldUseAdminMode, normalChatData.marcarMensagensComoLidas]);
 
   /**
-   * 📜 CORREÇÃO: Scroll Inteligente e Controlado
+   * ✅ CORREÇÃO 1: SCROLL INICIAL INVISÍVEL
    * 
-   * - Primeira carga: scroll instantâneo e invisível ao usuário
-   * - Novas mensagens: scroll suave
-   * - Liberdade total para o usuário navegar
+   * useLayoutEffect é executado ANTES da renderização ser pintada na tela.
+   * Isso garante que o usuário não veja a animação de rolagem e a conversa
+   * já apareça no final desde o início.
    */
-  const scrollToBottom = useCallback((instant = false) => {
-    if (messagesEndRef.current && messagesContainerRef.current) {
-      if (instant) {
-        // SCROLL INSTANTÂNEO: Define diretamente a posição sem animação
-        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-      } else {
-        // SCROLL SUAVE: Para novas mensagens
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  useLayoutEffect(() => {
+    if (!isLoading && messages.length > 0 && !hasInitialScrolled) {
+      const container = messagesContainerRef.current;
+      if (container) {
+        // Define a posição de scroll diretamente para o final
+        container.scrollTop = container.scrollHeight;
+        setHasInitialScrolled(true);
+        console.log('📜 [ChatWindow] Scroll inicial executado');
       }
     }
-  }, []);
+  }, [isLoading, messages.length, hasInitialScrolled]);
 
   /**
-   * 🔄 useEffect: Controle de Scroll Inteligente
+   * ✅ CORREÇÃO 2: SCROLL PARA NOVAS MENSAGENS (NÃO INTERROMPE O USUÁRIO)
+   * 
+   * Este useEffect é executado para novas mensagens APÓS o scroll inicial.
+   * Ele só rola para baixo se o usuário já estiver perto do final.
    */
   useEffect(() => {
-    if (messages.length > 0 && !isLoading) {
-      if (!hasScrolledToBottom) {
-        // PRIMEIRA CARGA: Scroll instantâneo após renderização
-        setTimeout(() => {
-          scrollToBottom(true); // Scroll instantâneo
-          setHasScrolledToBottom(true);
-        }, 50); // Delay mínimo para garantir renderização
-      } else {
-        // NOVAS MENSAGENS: Verificar se usuário está próximo ao final antes de fazer scroll suave
-        if (messagesContainerRef.current) {
-          const container = messagesContainerRef.current;
-          const isNearBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 100;
-          
-          if (isNearBottom) {
-            setTimeout(() => scrollToBottom(false), 100); // Scroll suave para novas mensagens
-          }
+    // Só executa para novas mensagens (após o scroll inicial)
+    if (!isLoading && messages.length > 0 && hasInitialScrolled) {
+      const container = messagesContainerRef.current;
+      if (container) {
+        // Verifica se o usuário está perto do final da conversa
+        const isNearBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
+        
+        if (isNearBottom) {
+          // Scroll suave apenas se o usuário já estiver no final
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'end' 
+            });
+          }, 100);
         }
       }
     }
-  }, [messages.length, isLoading, hasScrolledToBottom, scrollToBottom]);
-
-  /**
-   * 🔄 useEffect: Reset quando Lead muda
-   */
-  useEffect(() => {
-    if (leadId) {
-      setHasScrolledToBottom(false);
-    }
-  }, [leadId]);
+  }, [messages.length, hasInitialScrolled, isLoading]);
 
   /**
    * 🕐 Formatar Horário das Mensagens
    */
   const formatMessageTime = (dateString: string) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-
-    if (diffInHours < 24) {
-      return format(date, 'HH:mm', { locale: ptBR });
-    } else if (diffInHours < 24 * 7) {
-      return format(date, 'EEE HH:mm', { locale: ptBR });
-    } else {
-      return format(date, 'dd/MM HH:mm', { locale: ptBR });
-    }
+    return format(date, 'HH:mm', { locale: ptBR });
   };
 
   /**
@@ -295,7 +283,11 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
         );
 
       default:
-        return <p className="text-sm">{conteudo}</p>;
+        return (
+          <p className="text-sm whitespace-pre-wrap break-words">
+            {conteudo}
+          </p>
+        );
     }
   };
 
@@ -304,7 +296,9 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
         <div className="text-center text-gray-500">
-          <p>Selecione uma conversa para visualizar as mensagens</p>
+          <MessageSquare size={48} className="mx-auto mb-4 text-gray-300" />
+          <p className="text-lg font-medium">Selecione uma conversa</p>
+          <p className="text-sm">Escolha um lead para visualizar as mensagens</p>
         </div>
       </div>
     );
@@ -315,7 +309,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-500">Carregando mensagens...</p>
           {shouldUseAdminMode && (
             <Badge variant="outline" className="mt-2">
@@ -337,7 +331,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
       
       {/* 🛡️ Header Modo Admin */}
       {shouldUseAdminMode && (
-        <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
+        <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 flex-shrink-0">
           <div className="flex items-center gap-2 text-sm text-blue-700">
             <Shield className="w-4 h-4" />
             <span>Visualizando conversa como administrador</span>
@@ -349,13 +343,35 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
       <div 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto p-4 space-y-4"
-        style={{ scrollBehavior: 'auto' }} // Remover scroll behavior automático
+        style={{
+          scrollbarWidth: 'thin', // Firefox
+          scrollbarColor: '#cbd5e1 #f1f5f9' // Firefox
+        }}
       >
+        {/* Estilos personalizados para a barra de rolagem no WebKit (Chrome, Safari) */}
+        <style jsx>{`
+          .flex-1::-webkit-scrollbar {
+            width: 8px;
+          }
+          .flex-1::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+          }
+          .flex-1::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+          }
+          .flex-1::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+          }
+        `}</style>
+
         {messagesWithSeparators.length === 0 ? (
           // 📝 Estado Vazio
-          <div className="text-center text-gray-500 py-8">
-            <p>Nenhuma mensagem ainda.</p>
-            <p className="text-sm mt-1">Comece a conversa enviando uma mensagem!</p>
+          <div className="text-center text-gray-500 py-12">
+            <MessageSquare size={64} className="mx-auto mb-4 text-gray-300" />
+            <p className="text-lg font-medium mb-2">Nenhuma mensagem ainda</p>
+            <p className="text-sm">Comece a conversa enviando uma mensagem!</p>
           </div>
         ) : (
           // 💬 Lista de Mensagens com Separadores
@@ -378,7 +394,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
                 className={`flex ${item.enviado_por === 'usuario' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[70%] rounded-lg px-4 py-2 ${
+                  className={`max-w-[75%] rounded-lg px-4 py-3 shadow-sm ${
                     item.enviado_por === 'usuario'
                       ? 'bg-blue-600 text-white'
                       : 'bg-white text-gray-900 border border-gray-200'
@@ -389,13 +405,16 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
                   
                   {/* 🕐 Timestamp */}
                   <div
-                    className={`text-xs mt-1 ${
-                      item.enviado_por === 'usuario' ? 'text-blue-100' : 'text-gray-500'
+                    className={`text-xs mt-2 flex items-center gap-1 ${
+                      item.enviado_por === 'usuario' ? 'text-blue-100 justify-end' : 'text-gray-500'
                     }`}
                   >
-                    {formatMessageTime(item.created_at)}
-                    {!item.lida && item.enviado_por === 'usuario' && (
-                      <span className="ml-2">✓</span>
+                    <span>{formatMessageTime(item.created_at)}</span>
+                    {/* Indicador de mensagem lida/não lida */}
+                    {item.enviado_por === 'usuario' && (
+                      <span className="text-xs">
+                        {item.lida ? '✓✓' : '✓'}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -404,7 +423,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
           })
         )}
         
-        {/* 📍 Referência para Scroll - MANTIDA */}
+        {/* 📍 Referência para Scroll */}
         <div ref={messagesEndRef} />
       </div>
     </div>
