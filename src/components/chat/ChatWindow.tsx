@@ -10,11 +10,15 @@ import { Badge } from '@/components/ui/badge';
 /**
  * 💬 Componente de Janela de Chat
  * 
+ * 🔄 CORREÇÃO DE LOOP INFINITO:
+ * - Otimizado o uso de hooks (useEffect, useCallback) para depender de funções
+ *   específicas e valores primitivos, em vez de objetos inteiros. Isso elimina
+ *   o loop de re-renderização que causava o travamento e o excesso de logs.
+ * 
  * 🔄 FLUXO DE SCROLL CORRIGIDO:
  * - Carregamento direto no final (sem animação visível) usando useLayoutEffect.
  * - Liberdade total para o usuário rolar para cima e ler o histórico.
  * - Scroll suave para novas mensagens apenas se o usuário já estiver no final.
- * - Barra de rolagem visível e funcional.
  */
 interface ChatWindowProps {
   leadId: string | null;
@@ -28,19 +32,19 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [hasScrolledInitially, setHasScrolledInitially] = useState(false);
 
-  const normalChatData = useSupabaseData();
+  // ✅ CORREÇÃO: Desestruturar apenas as funções e dados necessários para evitar o loop.
+  const { leads, buscarMensagensLead, marcarMensagensComoLidas } = useSupabaseData();
   const { isAdmin } = useAdminCheck();
   
   const adminChatMessages = useAdminChatMessages(
     isAdmin ? leadId : null,
-    isAdmin ? normalChatData.leads.find(l => l.id === leadId)?.clinica_id : null
+    isAdmin ? leads.find(l => l.id === leadId)?.clinica_id : null
   );
 
   const shouldUseAdminMode = isAdmin && leadId;
   const messages = shouldUseAdminMode ? adminChatMessages.messages || [] : localMessages || [];
   const isLoading = shouldUseAdminMode ? adminChatMessages.loading : isLoadingMessages;
 
-  // Função para gerar o texto do separador de data
   const getDateSeparatorText = (date: Date): string => {
     if (isToday(date)) return 'Hoje';
     if (isYesterday(date)) return 'Ontem';
@@ -51,7 +55,6 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     return format(date, 'dd/MM/yyyy', { locale: ptBR });
   };
 
-  // Função para agrupar mensagens com os separadores de data
   const getMessagesWithDateSeparators = (messages: any[]) => {
     if (!messages || messages.length === 0) return [];
     const messagesWithSeparators: any[] = [];
@@ -72,24 +75,24 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     return messagesWithSeparators;
   };
 
-  // Busca as mensagens para usuários não-admin
+  // ✅ CORREÇÃO: O useCallback agora depende da função `buscarMensagensLead` estável.
   const fetchNormalMessages = useCallback(async () => {
     if (!leadId || shouldUseAdminMode) return;
     setIsLoadingMessages(true);
     try {
-      const mensagens = await normalChatData.buscarMensagensLead(leadId);
+      const mensagens = await buscarMensagensLead(leadId);
       setLocalMessages(mensagens || []);
     } catch (error) {
       console.error('❌ Erro ao carregar mensagens:', error);
     } finally {
       setIsLoadingMessages(false);
     }
-  }, [leadId, shouldUseAdminMode, normalChatData]);
+  }, [leadId, shouldUseAdminMode, buscarMensagensLead]);
 
   // Efeito para buscar mensagens ou limpar o estado quando o leadId muda
   useEffect(() => {
     if (leadId) {
-      setHasScrolledInitially(false); // Resetar a flag de scroll ao mudar de lead
+      setHasScrolledInitially(false);
       if (!shouldUseAdminMode) {
         fetchNormalMessages();
       }
@@ -98,51 +101,42 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     }
   }, [leadId, shouldUseAdminMode, fetchNormalMessages]);
 
-  // Efeito para marcar mensagens como lidas
+  // ✅ CORREÇÃO: O useEffect agora depende da função `marcarMensagensComoLidas` estável.
   useEffect(() => {
     if (leadId && !shouldUseAdminMode) {
-      normalChatData.marcarMensagensComoLidas(leadId);
+      marcarMensagensComoLidas(leadId);
     }
-  }, [leadId, messages.length, shouldUseAdminMode, normalChatData]);
+  }, [leadId, messages.length, shouldUseAdminMode, marcarMensagensComoLidas]);
 
-  // ✅ CORREÇÃO 1: ROLAGEM INICIAL INVISÍVEL
-  // useLayoutEffect é executado de forma síncrona após todas as mutações do DOM,
-  // mas antes que o navegador pinte a tela. Isso garante que o usuário não veja
-  // a animação de rolagem na primeira carga.
+  // Rolagem inicial invisível para o final da conversa.
   useLayoutEffect(() => {
     if (!isLoading && messages.length > 0 && !hasScrolledInitially) {
       const container = messagesContainerRef.current;
       if (container) {
-        // Define a posição da rolagem diretamente para o final.
         container.scrollTop = container.scrollHeight;
         setHasScrolledInitially(true);
       }
     }
   }, [isLoading, messages.length, hasScrolledInitially]);
 
-  // ✅ CORREÇÃO 2: ROLAGEM PARA NOVAS MENSAGENS (NÃO INTERROMPE O USUÁRIO)
-  // Este useEffect é executado para cada nova mensagem APÓS a carga inicial.
+  // Rolagem suave para novas mensagens, sem interromper o usuário.
   useEffect(() => {
     if (!isLoading && messages.length > 0 && hasScrolledInitially) {
       const container = messagesContainerRef.current;
       if (container) {
-        // Rola suavemente para baixo apenas se o usuário já estiver perto do final.
-        // Isso evita interromper o usuário se ele rolou para cima para ler o histórico.
-        const isNearBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 150; // Margem de 150px
+        const isNearBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 150;
         if (isNearBottom) {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
       }
     }
-  }, [messages.length]); // Depende apenas do número de mensagens para detectar novas mensagens
+  }, [messages.length, hasScrolledInitially]);
 
-  // Formata o horário da mensagem
   const formatMessageTime = (dateString: string) => {
     if (!dateString) return '';
     return format(new Date(dateString), 'HH:mm', { locale: ptBR });
   };
 
-  // Renderiza o conteúdo da mensagem com base no tipo
   const renderMessageContent = (mensagem: any) => {
     const { tipo, conteudo, anexo_url } = mensagem;
     switch (tipo) {
@@ -195,34 +189,4 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
           <Shield className="w-4 h-4" /> Visualizando como administrador
         </div>
       )}
-      {/* A classe `overflow-y-auto` garante que a barra de rolagem apareça quando necessário */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-6 space-y-2">
-        {messagesWithSeparators.length === 0 ? (
-          <div className="text-center text-gray-500 py-10">Nenhuma mensagem nesta conversa.</div>
-        ) : (
-          messagesWithSeparators.map((item) => {
-            if (item.type === 'date-separator') {
-              return (
-                <div key={item.id} className="flex justify-center my-4">
-                  <div className="bg-white border rounded-full px-3 py-1 text-xs text-gray-600">{item.dateText}</div>
-                </div>
-              );
-            }
-            return (
-              <div key={item.id} className={`flex items-end gap-3 ${item.enviado_por === 'usuario' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`p-3 rounded-lg max-w-lg ${item.enviado_por === 'usuario' ? 'bg-blue-600 text-white' : 'bg-white text-gray-800 border'}`}>
-                  {renderMessageContent(item)}
-                  <div className={`text-xs mt-1 text-right ${item.enviado_por === 'usuario' ? 'text-blue-100' : 'text-gray-500'}`}>
-                    {formatMessageTime(item.created_at)}
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-        {/* Elemento de referência para a rolagem suave de novas mensagens */}
-        <div ref={messagesEndRef} />
-      </div>
-    </div>
-  );
-};
+      <div ref={messagesContainerRef} className="flex-
