@@ -22,7 +22,7 @@ import { Lead } from '@/hooks/useLeadsData';
 
 interface UseAIConversationControlProps {
   selectedLead: Lead | null;
-  updateLeadAiConversationStatus: (params: { leadId: string; aiEnabled: boolean }) => Promise<Lead>;
+  updateLeadAiConversationStatus: (params: { leadId: string; aiEnabled: boolean }) => Promise<any>; // Mudança: aceitar qualquer tipo de retorno
 }
 
 export const useAIConversationControl = ({

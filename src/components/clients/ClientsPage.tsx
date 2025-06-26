@@ -1,3 +1,4 @@
+
 /**
  * =================================================================
  * ARQUIVO: ClientsPage.tsx
@@ -107,7 +108,7 @@ const ClientsPage = () => {
         uniqueOrigens={uniqueOrigens}
         uniqueServicos={uniqueServicos}
         onClearFilters={handleClearFilters}
-        hasActiveFilters={Boolean(hasActiveFilters)} // ✅ Garantir que seja boolean
+        hasActiveFilters={Boolean(hasActiveFilters)} // ✅ Corrigido: Garantir que seja boolean
       />
 
       {/* Exibe a tabela de contatos ou um estado de vazio se não houver dados */}
