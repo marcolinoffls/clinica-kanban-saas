@@ -14,12 +14,11 @@ import { useAdminCheck } from '@/hooks/useAdminCheck';
 import { useWebhook } from '@/hooks/useWebhook';
 import { useClinicaData } from '@/hooks/useClinicaData';
 import { useAIConversationControl } from '@/hooks/useAIConversationControl';
-import { useUpdateLeadAiConversationStatus } from '@/hooks/useUpdateLeadAiConversationStatus';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { Lead } from '@/hooks/useLeadsData';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { formatPhoneNumber } from './utils/phoneFormatter'; // Adicionar esta linha
+import { formatPhoneNumber } from './utils/phoneFormatter';
 
 /**
  * Página principal do chat com funcionalidades de mídia
@@ -46,6 +45,43 @@ interface MessageData {
   anexoUrl?: string;
   aiEnabled?: boolean;
 }
+
+// Hook simples para atualizar status de IA do lead
+const useUpdateLeadAiConversationStatus = () => {
+  return {
+    mutateAsync: async ({ leadId, enabled }: { leadId: string; enabled: boolean }) => {
+      const { data, error } = await supabase
+        .from('leads')
+        .update({ ai_conversation_enabled: enabled })
+        .eq('id', leadId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    }
+  };
+};
+
+// Hook simples para criar lead
+const useCreateLead = () => {
+  return {
+    mutate: (leadData: any, options: any) => {
+      supabase
+        .from('leads')
+        .insert([leadData])
+        .select()
+        .single()
+        .then(({ data, error }) => {
+          if (error) {
+            options.onError?.(error);
+          } else {
+            options.onSuccess?.(data);
+          }
+        });
+    }
+  };
+};
 
 export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
   const { clinicaId } = useClinicaData();

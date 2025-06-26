@@ -26,7 +26,7 @@ export interface ContactsFiltersBarProps {
   tag: string;                     // Tag selecionada
   origem: string;                  // Origem selecionada
   servico: string;                 // Serviço selecionado
-  hasActiveFilters: boolean;       // ✅ CORREÇÃO: Adicionado campo que estava faltando
+  hasActiveFilters: boolean;       // Indica se há filtros ativos
 }
 
 // Estado de loading para diferentes operações
@@ -35,16 +35,7 @@ export interface LoadingStates {
   loading: boolean;                // Loading geral da página
 }
 
-// ✅ Interface para estado dos filtros - compatibilidade
-export interface FilterState {
-  tag: string;
-  origem: string; 
-  servico: string;
-  hasActiveFilters: boolean;
-  hasActiveFilters: boolean;
-}
-
-// ✅ Interface para filtros internos do componente
+// Interface para filtros internos do componente
 export interface Filters {
   tag: string;
   origem: string;

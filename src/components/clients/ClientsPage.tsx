@@ -74,7 +74,7 @@ const ClientsPage = () => {
           tag: filters.tagId || '',
           origem: filters.origemLead || '',
           servico: filters.servicoInteresse || '',
-          hasActiveFilters: hasActiveFilters // Adicionar esta propriedade
+          hasActiveFilters: hasActiveFilters
         }}
         setFilters={(newFilters) => {
           // Tratamento correto dos tipos
@@ -84,7 +84,7 @@ const ClientsPage = () => {
               tag: filters.tagId || '',
               origem: filters.origemLead || '',
               servico: filters.servicoInteresse || '',
-              hasActiveFilters: hasActiveFilters // Adicionar esta propriedade
+              hasActiveFilters: hasActiveFilters
             };
             const updatedFilters = newFilters(currentFilters);
             setFilters({
