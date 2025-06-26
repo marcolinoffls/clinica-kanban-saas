@@ -33,7 +33,7 @@ const PLANS = [
   {
     id: 'basic',
     name: 'Básico',
-    price: 'R$ 49',
+    price: 'R$ 97',
     period: '/mês',
     description: 'Ideal para clínicas pequenas',
     features: [
@@ -42,13 +42,13 @@ const PLANS = [
       'Relatórios simples',
       'Suporte por email'
     ],
-    priceId: 'price_1ReLiFQAOfvkgjNZQkB2StTz', // ID real do Stripe
+    priceId: 'price_1RePhVGPYAaRS7MgpBF0h6mT', // ID real do Stripe
     popular: false,
   },
   {
     id: 'premium',
     name: 'Premium',
-    price: 'R$ 99',
+    price: 'R$ 147',
     period: '/mês',
     description: 'Para clínicas em crescimento',
     features: [
@@ -58,7 +58,7 @@ const PLANS = [
       'Integrações avançadas',
       'Suporte prioritário'
     ],
-    priceId: 'price_1RcAXAQAOfvkgjNZRJA1kxug', // ID real do Stripe
+    priceId: 'price_1ReJriGPYAaRS7MgZVpjvFbT', // ID real do Stripe
     popular: true,
   },
 ];
