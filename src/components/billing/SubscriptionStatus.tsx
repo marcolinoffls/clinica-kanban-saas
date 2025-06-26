@@ -31,10 +31,11 @@ interface SubscriptionData {
   id: string;
   status: string;
   plano: string;
-  valor_mensal: number;
-  current_period_end: string;
+  valor_mensal: number | null;
+  current_period_end: string | null;
   trial_end: string | null;
   canceled_at: string | null;
+  stripe_customer_id: string | null;
 }
 
 interface ClinicaData {
@@ -86,7 +87,7 @@ export const SubscriptionStatus = () => {
 
       if (subscriptionError) {
         console.error('❌ [SubscriptionStatus] Erro ao buscar assinatura:', subscriptionError);
-      } else {
+      } else if (subscriptionData) {
         setSubscription(subscriptionData);
       }
 
