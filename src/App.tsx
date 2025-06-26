@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +14,7 @@ import ContatosPage from "./pages/ContatosPage";
 import ChatPageWrapper from "./pages/ChatPageWrapper";
 import AgendaPage from "./pages/AgendaPage";
 import ConfiguracoesPage from "./pages/ConfiguracoesPage";
+import BillingPage from "./pages/BillingPage";
 import AdminPage from "./pages/AdminPage";
 import AdminClinicDetailsPage from "./pages/AdminClinicDetailsPage";
 import SignInPage from "./pages/SignInPage";
@@ -63,6 +65,7 @@ const App = () => (
               <Route path="agenda" element={<AgendaPage />} />
               <Route path="ia" element={<ConfiguracoesIAPage />} />
               <Route path="configuracoes" element={<ConfiguracoesPage />} />
+              <Route path="billing" element={<BillingPage />} />
             </Route>
             
             {/* Rota do admin (sem layout principal pois tem seu próprio layout) */}

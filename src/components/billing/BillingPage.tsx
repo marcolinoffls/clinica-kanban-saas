@@ -9,7 +9,7 @@
  * 
  * FUNCIONALIDADES:
  * - Exibição do status atual da assinatura
- * - Cards com opções de planos (Basic, Premium, Enterprise)
+ * - Cards com opções de planos (Basic, Premium)
  * - Botões de ação para checkout e portal do cliente
  * - Indicador visual do plano atual
  * - Estados de loading para operações
@@ -28,7 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { CheckCircle, CreditCard, Settings, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Definição dos planos disponíveis
+// Definição dos planos disponíveis com IDs reais do Stripe
 const PLANS = [
   {
     id: 'basic',
@@ -42,7 +42,7 @@ const PLANS = [
       'Relatórios simples',
       'Suporte por email'
     ],
-    priceId: 'price_basic_monthly', // Substitua pelo ID real do Stripe
+    priceId: 'price_1ReLiFQAOfvkgjNZQkB2StTz', // ID real do Stripe
     popular: false,
   },
   {
@@ -58,28 +58,13 @@ const PLANS = [
       'Integrações avançadas',
       'Suporte prioritário'
     ],
-    priceId: 'price_premium_monthly', // Substitua pelo ID real do Stripe
+    priceId: 'price_1RcAXAQAOfvkgjNZRJA1kxug', // ID real do Stripe
     popular: true,
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    price: 'R$ 199',
-    period: '/mês',
-    description: 'Para grandes clínicas',
-    features: [
-      'Tudo do Premium',
-      'Suporte dedicado',
-      'Configurações personalizadas',
-      'API completa',
-      'Onboarding personalizado'
-    ],
-    priceId: 'price_enterprise_monthly', // Substitua pelo ID real do Stripe
-    popular: false,
   },
 ];
 
 const BillingPage = () => {
+  // Hook para gerenciar todas as operações de assinatura
   const {
     subscriptionData,
     isLoading,
@@ -108,24 +93,29 @@ const BillingPage = () => {
     }
   }, []);
 
+  // Função para selecionar um plano e iniciar checkout
   const handleSelectPlan = async (plan: typeof PLANS[0]) => {
     await createCheckout(plan.priceId);
   };
 
+  // Função para abrir o portal do cliente
   const handleManageSubscription = async () => {
     await openCustomerPortal();
   };
 
+  // Função para obter o plano atual do usuário
   const getCurrentPlan = () => {
     if (!subscriptionData?.subscription_tier) return null;
     return PLANS.find(plan => plan.id === subscriptionData.subscription_tier);
   };
 
+  // Função para formatar datas
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
+  // Estado de loading inicial
   if (isLoading && !subscriptionData) {
     return (
       <div className="container mx-auto py-8">
@@ -141,7 +131,7 @@ const BillingPage = () => {
 
   return (
     <div className="container mx-auto py-8 space-y-8">
-      {/* Cabeçalho */}
+      {/* Cabeçalho da página */}
       <div className="text-center space-y-4">
         <h1 className="text-3xl font-bold">Planos e Cobrança</h1>
         <p className="text-gray-600 max-w-2xl mx-auto">
@@ -190,7 +180,7 @@ const BillingPage = () => {
       )}
 
       {/* Cards de Planos */}
-      <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+      <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
         {PLANS.map((plan) => {
           const currentPlan = getCurrentPlan();
           const isCurrentPlan = currentPlan?.id === plan.id;
