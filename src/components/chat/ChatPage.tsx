@@ -14,7 +14,6 @@ import { useAdminCheck } from '@/hooks/useAdminCheck';
 import { useWebhook } from '@/hooks/useWebhook';
 import { useClinicaData } from '@/hooks/useClinicaData';
 import { useAIConversationControl } from '@/hooks/useAIConversationControl';
-import { useCreateLead } from '@/hooks/useCreateLead';
 import { useUpdateLeadAiConversationStatus } from '@/hooks/useUpdateLeadAiConversationStatus';
 import { supabase } from '@/lib/supabase';
 import { Lead } from '@/hooks/useLeadsData';
