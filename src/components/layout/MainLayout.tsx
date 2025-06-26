@@ -1,8 +1,7 @@
-
 import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Tags } from 'lucide-react';
-import { Sidebar } from '@/components/layout/Sidebar';
+import Sidebar from '@/components/layout/Sidebar'; // ✅ Corrigido: import default ao invés de named import
 import { TagManager } from '@/components/tags/TagManager';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -46,7 +45,7 @@ const MainLayout = () => {
           /* Para outras páginas, mantemos o layout com padding */
           <main className="flex-1 p-4 md:p-6 min-w-0 overflow-auto relative">
             <Outlet />
-            
+
             {/* Botão flutuante para abrir categorias - apenas em páginas que fazem sentido */}
             {shouldShowCategoriesButton && (
               <Sheet open={isTagManagerOpen} onOpenChange={setIsTagManagerOpen}>
