@@ -74,7 +74,7 @@ const ClientsPage = () => {
           tag: filters.tagId || '',
           origem: filters.origemLead || '',
           servico: filters.servicoInteresse || '',
-          hasActiveFilters: Boolean(hasActiveFilters)
+          hasActiveFilters: hasActiveFilters
         }}
         setFilters={(newFilters) => {
           // Tratamento correto dos tipos
@@ -84,7 +84,7 @@ const ClientsPage = () => {
               tag: filters.tagId || '',
               origem: filters.origemLead || '',
               servico: filters.servicoInteresse || '',
-              hasActiveFilters: Boolean(hasActiveFilters)
+              hasActiveFilters: hasActiveFilters
             };
             const updatedFilters = newFilters(currentFilters);
             setFilters({
@@ -108,7 +108,7 @@ const ClientsPage = () => {
         uniqueOrigens={uniqueOrigens}
         uniqueServicos={uniqueServicos}
         onClearFilters={handleClearFilters}
-        hasActiveFilters={Boolean(hasActiveFilters)}
+        hasActiveFilters={hasActiveFilters}
       />
 
       {/* Exibe a tabela de contatos ou um estado de vazio se não houver dados */}
@@ -127,7 +127,7 @@ const ClientsPage = () => {
       ) : (
         <div className="flex items-center justify-center min-h-[400px] border rounded-lg bg-muted/10">
           <ContactsEmptyState
-            hasFilters={Boolean(hasActiveFilters)}
+            hasFilters={hasActiveFilters}
             searchQuery={searchQuery}
             onClearFilters={handleClearFilters}
             onAddLead={handleAddLead}

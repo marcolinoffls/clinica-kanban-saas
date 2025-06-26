@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Tags } from 'lucide-react';
-import { Sidebar } from '@/components/layout/Sidebar';
+import Sidebar from '@/components/layout/Sidebar';
 import { TagManager } from '@/components/tags/TagManager';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
