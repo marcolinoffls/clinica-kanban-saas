@@ -102,7 +102,6 @@ const ClientsPage = () => {
               origemLead: updatedFilters.origem || null,
               servicoInteresse: updatedFilters.servico || null,
               etapaId: null,
-              hasActiveFilters: Boolean(updatedFilters.tag || updatedFilters.origem || updatedFilters.servico)
             });
           } else if (typeof newFilters === 'object' && newFilters !== null && 'tag' in newFilters) {
             setFilters({
@@ -110,7 +109,6 @@ const ClientsPage = () => {
               origemLead: newFilters.origem || null,
               servicoInteresse: newFilters.servico || null,
               etapaId: null,
-              hasActiveFilters: Boolean(newFilters.tag || newFilters.origem || newFilters.servico)
             });
           }
         }}

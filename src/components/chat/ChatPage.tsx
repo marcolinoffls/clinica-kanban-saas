@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ChatWindow } from './ChatWindow';
 import { ConversationFilter } from './ConversationFilter';
-import { useSupabaseChat } from '@/hooks/useSupabaseChat';
+import { useConversations } from '@/hooks/useConversations';
 import { useAdminCheck } from '@/hooks/useAdminCheck';
 import { useAdminChatData } from '@/hooks/useAdminChatData';
 
@@ -23,21 +23,10 @@ import { useAdminChatData } from '@/hooks/useAdminChatData';
  * - Dashboard de atendimento
  * 
  * Como se conecta:
- * - Hook useSupabaseChat para dados gerais
+ * - Hook useConversations para dados gerais
  * - Hook useAdminChatData para dados de admin
  * - Componente ChatWindow para exibir mensagens
  */
-
-interface Lead {
-  id: string;
-  nome: string;
-  telefone: string;
-  clinica_id: string;
-  nome_clinica?: string;
-  unread_count?: number;
-  last_message_time?: string;
-  last_message_content?: string;
-}
 
 interface Conversation {
   lead_id: string;
@@ -62,21 +51,25 @@ export const ChatPage = () => {
     error: chatError,
     markAsRead,
     refreshConversations
-  } = useSupabaseChat();
+  } = useConversations();
 
   // Hook para dados de admin (quando aplicável)
-  const {
-    adminConversations,
-    adminClinics,
-    loading: adminLoading,
-    error: adminError,
-    refreshAdminData
-  } = useAdminChatData(isAdmin);
+  const adminData = useAdminChatData(selectedClinicaFilter);
 
   // Determina qual conjunto de dados usar baseado no tipo de usuário
-  const currentConversations = isAdmin ? adminConversations : conversations;
-  const currentLoading = isAdmin ? adminLoading : chatLoading;
-  const currentError = isAdmin ? adminError : chatError;
+  const currentConversations = isAdmin ? adminData.leads.map(lead => ({
+    lead_id: lead.id,
+    nome_lead: lead.nome || 'Lead sem nome',
+    telefone_lead: lead.telefone || '',
+    clinica_id: lead.clinica_id,
+    nome_clinica: lead.nome_clinica || '',
+    unread_count: adminData.mensagensNaoLidas[lead.id] || 0,
+    last_message_time: lead.data_ultimo_contato || lead.updated_at,
+    last_message_content: `Tel: ${lead.telefone || ''}`
+  })) : conversations;
+  
+  const currentLoading = isAdmin ? adminData.loading : chatLoading;
+  const currentError = isAdmin ? adminData.error : chatError;
 
   // Aplica filtro de clínica se selecionado (apenas para admins)
   const filteredConversations = React.useMemo(() => {
@@ -91,7 +84,8 @@ export const ChatPage = () => {
   // Atualiza dados quando necessário
   const handleRefresh = () => {
     if (isAdmin) {
-      refreshAdminData();
+      // Para admin, recarregar será implementado quando necessário
+      console.log('Refresh admin data');
     } else {
       refreshConversations();
     }
@@ -103,7 +97,11 @@ export const ChatPage = () => {
     
     // Marca mensagens como lidas
     try {
-      await markAsRead(leadId);
+      if (isAdmin) {
+        await adminData.marcarMensagensComoLidasAdmin(leadId);
+      } else {
+        await markAsRead(leadId);
+      }
       handleRefresh(); // Atualiza contadores
     } catch (error) {
       console.error('Erro ao marcar mensagens como lidas:', error);
@@ -167,7 +165,6 @@ export const ChatPage = () => {
           {/* Filtro por clínica (apenas para admins) */}
           {isAdmin && (
             <ConversationFilter
-              clinics={adminClinics}
               selectedClinicaId={selectedClinicaFilter}
               onClinicaChange={setSelectedClinicaFilter}
             />
