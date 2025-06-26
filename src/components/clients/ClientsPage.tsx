@@ -84,11 +84,28 @@ const ClientsPage = () => {
         filters={{
           tag: filters.tagId || '',
           origem: filters.origemLead || '',
-          servico: filters.servicoInteresse || ''
+          servico: filters.servicoInteresse || '',
+          hasActiveFilters: hasActiveFilters
         }}
         setFilters={(newFilters) => {
           // Tratamento correto dos tipos
-          if (typeof newFilters === 'object' && newFilters !== null && 'tag' in newFilters) {
+          if (typeof newFilters === 'function') {
+            // Se for uma função, chama ela com o estado atual
+            const currentFilters = {
+              tag: filters.tagId || '',
+              origem: filters.origemLead || '',
+              servico: filters.servicoInteresse || '',
+              hasActiveFilters: hasActiveFilters
+            };
+            const updatedFilters = newFilters(currentFilters);
+            setFilters({
+              tagId: updatedFilters.tag || null,
+              origemLead: updatedFilters.origem || null,
+              servicoInteresse: updatedFilters.servico || null,
+              etapaId: null,
+              hasActiveFilters: Boolean(updatedFilters.tag || updatedFilters.origem || updatedFilters.servico)
+            });
+          } else if (typeof newFilters === 'object' && newFilters !== null && 'tag' in newFilters) {
             setFilters({
               tagId: newFilters.tag || null,
               origemLead: newFilters.origem || null,

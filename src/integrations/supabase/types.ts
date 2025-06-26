@@ -261,6 +261,7 @@ export type Database = {
           id: string
           lead_id: string
           lida: boolean | null
+          timestamp_sp: string | null
           tipo: string | null
           updated_at: string | null
         }
@@ -273,6 +274,7 @@ export type Database = {
           id?: string
           lead_id: string
           lida?: boolean | null
+          timestamp_sp?: string | null
           tipo?: string | null
           updated_at?: string | null
         }
@@ -285,6 +287,7 @@ export type Database = {
           id?: string
           lead_id?: string
           lida?: boolean | null
+          timestamp_sp?: string | null
           tipo?: string | null
           updated_at?: string | null
         }
@@ -705,6 +708,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "follow_up_execucoes_mensagem_id_fkey"
+            columns: ["mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "chat_mensagens_detalhado"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "follow_up_execucoes_template_id_fkey"
             columns: ["template_id"]
             isOneToOne: false
@@ -771,11 +781,13 @@ export type Database = {
         Row: {
           ad_ink: string | null
           ad_name: string | null
+          ad_platform: string | null
           ai_conversation_enabled: boolean | null
           anotacoes: string | null
           anuncio: string | null
           avatar_url: string | null
           clinica_id: string | null
+          conversation_channel: string | null
           convertido: boolean | null
           created_at: string | null
           data_ultimo_contato: string | null
@@ -798,17 +810,19 @@ export type Database = {
           tag_id: string | null
           tag_id_alias: string | null
           telefone: string | null
-          "timestamp sp": string | null
+          timestamp_sp: string | null
           updated_at: string | null
         }
         Insert: {
           ad_ink?: string | null
           ad_name?: string | null
+          ad_platform?: string | null
           ai_conversation_enabled?: boolean | null
           anotacoes?: string | null
           anuncio?: string | null
           avatar_url?: string | null
           clinica_id?: string | null
+          conversation_channel?: string | null
           convertido?: boolean | null
           created_at?: string | null
           data_ultimo_contato?: string | null
@@ -831,17 +845,19 @@ export type Database = {
           tag_id?: string | null
           tag_id_alias?: string | null
           telefone?: string | null
-          "timestamp sp"?: string | null
+          timestamp_sp?: string | null
           updated_at?: string | null
         }
         Update: {
           ad_ink?: string | null
           ad_name?: string | null
+          ad_platform?: string | null
           ai_conversation_enabled?: boolean | null
           anotacoes?: string | null
           anuncio?: string | null
           avatar_url?: string | null
           clinica_id?: string | null
+          conversation_channel?: string | null
           convertido?: boolean | null
           created_at?: string | null
           data_ultimo_contato?: string | null
@@ -864,7 +880,7 @@ export type Database = {
           tag_id?: string | null
           tag_id_alias?: string | null
           telefone?: string | null
-          "timestamp sp"?: string | null
+          timestamp_sp?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1421,10 +1437,57 @@ export type Database = {
             referencedRelation: "chat_mensagens"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "webhook_logs_mensagem_id_fkey"
+            columns: ["mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "chat_mensagens_detalhado"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Views: {
+      chat_mensagens_detalhado: {
+        Row: {
+          anexo_url: string | null
+          clinica_id: string | null
+          conteudo: string | null
+          created_at: string | null
+          enviado_por: string | null
+          id: string | null
+          lead_id: string | null
+          lida: boolean | null
+          nome_clinica: string | null
+          nome_lead: string | null
+          timestamp_sp: string | null
+          tipo: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_mensagens_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_mensagens_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_mensagens_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinicas_stats: {
         Row: {
           admin_prompt: string | null
