@@ -1,6 +1,7 @@
 
 import { ChartCard } from './ChartCard';
 import { AdPerformanceCard } from './AdPerformanceCard';
+import { LeadSourceChartCard } from './LeadSourceChartCard';
 import { TrendingUp } from 'lucide-react';
 import { DashboardMetrics } from '@/hooks/dashboard/types';
 
@@ -10,6 +11,7 @@ import { DashboardMetrics } from '@/hooks/dashboard/types';
  * O que faz:
  * - Renderiza os gráficos de leads e conversões
  * - Exibe a performance de anúncios
+ * - Mostra gráfico de origens dos leads
  * - Inclui espaço reservado para futuras métricas
  * 
  * Onde é usado:
@@ -17,7 +19,7 @@ import { DashboardMetrics } from '@/hooks/dashboard/types';
  * 
  * Como se conecta:
  * - Recebe dados processados do Supabase via props
- * - Passa dados brutos filtrados para o gráfico de leads
+ * - Passa dados brutos filtrados para os gráficos
  */
 
 interface DashboardChartsProps {
@@ -59,13 +61,10 @@ export const DashboardCharts = ({ dashboardData, filteredRawLeads }: DashboardCh
           data={dashboardData?.conversoesPorCategoria || []}
         />
         
-        {/* Espaço para futuro gráfico ou card adicional */}
-        <div className="bg-white rounded-lg p-6 border border-gray-200 flex items-center justify-center">
-          <div className="text-center text-gray-500">
-            <TrendingUp className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-            <p className="text-sm">Espaço reservado para futuras métricas</p>
-          </div>
-        </div>
+        {/* Novo gráfico de origens dos leads */}
+        <LeadSourceChartCard
+          rawLeadsData={filteredRawLeads}
+        />
       </div>
     </>
   );
