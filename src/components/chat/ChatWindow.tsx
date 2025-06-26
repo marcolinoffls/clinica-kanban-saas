@@ -10,7 +10,14 @@ import { Badge } from '@/components/ui/badge';
 /**
  * 💬 Componente de Janela de Chat
  * 
- * 🔄 FLUXO DE SCROLL CORRIGIDO:
+ * FUNCIONALIDADES:
+ * - Exibe histórico de mensagens entre usuário e lead
+ * - Suporta diferentes tipos de mídia (texto, imagem, áudio)
+ * - Adapta-se automaticamente para modo admin
+ * - Gerencia scroll inteligente para novas mensagens
+ * - Exibe separadores de data para organizar conversas
+ * 
+ * FLUXO DE SCROLL:
  * - Carregamento direto no final (sem animação visível) usando useLayoutEffect
  * - Barra de rolagem sempre visível quando há conteúdo suficiente
  * - Liberdade total para scroll up/down sem interrupções
@@ -23,198 +30,133 @@ interface ChatWindowProps {
   targetClinicaId?: string;
 }
 
-export const ChatWindow = ({ leadId }: ChatWindowProps) => {
+export const ChatWindow = ({ leadId, adminMode, targetClinicaId }: ChatWindowProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  
-  // 📊 ESTADO LOCAL PARA MENSAGENS (usuários normais)
+
+  // Estado local para mensagens de usuários normais
   const [localMessages, setLocalMessages] = useState<any[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [hasInitialScrolled, setHasInitialScrolled] = useState(false);
 
-  // 🔗 HOOKS PARA DADOS
+  // Hooks para dados
   const normalChatData = useSupabaseData();
   const { isAdmin } = useAdminCheck();
-  
+
   // Hook admin para mensagens (apenas se for admin)
   const adminChatMessages = useAdminChatMessages(
     isAdmin ? leadId : null,
     isAdmin ? normalChatData.leads.find(l => l.id === leadId)?.clinica_id : null
   );
 
-  // 🎯 DETERMINAR MODO DE OPERAÇÃO
+  // Determina se está em modo admin
   const shouldUseAdminMode = isAdmin && leadId;
-  
-  // 📨 SELECIONAR MENSAGENS BASEADO NO MODO
-  const messages = shouldUseAdminMode 
+
+  // Seleciona as mensagens corretas conforme o modo
+  const messages = shouldUseAdminMode
     ? adminChatMessages.messages || []
     : localMessages || [];
 
-  // ⏳ LOADING STATE
-  const isLoading = shouldUseAdminMode 
-    ? adminChatMessages.loading 
+  // Estado de loading
+  const isLoading = shouldUseAdminMode
+    ? adminChatMessages.loading
     : isLoadingMessages;
 
-  /**
-   * 📅 Gerar separador de data baseado na data da mensagem
-   */
-  const getDateSeparatorText = (date: Date): string => {
-    if (isToday(date)) {
-      return 'Hoje';
-    }
-    
-    if (isYesterday(date)) {
-      return 'Ontem';
-    }
-    
-    // Verifica se é da semana atual
-    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }); // Segunda-feira como início
-    if (isSameWeek(date, new Date(), { weekStartsOn: 1 }) && date >= weekStart) {
-      return format(date, 'EEEE', { locale: ptBR }); // Nome do dia da semana
-    }
-    
-    // Data completa para mensagens antigas
-    return format(date, 'dd/MM/yyyy', { locale: ptBR });
-  };
-
-  /**
-   * 📋 Agrupar mensagens com separadores de data
-   */
-  const getMessagesWithDateSeparators = (messages: any[]) => {
-    if (!messages || messages.length === 0) return [];
-
-    const messagesWithSeparators: any[] = [];
-    let lastDate: string | null = null;
-
-    messages.forEach((message) => {
-      const messageDate = new Date(message.created_at);
-      const currentDateString = format(messageDate, 'yyyy-MM-dd');
-
-      // Adicionar separador se a data mudou
-      if (lastDate !== currentDateString) {
-        messagesWithSeparators.push({
-          type: 'date-separator',
-          id: `separator-${currentDateString}`,
-          dateText: getDateSeparatorText(messageDate),
-          date: currentDateString
-        });
-        lastDate = currentDateString;
-      }
-
-      // Adicionar a mensagem
-      messagesWithSeparators.push({
-        ...message,
-        type: 'message'
-      });
-    });
-
-    return messagesWithSeparators;
-  };
-
-  /**
-   * 📥 Buscar Mensagens para Usuários Normais - VERSÃO SIMPLIFICADA
-   */
+  // Busca mensagens para usuários normais
   useEffect(() => {
     if (!leadId || shouldUseAdminMode) {
       setLocalMessages([]);
       setHasInitialScrolled(false);
       return;
     }
-    
-    const fetchMessages = async () => {
-      setIsLoadingMessages(true);
-      setHasInitialScrolled(false);
-      try {
-        const mensagens = await normalChatData.buscarMensagensLead(leadId);
-        setLocalMessages(mensagens || []);
-      } catch (error) {
-        console.error('❌ [ChatWindow] Erro ao carregar mensagens:', error);
-        setLocalMessages([]);
-      } finally {
-        setIsLoadingMessages(false);
-      }
-    };
+    setIsLoadingMessages(true);
+    setHasInitialScrolled(false);
+    normalChatData.buscarMensagensLead(leadId)
+      .then(mensagens => setLocalMessages(mensagens || []))
+      .catch(() => setLocalMessages([]))
+      .finally(() => setIsLoadingMessages(false));
+  }, [leadId, shouldUseAdminMode]);
 
-    fetchMessages();
-  }, [leadId, shouldUseAdminMode]); // Dependências mínimas
-
-  /**
-   * ✅ useEffect: Marcar Mensagens como Lidas - VERSÃO SIMPLIFICADA
-   */
+  // Marca mensagens como lidas
   useEffect(() => {
     if (leadId && !shouldUseAdminMode && messages.length > 0) {
       normalChatData.marcarMensagensComoLidas(leadId);
     }
   }, [leadId, shouldUseAdminMode, messages.length]);
 
-  /**
-   * ✅ CORREÇÃO 1: SCROLL INICIAL INVISÍVEL
-   * 
-   * useLayoutEffect é executado ANTES da renderização ser pintada na tela.
-   * Isso garante que o usuário não veja a animação de rolagem e a conversa
-   * já apareça no final desde o início.
-   */
+  // Scroll direto para o final ao abrir o chat (sem animação)
   useLayoutEffect(() => {
     if (!isLoading && messages.length > 0 && !hasInitialScrolled) {
       const container = messagesContainerRef.current;
       if (container) {
-        // Define a posição de scroll diretamente para o final
         container.scrollTop = container.scrollHeight;
         setHasInitialScrolled(true);
       }
     }
   }, [isLoading, messages.length, hasInitialScrolled]);
 
-  /**
-   * ✅ CORREÇÃO 2: SCROLL PARA NOVAS MENSAGENS (NÃO INTERROMPE O USUÁRIO)
-   * 
-   * Este useEffect é executado para novas mensagens APÓS o scroll inicial.
-   * Ele só rola para baixo se o usuário já estiver perto do final.
-   */
+  // Scroll suave só para novas mensagens (se usuário já estava no final)
   useEffect(() => {
-    // Só executa para novas mensagens (após o scroll inicial)
     if (!isLoading && messages.length > 0 && hasInitialScrolled) {
       const container = messagesContainerRef.current;
       if (container) {
-        // Verifica se o usuário está perto do final da conversa
         const isNearBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
-        
         if (isNearBottom) {
-          // Scroll suave apenas se o usuário já estiver no final
-          setTimeout(() => {
-            messagesEndRef.current?.scrollIntoView({ 
-              behavior: 'smooth', 
-              block: 'end' 
-            });
-          }, 100);
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
       }
     }
   }, [messages.length, hasInitialScrolled, isLoading]);
 
-  /**
-   * 🕐 Formatar Horário das Mensagens
-   */
-  const formatMessageTime = (dateString: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return format(date, 'HH:mm', { locale: ptBR });
+  // Função para gerar texto do separador de data
+  const getDateSeparatorText = (date: Date): string => {
+    if (isToday(date)) return 'Hoje';
+    if (isYesterday(date)) return 'Ontem';
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    if (isSameWeek(date, new Date(), { weekStartsOn: 1 }) && date >= weekStart) {
+      return format(date, 'EEEE', { locale: ptBR });
+    }
+    return format(date, 'dd/MM/yyyy', { locale: ptBR });
   };
 
-  /**
-   * 🎨 Renderizar Conteúdo da Mensagem por Tipo
-   */
+  // Função para inserir separadores de data nas mensagens
+  const getMessagesWithDateSeparators = (messages: any[]) => {
+    if (!messages || messages.length === 0) return [];
+    const messagesWithSeparators: any[] = [];
+    let lastDate: string | null = null;
+    messages.forEach((message) => {
+      const messageDate = new Date(message.created_at);
+      const currentDateString = format(messageDate, 'yyyy-MM-dd');
+      if (lastDate !== currentDateString) {
+        messagesWithSeparators.push({
+          type: 'date-separator',
+          id: `separator-${currentDateString}`,
+          dateText: getDateSeparatorText(messageDate),
+        });
+        lastDate = currentDateString;
+      }
+      messagesWithSeparators.push({ ...message, type: 'message' });
+    });
+    return messagesWithSeparators;
+  };
+
+  // Formata o horário da mensagem
+  const formatMessageTime = (dateString: string) => {
+    if (!dateString) return '';
+    return format(new Date(dateString), 'HH:mm', { locale: ptBR });
+  };
+
+  // Renderiza o conteúdo da mensagem conforme o tipo
   const renderMessageContent = (mensagem: any) => {
     const { tipo, conteudo, anexo_url } = mensagem;
-
     switch (tipo) {
       case 'imagem':
         return (
           <div className="space-y-2">
             {anexo_url && (
               <div className="relative max-w-xs">
-                <img 
-                  src={anexo_url} 
+                <img
+                  src={anexo_url}
                   alt={conteudo || 'Imagem enviada'}
                   className="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
                   onClick={() => window.open(anexo_url, '_blank')}
@@ -226,7 +168,6 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
             )}
           </div>
         );
-
       case 'audio':
         return (
           <div className="space-y-2">
@@ -249,13 +190,12 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
             )}
           </div>
         );
-
       case 'arquivo':
         return (
           <div className="space-y-2">
             {anexo_url && (
               <div className="flex items-center gap-2 bg-gray-100 p-3 rounded-lg max-w-xs cursor-pointer hover:bg-gray-200 transition-colors"
-                   onClick={() => window.open(anexo_url, '_blank')}>
+                onClick={() => window.open(anexo_url, '_blank')}>
                 <FileText className="w-5 h-5 text-blue-600" />
                 <div className="flex-1">
                   <p className="text-sm font-medium">Arquivo</p>
@@ -265,7 +205,6 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
             )}
           </div>
         );
-
       default:
         return (
           <p className="text-sm whitespace-pre-wrap break-words">
@@ -275,7 +214,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     }
   };
 
-  // 🚫 ESTADO: Nenhum Lead Selecionado
+  // Estado: Nenhum lead selecionado
   if (!leadId) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
@@ -288,7 +227,7 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     );
   }
 
-  // ⏳ ESTADO: Carregando Mensagens
+  // Estado: Carregando mensagens
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
@@ -306,14 +245,13 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
     );
   }
 
-  // 📋 Preparar mensagens com separadores de data
+  // Prepara mensagens com separadores de data
   const messagesWithSeparators = getMessagesWithDateSeparators(messages);
 
-  // 🎨 RENDERIZAÇÃO PRINCIPAL DO COMPONENTE
+  // Renderização principal do componente
   return (
     <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
-      
-      {/* 🛡️ Header Modo Admin */}
+      {/* Header modo admin */}
       {shouldUseAdminMode && (
         <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 flex-shrink-0">
           <div className="flex items-center gap-2 text-sm text-blue-700">
@@ -322,27 +260,20 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
           </div>
         </div>
       )}
-
-      {/* 📋 Área de Mensagens - SCROLL LIVRE E CONTROLADO */}
-      <div 
+      {/* Área de mensagens com rolagem */}
+      <div
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto p-4 space-y-4"
-        style={{
-          scrollbarWidth: 'thin',
-          scrollbarColor: '#cbd5e1 #f1f5f9'
-        }}
+        style={{ minHeight: 0, maxHeight: '100%' }}
       >
         {messagesWithSeparators.length === 0 ? (
-          // 📝 Estado Vazio
           <div className="text-center text-gray-500 py-12">
             <MessageSquare size={64} className="mx-auto mb-4 text-gray-300" />
             <p className="text-lg font-medium mb-2">Nenhuma mensagem ainda</p>
             <p className="text-sm">Comece a conversa enviando uma mensagem!</p>
           </div>
         ) : (
-          // 💬 Lista de Mensagens com Separadores
           messagesWithSeparators.map((item) => {
-            // 📅 SEPARADOR DE DATA
             if (item.type === 'date-separator') {
               return (
                 <div key={item.id} className="flex justify-center my-6">
@@ -352,8 +283,6 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
                 </div>
               );
             }
-
-            // 💬 MENSAGEM NORMAL
             return (
               <div
                 key={item.id}
@@ -362,36 +291,4 @@ export const ChatWindow = ({ leadId }: ChatWindowProps) => {
                 <div
                   className={`max-w-[75%] rounded-lg px-4 py-3 shadow-sm ${
                     item.enviado_por === 'usuario'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-900 border border-gray-200'
-                  }`}
-                >
-                  {/* 📄 Conteúdo da Mensagem */}
-                  {renderMessageContent(item)}
-                  
-                  {/* 🕐 Timestamp */}
-                  <div
-                    className={`text-xs mt-2 flex items-center gap-1 ${
-                      item.enviado_por === 'usuario' ? 'text-blue-100 justify-end' : 'text-gray-500'
-                    }`}
-                  >
-                    <span>{formatMessageTime(item.created_at)}</span>
-                    {/* Indicador de mensagem lida/não lida */}
-                    {item.enviado_por === 'usuario' && (
-                      <span className="text-xs">
-                        {item.lida ? '✓✓' : '✓'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-        
-        {/* 📍 Referência para Scroll */}
-        <div ref={messagesEndRef} />
-      </div>
-    </div>
-  );
-};
+                      ? '
