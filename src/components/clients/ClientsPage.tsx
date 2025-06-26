@@ -1,4 +1,3 @@
-
 /**
  * =================================================================
  * ARQUIVO: ClientsPage.tsx
@@ -74,7 +73,7 @@ const ClientsPage = () => {
           tag: filters.tagId || '',
           origem: filters.origemLead || '',
           servico: filters.servicoInteresse || '',
-          hasActiveFilters: hasActiveFilters
+          hasActiveFilters: Boolean(hasActiveFilters) // ✅ Garantir que seja boolean
         }}
         setFilters={(newFilters) => {
           // Tratamento correto dos tipos
@@ -84,7 +83,7 @@ const ClientsPage = () => {
               tag: filters.tagId || '',
               origem: filters.origemLead || '',
               servico: filters.servicoInteresse || '',
-              hasActiveFilters: hasActiveFilters
+              hasActiveFilters: Boolean(hasActiveFilters) // ✅ Garantir que seja boolean
             };
             const updatedFilters = newFilters(currentFilters);
             setFilters({
@@ -108,7 +107,7 @@ const ClientsPage = () => {
         uniqueOrigens={uniqueOrigens}
         uniqueServicos={uniqueServicos}
         onClearFilters={handleClearFilters}
-        hasActiveFilters={hasActiveFilters}
+        hasActiveFilters={Boolean(hasActiveFilters)} // ✅ Garantir que seja boolean
       />
 
       {/* Exibe a tabela de contatos ou um estado de vazio se não houver dados */}
@@ -127,7 +126,7 @@ const ClientsPage = () => {
       ) : (
         <div className="flex items-center justify-center min-h-[400px] border rounded-lg bg-muted/10">
           <ContactsEmptyState
-            hasFilters={hasActiveFilters}
+            hasFilters={Boolean(hasActiveFilters)} // ✅ Corrigido: Garantir que seja boolean
             searchQuery={searchQuery}
             onClearFilters={handleClearFilters}
             onAddLead={handleAddLead}
