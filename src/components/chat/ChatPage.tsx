@@ -14,9 +14,13 @@ import { useAdminCheck } from '@/hooks/useAdminCheck';
 import { useWebhook } from '@/hooks/useWebhook';
 import { useClinicaData } from '@/hooks/useClinicaData';
 import { useAIConversationControl } from '@/hooks/useAIConversationControl';
-import { useUpdateLeadAiConversationStatus, useCreateLead, Lead } from '@/hooks/useLeadsData';
-import { supabase } from '@/integrations/supabase/client';
+import { useCreateLead } from '@/hooks/useCreateLead';
+import { useUpdateLeadAiConversationStatus } from '@/hooks/useUpdateLeadAiConversationStatus';
+import { supabase } from '@/lib/supabase';
+import { Lead } from '@/hooks/useLeadsData';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { formatPhoneNumber } from './utils/phoneFormatter'; // Adicionar esta linha
 
 /**
  * Página principal do chat com funcionalidades de mídia

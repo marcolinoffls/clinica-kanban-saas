@@ -73,7 +73,8 @@ const ClientsPage = () => {
         filters={{
           tag: filters.tagId || '',
           origem: filters.origemLead || '',
-          servico: filters.servicoInteresse || ''
+          servico: filters.servicoInteresse || '',
+          hasActiveFilters: hasActiveFilters // Adicionar esta propriedade
         }}
         setFilters={(newFilters) => {
           // Tratamento correto dos tipos
@@ -82,7 +83,8 @@ const ClientsPage = () => {
             const currentFilters = {
               tag: filters.tagId || '',
               origem: filters.origemLead || '',
-              servico: filters.servicoInteresse || ''
+              servico: filters.servicoInteresse || '',
+              hasActiveFilters: hasActiveFilters // Adicionar esta propriedade
             };
             const updatedFilters = newFilters(currentFilters);
             setFilters({

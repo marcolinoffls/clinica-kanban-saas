@@ -41,6 +41,7 @@ export interface FilterState {
   origem: string; 
   servico: string;
   hasActiveFilters: boolean;
+  hasActiveFilters: boolean;
 }
 
 // ✅ Interface para filtros internos do componente
