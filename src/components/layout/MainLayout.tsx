@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Tags } from 'lucide-react';
-import Sidebar from '@/components/layout/Sidebar'; // ✅ Corrigido: import default ao invés de named import
+import { Sidebar } from '@/components/layout/Sidebar'; // ✅ Corrigido: usar named import
 import { TagManager } from '@/components/tags/TagManager';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
