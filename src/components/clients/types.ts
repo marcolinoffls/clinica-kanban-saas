@@ -1,4 +1,3 @@
-
 /**
  * Tipos para o sistema de clientes/contatos
  * 
@@ -23,6 +22,14 @@ export interface ContactsFilters {
 
 // Interface para os filtros da barra de ações (versão simplificada)
 export interface ContactsFiltersBarProps {
+  tag: string;                     // Tag selecionada
+  origem: string;                  // Origem selecionada
+  servico: string;                 // Serviço selecionado
+  hasActiveFilters: boolean;       // Indica se há filtros ativos
+}
+
+// Interface para estado dos filtros (usado pelos componentes)
+export interface FilterState {
   tag: string;                     // Tag selecionada
   origem: string;                  // Origem selecionada
   servico: string;                 // Serviço selecionado
