@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { format, isToday, isYesterday, isSameWeek, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';

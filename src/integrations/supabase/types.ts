@@ -394,9 +394,12 @@ export type Database = {
           instagram_webhook_url: string | null
           integracao_instance_id: string | null
           nome: string
+          plano_atual: string | null
           plano_contratado: string | null
+          plano_expira_em: string | null
           razao_social: string | null
           status: string | null
+          stripe_customer_id: string | null
           telefone: string | null
           updated_at: string | null
           webhook_type: string | null
@@ -439,9 +442,12 @@ export type Database = {
           instagram_webhook_url?: string | null
           integracao_instance_id?: string | null
           nome: string
+          plano_atual?: string | null
           plano_contratado?: string | null
+          plano_expira_em?: string | null
           razao_social?: string | null
           status?: string | null
+          stripe_customer_id?: string | null
           telefone?: string | null
           updated_at?: string | null
           webhook_type?: string | null
@@ -484,9 +490,12 @@ export type Database = {
           instagram_webhook_url?: string | null
           integracao_instance_id?: string | null
           nome?: string
+          plano_atual?: string | null
           plano_contratado?: string | null
+          plano_expira_em?: string | null
           razao_social?: string | null
           status?: string | null
+          stripe_customer_id?: string | null
           telefone?: string | null
           updated_at?: string | null
           webhook_type?: string | null
@@ -1105,6 +1114,72 @@ export type Database = {
           },
         ]
       }
+      stripe_subscriptions: {
+        Row: {
+          canceled_at: string | null
+          clinica_id: string
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          plano: string
+          status: string
+          stripe_customer_id: string | null
+          stripe_price_id: string | null
+          stripe_subscription_id: string | null
+          trial_end: string | null
+          updated_at: string | null
+          valor_mensal: number | null
+        }
+        Insert: {
+          canceled_at?: string | null
+          clinica_id: string
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plano?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_end?: string | null
+          updated_at?: string | null
+          valor_mensal?: number | null
+        }
+        Update: {
+          canceled_at?: string | null
+          clinica_id?: string
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plano?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_end?: string | null
+          updated_at?: string | null
+          valor_mensal?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_subscriptions_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stripe_subscriptions_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_history: {
         Row: {
           change_reason: string | null
@@ -1513,6 +1588,10 @@ export type Database = {
       }
     }
     Functions: {
+      clinica_tem_acesso_premium: {
+        Args: { clinica_uuid: string }
+        Returns: boolean
+      }
       get_user_clinica_id: {
         Args: Record<PropertyKey, never>
         Returns: string
