@@ -266,29 +266,42 @@ export const ChatWindow = ({ leadId, adminMode, targetClinicaId }: ChatWindowPro
         className="flex-1 overflow-y-auto p-4 space-y-4"
         style={{ minHeight: 0, maxHeight: '100%' }}
       >
-        {messagesWithSeparators.length === 0 ? (
-          <div className="text-center text-gray-500 py-12">
-            <MessageSquare size={64} className="mx-auto mb-4 text-gray-300" />
-            <p className="text-lg font-medium mb-2">Nenhuma mensagem ainda</p>
-            <p className="text-sm">Comece a conversa enviando uma mensagem!</p>
-          </div>
-        ) : (
-          messagesWithSeparators.map((item) => {
-            if (item.type === 'date-separator') {
-              return (
-                <div key={item.id} className="flex justify-center my-6">
-                  <div className="bg-white border border-gray-200 rounded-full px-4 py-2 text-xs text-gray-600 font-medium shadow-sm">
-                    {item.dateText}
-                  </div>
-                </div>
-              );
-            }
-            return (
-              <div
-                key={item.id}
-                className={`flex ${item.enviado_por === 'usuario' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[75%] rounded-lg px-4 py-3 shadow-sm ${
-                    item.enviado_por === 'usuario'
-                      ? '
+{messagesWithSeparators.map((item) => {
+  if (item.type === 'date-separator') {
+    return (
+      <div key={item.id} className="flex justify-center my-6">
+        <div className="bg-white border border-gray-200 rounded-full px-4 py-2 text-xs text-gray-600 font-medium shadow-sm">
+          {item.dateText}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div
+      key={item.id}
+      className={`flex ${item.enviado_por === 'usuario' ? 'justify-end' : 'justify-start'}`}
+    >
+      <div
+        className={`max-w-[75%] rounded-lg px-4 py-3 shadow-sm ${
+          item.enviado_por === 'usuario'
+            ? 'bg-blue-600 text-white'
+            : 'bg-white text-gray-900 border border-gray-200'
+        }`}
+      >
+        {renderMessageContent(item)}
+        <div
+          className={`text-xs mt-2 flex items-center gap-1 ${
+            item.enviado_por === 'usuario' ? 'text-blue-100 justify-end' : 'text-gray-500'
+          }`}
+        >
+          <span>{formatMessageTime(item.created_at)}</span>
+          {item.enviado_por === 'usuario' && (
+            <span className="text-xs">
+              {item.lida ? '✓✓' : '✓'}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+})}
