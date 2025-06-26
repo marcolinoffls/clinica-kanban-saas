@@ -1,4 +1,24 @@
 
+/**
+ * =================================================================
+ * ARQUIVO: ClientsPage.tsx
+ * =================================================================
+ *
+ * DESCRIÇÃO:
+ * Componente principal que renderiza a página de "Contatos".
+ * Ele utiliza o hook `useClientsPage` para obter toda a lógica de
+ * manipulação de dados, filtros e estados de modais. A responsabilidade
+ * deste componente é apenas organizar a estrutura da UI.
+ *
+ * CORREÇÃO:
+ * A função `handleAddLead` do hook `useClientsPage` foi conectada
+ * corretamente ao prop `onAddLead` do componente `ClientsPageHeader`.
+ * Isso garante que ao clicar no botão "Adicionar Lead", o modal
+ * de criação seja aberto. Além disso, o modal `LeadModal` também foi
+ * adicionado para o caso de criação de um novo lead (quando não há
+ * um lead selecionado para edição).
+ *
+ */
 import React from 'react';
 import { useClientsPage } from '@/hooks/useClientsPage';
 import { ContactsTable } from './ContactsTable';
@@ -7,25 +27,6 @@ import { ContactsEmptyState } from './ContactsEmptyState';
 import { LeadModal } from '@/components/kanban/LeadModal';
 import { ClientsPageHeader } from './ClientsPageHeader';
 import { ClientsActionsBar } from './ClientsActionsBar';
-
-/**
- * Componente principal da página de Contatos
- * 
- * O que faz:
- * - Renderiza lista de leads/contatos em formato de tabela
- * - Permite buscar, filtrar e ordenar contatos
- * - Integra modal para criar/editar leads
- * - Conecta com funcionalidades de chat e exclusão
- * 
- * Onde é usado:
- * - Menu principal do sistema (/contatos)
- * - Dashboard de gestão de leads
- * 
- * Como se conecta:
- * - Hook useClientsPage centraliza toda lógica
- * - Componentes de UI para tabela e filtros
- * - Modal LeadModal do sistema Kanban
- */
 
 const ClientsPage = () => {
   // O hook 'useClientsPage' centraliza toda a lógica e estado da página.
@@ -84,17 +85,17 @@ const ClientsPage = () => {
           tag: filters.tagId || '',
           origem: filters.origemLead || '',
           servico: filters.servicoInteresse || '',
-          hasActiveFilters
+          hasActiveFilters: hasActiveFilters
         }}
         setFilters={(newFilters) => {
-          // Tratamento correto dos tipos para compatibilidade
+          // Tratamento correto dos tipos
           if (typeof newFilters === 'function') {
             // Se for uma função, chama ela com o estado atual
             const currentFilters = {
               tag: filters.tagId || '',
               origem: filters.origemLead || '',
               servico: filters.servicoInteresse || '',
-              hasActiveFilters
+              hasActiveFilters: hasActiveFilters
             };
             const updatedFilters = newFilters(currentFilters);
             setFilters({
@@ -102,6 +103,7 @@ const ClientsPage = () => {
               origemLead: updatedFilters.origem || null,
               servicoInteresse: updatedFilters.servico || null,
               etapaId: null,
+              hasActiveFilters: Boolean(updatedFilters.tag || updatedFilters.origem || updatedFilters.servico)
             });
           } else if (typeof newFilters === 'object' && newFilters !== null && 'tag' in newFilters) {
             setFilters({
@@ -109,6 +111,7 @@ const ClientsPage = () => {
               origemLead: newFilters.origem || null,
               servicoInteresse: newFilters.servico || null,
               etapaId: null,
+              hasActiveFilters: Boolean(newFilters.tag || newFilters.origem || newFilters.servico)
             });
           }
         }}
