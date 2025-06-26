@@ -670,7 +670,6 @@ export const ChatPage = ({ selectedLeadId }: ChatPageProps) => {
             <div className="flex-1 bg-gray-50 overflow-hidden">
               <ChatWindow 
                 leadId={selectedConversation} 
-                adminMode={isAdmin}
                 targetClinicaId={adminClinicaSelecionada?.id}
               />
             </div>
