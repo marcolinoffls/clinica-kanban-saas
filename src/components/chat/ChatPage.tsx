@@ -42,6 +42,13 @@ interface Conversation {
 export const ChatPage = () => {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [selectedClinicaFilter, setSelectedClinicaFilter] = useState<string>('');
+  const [conversationFilters, setConversationFilters] = useState({
+    showAll: true,
+    showAds: false,
+    showWhatsApp: false,
+    showInstagram: false,
+  });
+  
   const { isAdmin } = useAdminCheck();
 
   // Hook para dados de chat (usuário regular)
@@ -162,13 +169,13 @@ export const ChatPage = () => {
             </Badge>
           </div>
 
-          {/* Filtro por clínica (apenas para admins) */}
-          {isAdmin && (
+          {/* Filtro de conversas */}
+          <div className="mb-4">
             <ConversationFilter
-              selectedClinicaId={selectedClinicaFilter}
-              onClinicaChange={setSelectedClinicaFilter}
+              activeFilters={conversationFilters}
+              onFilterChange={setConversationFilters}
             />
-          )}
+          </div>
         </div>
 
         {/* Lista de conversas */}
