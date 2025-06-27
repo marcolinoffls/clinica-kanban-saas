@@ -28,8 +28,8 @@ export const getCurrentEnvironment = (): EnvironmentType => {
 // Mapeamento de Price IDs por ambiente
 const PRICE_IDS_MAP = {
   test: {
-    basic: 'price_1RePhVGPYAaRS7MgpBF0h6mT',
-    premium: 'price_1ReJriGPYAaRS7MgZVpjvFbT'
+    basic: 'price_1ReLiFQAOfvkgjNZQkB2StTz',
+    premium: 'price_1RcAXAQAOfvkgjNZRJA1kxug'
   },
   production: {
     // Substitua pelos seus IDs reais de produção quando obtê-los
