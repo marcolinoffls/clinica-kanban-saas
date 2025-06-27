@@ -108,7 +108,7 @@ const ClientsPage = () => {
         uniqueOrigens={uniqueOrigens}
         uniqueServicos={uniqueServicos}
         onClearFilters={handleClearFilters}
-        hasActiveFilters={hasActiveFilters}
+        hasActiveFilters={Boolean(hasActiveFilters)}
       />
 
       {/* Exibe a tabela de contatos ou um estado de vazio se não houver dados */}
@@ -127,7 +127,7 @@ const ClientsPage = () => {
       ) : (
         <div className="flex items-center justify-center min-h-[400px] border rounded-lg bg-muted/10">
           <ContactsEmptyState
-            hasFilters={hasActiveFilters}
+            hasFilters={Boolean(hasActiveFilters)}
             searchQuery={searchQuery}
             onClearFilters={handleClearFilters}
             onAddLead={handleAddLead}
