@@ -8,22 +8,21 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
  * 
  * DESCRIÇÃO:
  * Verifica o status da assinatura de um usuário no Stripe e atualiza
- * as informações no banco de dados Supabase. Esta função é chamada:
- * - No login do usuário
- * - Após checkout bem-sucedido
- * - Periodicamente para sincronização
+ * as informações no banco de dados Supabase. Esta função agora suporta
+ * alternância entre ambiente de teste e produção através da variável ENVIRONMENT.
  * 
  * FUNCIONAMENTO:
  * 1. Autentica o usuário
- * 2. Busca cliente no Stripe pelo email
- * 3. Verifica assinaturas ativas
- * 4. Determina tier da assinatura baseado no preço
- * 5. Atualiza dados no Supabase (tabelas clinicas e stripe_subscriptions)
+ * 2. Determina o ambiente (test/production) pela variável ENVIRONMENT
+ * 3. Usa a chave Stripe apropriada para o ambiente
+ * 4. Busca cliente no Stripe pelo email
+ * 5. Verifica assinaturas ativas
+ * 6. Determina tier da assinatura baseado no preço
+ * 7. Atualiza dados no Supabase (tabelas clinicas e stripe_subscriptions)
  * 
- * RETORNO:
- * - subscribed: boolean (se tem assinatura ativa)
- * - subscription_tier: string (basic, premium, enterprise)
- * - subscription_end: string (data de fim do período atual)
+ * CONFIGURAÇÃO DE AMBIENTE:
+ * - ENVIRONMENT=test: Usa STRIPE_SECRET_KEY_TESTE
+ * - ENVIRONMENT=production: Usa STRIPE_SECRET_KEY
  */
 
 const corsHeaders = {
@@ -31,10 +30,28 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Função auxiliar para logs detalhados
+// Função auxiliar para logs detalhados com indicação do ambiente
 const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
+};
+
+// Função para obter a chave Stripe baseada no ambiente
+const getStripeKey = () => {
+  const environment = Deno.env.get("ENVIRONMENT") || "test";
+  logStep("Ambiente detectado", { environment });
+  
+  if (environment === "production") {
+    const prodKey = Deno.env.get("STRIPE_SECRET_KEY");
+    if (!prodKey) throw new Error("STRIPE_SECRET_KEY (produção) não está configurada");
+    logStep("Usando chave de PRODUÇÃO");
+    return prodKey;
+  } else {
+    const testKey = Deno.env.get("STRIPE_SECRET_KEY_TESTE");
+    if (!testKey) throw new Error("STRIPE_SECRET_KEY_TESTE não está configurada");
+    logStep("Usando chave de TESTE");
+    return testKey;
+  }
 };
 
 serve(async (req) => {
@@ -52,9 +69,8 @@ serve(async (req) => {
   try {
     logStep("Função iniciada");
 
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY não está configurada");
-    logStep("Chave do Stripe verificada");
+    // Obter chave Stripe baseada no ambiente
+    const stripeKey = getStripeKey();
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Header de autorização não fornecido");
@@ -194,7 +210,8 @@ serve(async (req) => {
 
     logStep("Banco de dados atualizado com informações da assinatura", { 
       subscribed: hasActiveSub, 
-      subscriptionTier 
+      subscriptionTier,
+      environment: Deno.env.get("ENVIRONMENT") || "test"
     });
 
     return new Response(JSON.stringify({
@@ -208,7 +225,10 @@ serve(async (req) => {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERRO na check-subscription", { message: errorMessage });
+    logStep("ERRO na check-subscription", { 
+      message: errorMessage,
+      environment: Deno.env.get("ENVIRONMENT") || "test"
+    });
     return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,

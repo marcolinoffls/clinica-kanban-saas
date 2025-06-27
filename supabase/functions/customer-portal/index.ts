@@ -8,19 +8,20 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
  * 
  * DESCRIÇÃO:
  * Cria uma sessão do Portal do Cliente do Stripe para permitir que
- * usuários gerenciem suas assinaturas (cancelar, alterar método de pagamento,
- * fazer upgrade/downgrade de planos, ver histórico de faturas).
+ * usuários gerenciem suas assinaturas. Agora suporta alternância entre
+ * ambiente de teste e produção através da variável ENVIRONMENT.
  * 
  * FUNCIONAMENTO:
  * 1. Autentica o usuário
- * 2. Busca o cliente no Stripe pelo email
- * 3. Cria sessão do portal do cliente
- * 4. Retorna URL para redirecionamento
+ * 2. Determina o ambiente (test/production) pela variável ENVIRONMENT
+ * 3. Usa a chave Stripe apropriada para o ambiente
+ * 4. Busca o cliente no Stripe pelo email
+ * 5. Cria sessão do portal do cliente
+ * 6. Retorna URL para redirecionamento
  * 
- * CARACTERÍSTICAS:
- * - Permite gerenciamento completo da assinatura
- * - Interface nativa do Stripe (confiável e segura)
- * - Retorno automático para a aplicação após ações
+ * CONFIGURAÇÃO DE AMBIENTE:
+ * - ENVIRONMENT=test: Usa STRIPE_SECRET_KEY_TESTE
+ * - ENVIRONMENT=production: Usa STRIPE_SECRET_KEY
  */
 
 const corsHeaders = {
@@ -28,10 +29,28 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Função auxiliar para logs de debug
+// Função auxiliar para logs de debug com indicação do ambiente
 const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
   console.log(`[CUSTOMER-PORTAL] ${step}${detailsStr}`);
+};
+
+// Função para obter a chave Stripe baseada no ambiente
+const getStripeKey = () => {
+  const environment = Deno.env.get("ENVIRONMENT") || "test";
+  logStep("Ambiente detectado", { environment });
+  
+  if (environment === "production") {
+    const prodKey = Deno.env.get("STRIPE_SECRET_KEY");
+    if (!prodKey) throw new Error("STRIPE_SECRET_KEY (produção) não está configurada");
+    logStep("Usando chave de PRODUÇÃO");
+    return { key: prodKey, environment };
+  } else {
+    const testKey = Deno.env.get("STRIPE_SECRET_KEY_TESTE");
+    if (!testKey) throw new Error("STRIPE_SECRET_KEY_TESTE não está configurada");
+    logStep("Usando chave de TESTE");
+    return { key: testKey, environment };
+  }
 };
 
 serve(async (req) => {
@@ -42,9 +61,8 @@ serve(async (req) => {
   try {
     logStep("Função iniciada");
 
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY não está configurada");
-    logStep("Chave do Stripe verificada");
+    // Obter chave Stripe e ambiente
+    const { key: stripeKey, environment } = getStripeKey();
 
     // Inicializar cliente Supabase com service role key
     const supabaseClient = createClient(
@@ -85,17 +103,24 @@ serve(async (req) => {
     
     logStep("Sessão do portal do cliente criada", { 
       sessionId: portalSession.id, 
-      url: portalSession.url 
+      url: portalSession.url,
+      environment
     });
 
-    return new Response(JSON.stringify({ url: portalSession.url }), {
+    return new Response(JSON.stringify({ 
+      url: portalSession.url,
+      environment: environment
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERRO no customer-portal", { message: errorMessage });
+    logStep("ERRO no customer-portal", { 
+      message: errorMessage,
+      environment: Deno.env.get("ENVIRONMENT") || "test"
+    });
     
     return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -8,19 +8,20 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
  * 
  * DESCRIÇÃO:
  * Cria uma sessão de checkout do Stripe para usuários autenticados.
- * Esta função verifica se o usuário já existe como cliente no Stripe
- * e cria uma sessão de checkout com os produtos/preços configurados.
+ * Agora suporta alternância entre ambiente de teste e produção através
+ * da variável ENVIRONMENT, usando os price IDs apropriados para cada ambiente.
  * 
  * FUNCIONAMENTO:
  * 1. Autentica o usuário via token do Supabase
- * 2. Verifica se já existe um cliente Stripe para o email do usuário
- * 3. Cria a sessão de checkout com os parâmetros necessários
- * 4. Retorna a URL da sessão para redirecionamento
+ * 2. Determina o ambiente (test/production) pela variável ENVIRONMENT
+ * 3. Usa a chave Stripe e price IDs apropriados para o ambiente
+ * 4. Verifica se já existe um cliente Stripe para o email do usuário
+ * 5. Cria a sessão de checkout com os parâmetros necessários
+ * 6. Retorna a URL da sessão para redirecionamento
  * 
- * INTEGRAÇÃO:
- * - Usa STRIPE_SECRET_KEY dos secrets do Supabase
- * - Conecta com a tabela de clínicas para associar assinaturas
- * - Retorna URL para redirecionamento ao checkout do Stripe
+ * CONFIGURAÇÃO DE AMBIENTE:
+ * - ENVIRONMENT=test: Usa STRIPE_SECRET_KEY_TESTE e price IDs de teste
+ * - ENVIRONMENT=production: Usa STRIPE_SECRET_KEY e price IDs de produção
  */
 
 const corsHeaders = {
@@ -28,10 +29,47 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Função auxiliar para logs detalhados
+// Função auxiliar para logs detalhados com indicação do ambiente
 const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
+};
+
+// Mapeamento de Price IDs por ambiente
+const getPriceIds = (environment: string) => {
+  if (environment === "production") {
+    logStep("Usando Price IDs de PRODUÇÃO");
+    return {
+      // Substitua pelos seus IDs reais de produção
+      "price_1RePhVGPYAaRS7MgpBF0h6mT": "price_PROD_basic_monthly", 
+      "price_1ReJriGPYAaRS7MgZVpjvFbT": "price_PROD_premium_monthly"
+    };
+  } else {
+    logStep("Usando Price IDs de TESTE");
+    return {
+      // Price IDs de teste fornecidos
+      "price_1RePhVGPYAaRS7MgpBF0h6mT": "price_1RePhVGPYAaRS7MgpBF0h6mT", // Basic
+      "price_1ReJriGPYAaRS7MgZVpjvFbT": "price_1ReJriGPYAaRS7MgZVpjvFbT"  // Premium
+    };
+  }
+};
+
+// Função para obter a chave Stripe baseada no ambiente
+const getStripeKey = () => {
+  const environment = Deno.env.get("ENVIRONMENT") || "test";
+  logStep("Ambiente detectado", { environment });
+  
+  if (environment === "production") {
+    const prodKey = Deno.env.get("STRIPE_SECRET_KEY");
+    if (!prodKey) throw new Error("STRIPE_SECRET_KEY (produção) não está configurada");
+    logStep("Usando chave de PRODUÇÃO");
+    return { key: prodKey, environment };
+  } else {
+    const testKey = Deno.env.get("STRIPE_SECRET_KEY_TESTE");
+    if (!testKey) throw new Error("STRIPE_SECRET_KEY_TESTE não está configurada");
+    logStep("Usando chave de TESTE");
+    return { key: testKey, environment };
+  }
 };
 
 serve(async (req) => {
@@ -43,12 +81,8 @@ serve(async (req) => {
   try {
     logStep("Função iniciada");
 
-    // Verificar se a chave do Stripe está configurada
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) {
-      throw new Error("STRIPE_SECRET_KEY não está configurada");
-    }
-    logStep("Chave do Stripe verificada");
+    // Obter chave Stripe e ambiente
+    const { key: stripeKey, environment } = getStripeKey();
 
     // Criar cliente Supabase com service role para operações seguras
     const supabaseClient = createClient(
@@ -77,7 +111,7 @@ serve(async (req) => {
 
     // Obter dados do corpo da requisição
     const { priceId, planType = "monthly" } = await req.json();
-    logStep("Dados da requisição recebidos", { priceId, planType });
+    logStep("Dados da requisição recebidos", { priceId, planType, environment });
 
     // Inicializar Stripe
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
@@ -93,15 +127,22 @@ serve(async (req) => {
       logStep("Nenhum cliente Stripe encontrado, será criado automaticamente no checkout");
     }
 
-    // Definir preços padrão se não fornecido
-    const defaultPrices = {
-      basic_monthly: "price_basic_monthly", // Substitua pelos IDs reais do Stripe
-      basic_yearly: "price_basic_yearly",
-      premium_monthly: "price_premium_monthly", 
-      premium_yearly: "price_premium_yearly"
-    };
+    // Obter mapeamento de price IDs para o ambiente atual
+    const priceIdsMap = getPriceIds(environment);
+    
+    // Usar o price ID fornecido ou um padrão
+    const finalPriceId = priceId || "price_1RePhVGPYAaRS7MgpBF0h6mT"; // Basic como padrão
+    
+    // Se estivermos em produção, mapear para o ID de produção correspondente
+    const mappedPriceId = environment === "production" 
+      ? (priceIdsMap[finalPriceId] || finalPriceId)
+      : finalPriceId;
 
-    const finalPriceId = priceId || defaultPrices.basic_monthly;
+    logStep("Price ID determinado", { 
+      originalPriceId: finalPriceId, 
+      mappedPriceId, 
+      environment 
+    });
 
     // Criar sessão de checkout
     const origin = req.headers.get("origin") || "http://localhost:3000";
@@ -111,7 +152,7 @@ serve(async (req) => {
       customer_email: customerId ? undefined : user.email,
       line_items: [
         {
-          price: finalPriceId,
+          price: mappedPriceId,
           quantity: 1,
         },
       ],
@@ -121,20 +162,28 @@ serve(async (req) => {
       metadata: {
         user_id: user.id,
         user_email: user.email,
+        environment: environment,
       },
       subscription_data: {
         metadata: {
           user_id: user.id,
           user_email: user.email,
+          environment: environment,
         },
       },
     });
 
-    logStep("Sessão de checkout criada", { sessionId: session.id, sessionUrl: session.url });
+    logStep("Sessão de checkout criada", { 
+      sessionId: session.id, 
+      sessionUrl: session.url,
+      environment,
+      priceId: mappedPriceId
+    });
 
     return new Response(JSON.stringify({ 
       url: session.url,
-      sessionId: session.id 
+      sessionId: session.id,
+      environment: environment
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
@@ -142,7 +191,10 @@ serve(async (req) => {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERRO na create-checkout", { message: errorMessage });
+    logStep("ERRO na create-checkout", { 
+      message: errorMessage,
+      environment: Deno.env.get("ENVIRONMENT") || "test"
+    });
     
     return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
