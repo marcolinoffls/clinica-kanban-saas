@@ -8,25 +8,20 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
  * 
  * DESCRIÇÃO:
  * Cria uma sessão de checkout do Stripe para usuários autenticados.
- * Agora usa variáveis de ambiente para configurar os Price IDs,
- * permitindo configuração flexível entre teste e produção.
+ * Agora suporta alternância entre ambiente de teste e produção através
+ * da variável ENVIRONMENT, usando os price IDs apropriados para cada ambiente.
  * 
  * FUNCIONAMENTO:
  * 1. Autentica o usuário via token do Supabase
  * 2. Determina o ambiente (test/production) pela variável ENVIRONMENT
- * 3. Usa as variáveis de ambiente para obter os Price IDs corretos
+ * 3. Usa a chave Stripe e price IDs apropriados para o ambiente
  * 4. Verifica se já existe um cliente Stripe para o email do usuário
  * 5. Cria a sessão de checkout com os parâmetros necessários
  * 6. Retorna a URL da sessão para redirecionamento
  * 
- * VARIÁVEIS DE AMBIENTE NECESSÁRIAS:
- * - ENVIRONMENT: 'test' ou 'production'
- * - STRIPE_SECRET_KEY_TESTE: Chave secreta do Stripe para teste
- * - STRIPE_SECRET_KEY: Chave secreta do Stripe para produção
- * - STRIPE_PRICE_BASIC_TEST: Price ID do plano básico para teste
- * - STRIPE_PRICE_PREMIUM_TEST: Price ID do plano premium para teste
- * - STRIPE_PRICE_BASIC_PROD: Price ID do plano básico para produção
- * - STRIPE_PRICE_PREMIUM_PROD: Price ID do plano premium para produção
+ * CONFIGURAÇÃO DE AMBIENTE:
+ * - ENVIRONMENT=test: Usa STRIPE_SECRET_KEY_TESTE e price IDs de teste
+ * - ENVIRONMENT=production: Usa STRIPE_SECRET_KEY e price IDs de produção
  */
 
 const corsHeaders = {
@@ -40,29 +35,23 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
 
-// Função para obter Price IDs baseado no ambiente usando variáveis
+// Mapeamento de Price IDs por ambiente
 const getPriceIds = (environment: string) => {
   if (environment === "production") {
-    logStep("Carregando Price IDs de PRODUÇÃO das variáveis de ambiente");
+    logStep("Usando Price IDs de PRODUÇÃO");
     return {
-      basic: Deno.env.get("STRIPE_PRICE_BASIC_PROD") || "price_PROD_basic_not_configured",
-      premium: Deno.env.get("STRIPE_PRICE_PREMIUM_PROD") || "price_PROD_premium_not_configured"
+      // Substitua pelos seus IDs reais de produção
+      "price_1RePhVGPYAaRS7MgpBF0h6mT": "price_PROD_basic_monthly", 
+      "price_1ReJriGPYAaRS7MgZVpjvFbT": "price_PROD_premium_monthly"
     };
   } else {
-    logStep("Carregando Price IDs de TESTE das variáveis de ambiente");
+    logStep("Usando Price IDs de TESTE");
     return {
-      basic: Deno.env.get("STRIPE_PRICE_BASIC_TEST") || "price_1ReLiFQAOfvkgjNZQkB2StTz",
-      premium: Deno.env.get("STRIPE_PRICE_PREMIUM_TEST") || "price_1RcAXAQAOfvkgjNZRJA1kxug"
+      // Price IDs de teste fornecidos
+      "price_1RePhVGPYAaRS7MgpBF0h6mT": "price_1RePhVGPYAaRS7MgpBF0h6mT", // Basic
+      "price_1ReJriGPYAaRS7MgZVpjvFbT": "price_1ReJriGPYAaRS7MgZVpjvFbT"  // Premium
     };
   }
-};
-
-// Função para determinar o plano baseado no Price ID
-const getPlanFromPriceId = (priceId: string, environment: string) => {
-  const priceIds = getPriceIds(environment);
-  if (priceId === priceIds.basic) return "basic";
-  if (priceId === priceIds.premium) return "premium";
-  return "unknown";
 };
 
 // Função para obter a chave Stripe baseada no ambiente
@@ -95,10 +84,6 @@ serve(async (req) => {
     // Obter chave Stripe e ambiente
     const { key: stripeKey, environment } = getStripeKey();
 
-    // Obter Price IDs das variáveis de ambiente
-    const availablePriceIds = getPriceIds(environment);
-    logStep("Price IDs carregados", { environment, priceIds: availablePriceIds });
-
     // Criar cliente Supabase com service role para operações seguras
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -128,12 +113,6 @@ serve(async (req) => {
     const { priceId, planType = "monthly" } = await req.json();
     logStep("Dados da requisição recebidos", { priceId, planType, environment });
 
-    // Validar se o Price ID fornecido existe nas variáveis configuradas
-    const plan = getPlanFromPriceId(priceId, environment);
-    if (plan === "unknown") {
-      logStep("AVISO: Price ID não reconhecido", { priceId, availablePriceIds });
-    }
-
     // Inicializar Stripe
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
 
@@ -148,14 +127,21 @@ serve(async (req) => {
       logStep("Nenhum cliente Stripe encontrado, será criado automaticamente no checkout");
     }
 
-    // Usar o Price ID fornecido ou o básico como padrão
-    const finalPriceId = priceId || availablePriceIds.basic;
+    // Obter mapeamento de price IDs para o ambiente atual
+    const priceIdsMap = getPriceIds(environment);
     
-    logStep("Price ID final determinado", { 
-      requestedPriceId: priceId,
-      finalPriceId, 
-      environment,
-      plan: getPlanFromPriceId(finalPriceId, environment)
+    // Usar o price ID fornecido ou um padrão
+    const finalPriceId = priceId || "price_1RePhVGPYAaRS7MgpBF0h6mT"; // Basic como padrão
+    
+    // Se estivermos em produção, mapear para o ID de produção correspondente
+    const mappedPriceId = environment === "production" 
+      ? (priceIdsMap[finalPriceId] || finalPriceId)
+      : finalPriceId;
+
+    logStep("Price ID determinado", { 
+      originalPriceId: finalPriceId, 
+      mappedPriceId, 
+      environment 
     });
 
     // Criar sessão de checkout
@@ -166,7 +152,7 @@ serve(async (req) => {
       customer_email: customerId ? undefined : user.email,
       line_items: [
         {
-          price: finalPriceId,
+          price: mappedPriceId,
           quantity: 1,
         },
       ],
@@ -177,14 +163,12 @@ serve(async (req) => {
         user_id: user.id,
         user_email: user.email,
         environment: environment,
-        plan: getPlanFromPriceId(finalPriceId, environment),
       },
       subscription_data: {
         metadata: {
           user_id: user.id,
           user_email: user.email,
           environment: environment,
-          plan: getPlanFromPriceId(finalPriceId, environment),
         },
       },
     });
@@ -193,15 +177,13 @@ serve(async (req) => {
       sessionId: session.id, 
       sessionUrl: session.url,
       environment,
-      priceId: finalPriceId,
-      plan: getPlanFromPriceId(finalPriceId, environment)
+      priceId: mappedPriceId
     });
 
     return new Response(JSON.stringify({ 
       url: session.url,
       sessionId: session.id,
-      environment: environment,
-      plan: getPlanFromPriceId(finalPriceId, environment)
+      environment: environment
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
