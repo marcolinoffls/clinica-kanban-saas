@@ -17,7 +17,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
  * 3. Usa a chave Stripe apropriada para o ambiente
  * 4. Busca cliente no Stripe pelo email
  * 5. Verifica assinaturas ativas
- * 6. Determina tier da assinatura baseado no preço
+ * 6. Determina tier da assinatura baseado no price ID (corrigido)
  * 7. Atualiza dados no Supabase (tabelas clinicas e stripe_subscriptions)
  * 
  * CONFIGURAÇÃO DE AMBIENTE:
@@ -54,6 +54,35 @@ const getStripeKey = () => {
   }
 };
 
+// Função para determinar o tier baseado no Price ID
+const determineTierFromPriceId = (priceId: string, environment: string) => {
+  logStep("Determinando tier pelo Price ID", { priceId, environment });
+  
+  if (environment === "test") {
+    // Price IDs de teste
+    switch (priceId) {
+      case "price_1ReLiFQAOfvkgjNZQkB2StTz": // Basic teste
+        return "basic";
+      case "price_1RcAXAQAOfvkgjNZRJA1kxug": // Premium teste  
+        return "premium";
+      default:
+        logStep("Price ID não reconhecido, usando 'basic' como padrão", { priceId });
+        return "basic";
+    }
+  } else {
+    // Price IDs de produção (quando você tiver)
+    switch (priceId) {
+      case "price_PROD_basic_monthly":
+        return "basic";
+      case "price_PROD_premium_monthly":
+        return "premium";
+      default:
+        logStep("Price ID de produção não reconhecido, usando 'basic' como padrão", { priceId });
+        return "basic";
+    }
+  }
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -71,6 +100,7 @@ serve(async (req) => {
 
     // Obter chave Stripe baseada no ambiente
     const stripeKey = getStripeKey();
+    const environment = Deno.env.get("ENVIRONMENT") || "test";
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Header de autorização não fornecido");
@@ -148,21 +178,11 @@ serve(async (req) => {
       subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
       logStep("Assinatura ativa encontrada", { subscriptionId: subscription.id, endDate: subscriptionEnd });
       
-      // Determinar tier da assinatura baseado no preço
+      // Determinar tier da assinatura baseado no Price ID (CORRIGIDO)
       const priceId = subscription.items.data[0].price.id;
-      const price = await stripe.prices.retrieve(priceId);
-      const amount = price.unit_amount || 0;
+      subscriptionTier = determineTierFromPriceId(priceId, environment);
       
-      // Lógica para determinar tier baseado no valor (ajuste conforme seus preços)
-      if (amount <= 999) { // até R$ 9,99
-        subscriptionTier = "basic";
-      } else if (amount <= 2999) { // até R$ 29,99
-        subscriptionTier = "premium";
-      } else {
-        subscriptionTier = "enterprise";
-      }
-      
-      logStep("Tier da assinatura determinado", { priceId, amount, subscriptionTier });
+      logStep("Tier da assinatura determinado", { priceId, subscriptionTier, environment });
     } else {
       logStep("Nenhuma assinatura ativa encontrada");
     }
@@ -211,7 +231,7 @@ serve(async (req) => {
     logStep("Banco de dados atualizado com informações da assinatura", { 
       subscribed: hasActiveSub, 
       subscriptionTier,
-      environment: Deno.env.get("ENVIRONMENT") || "test"
+      environment
     });
 
     return new Response(JSON.stringify({

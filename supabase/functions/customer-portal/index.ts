@@ -22,6 +22,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
  * CONFIGURAÇÃO DE AMBIENTE:
  * - ENVIRONMENT=test: Usa STRIPE_SECRET_KEY_TESTE
  * - ENVIRONMENT=production: Usa STRIPE_SECRET_KEY
+ * 
+ * IMPORTANTE: Para usar o portal em modo teste, é necessário configurar
+ * as configurações do portal no dashboard do Stripe em:
+ * https://dashboard.stripe.com/test/settings/billing/portal
  */
 
 const corsHeaders = {
@@ -95,25 +99,53 @@ serve(async (req) => {
     // Obter origem para URL de retorno
     const origin = req.headers.get("origin") || "http://localhost:3000";
     
-    // Criar sessão do portal do cliente
-    const portalSession = await stripe.billingPortal.sessions.create({
-      customer: customerId,
-      return_url: `${origin}/billing`,
-    });
-    
-    logStep("Sessão do portal do cliente criada", { 
-      sessionId: portalSession.id, 
-      url: portalSession.url,
-      environment
-    });
+    try {
+      // Criar sessão do portal do cliente
+      const portalSession = await stripe.billingPortal.sessions.create({
+        customer: customerId,
+        return_url: `${origin}/billing`,
+      });
+      
+      logStep("Sessão do portal do cliente criada", { 
+        sessionId: portalSession.id, 
+        url: portalSession.url,
+        environment
+      });
 
-    return new Response(JSON.stringify({ 
-      url: portalSession.url,
-      environment: environment
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+      return new Response(JSON.stringify({ 
+        url: portalSession.url,
+        environment: environment
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    } catch (portalError: any) {
+      // Tratamento específico para erro de configuração do portal
+      if (portalError.message?.includes("No configuration provided")) {
+        const errorMsg = environment === "test" 
+          ? "Portal do cliente não configurado em modo teste. Por favor, configure em: https://dashboard.stripe.com/test/settings/billing/portal"
+          : "Portal do cliente não configurado. Por favor, configure em: https://dashboard.stripe.com/settings/billing/portal";
+        
+        logStep("Erro de configuração do portal", { 
+          environment,
+          configUrl: environment === "test" 
+            ? "https://dashboard.stripe.com/test/settings/billing/portal"
+            : "https://dashboard.stripe.com/settings/billing/portal"
+        });
+        
+        return new Response(JSON.stringify({ 
+          error: errorMsg,
+          configUrl: environment === "test" 
+            ? "https://dashboard.stripe.com/test/settings/billing/portal"
+            : "https://dashboard.stripe.com/settings/billing/portal"
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
+        });
+      }
+      
+      throw portalError; // Re-throw se não for erro de configuração
+    }
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
