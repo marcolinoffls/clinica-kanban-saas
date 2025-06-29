@@ -370,19 +370,7 @@ export const SettingsPage = () => {
               </CardHeader>
               <CardContent>
                 <ClinicServicesManager />
-                
-                {/* Seção de configurações de IA e tags */}
-                <div className="mt-8 space-y-6">
-                  <div className="border-t pt-6">
-                    <h3 className="text-lg font-medium mb-4">Configurações de IA</h3>
-                    <AISettingsForm />
-                  </div>
-                  
-                  <div className="border-t pt-6">
-                    <h3 className="text-lg font-medium mb-4">Gerenciamento de Tags</h3>
-                    <TagManager />
-                  </div>
-                </div>
+              
               </CardContent>
             </Card>
           </TabsContent>
