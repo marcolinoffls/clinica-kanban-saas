@@ -11,8 +11,17 @@ import { useToast } from './use-toast';
 import { useClinica } from '@/contexts/ClinicaContext';
 import { supabase } from '@/integrations/supabase/client';
 
-// Interfaces para os filtros
-interface Filters {
+// Interfaces para os filtros - alinhada com o que o componente espera
+interface FilterState {
+  status: string;
+  tag: string;
+  origem: string;
+  servico: string;
+  hasActiveFilters: boolean;
+}
+
+// Interfaces internas para compatibilidade
+interface InternalFilters {
   tagId: string | null;
   origemLead: string | null;
   servicoInteresse: string | null;
@@ -22,6 +31,14 @@ interface Filters {
 // Tipos para ordenação
 type SortField = 'nome' | 'created_at' | 'email';
 type SortOrder = 'asc' | 'desc';
+
+// Interface para configuração de ordenação
+interface SortConfig {
+  field: SortField;
+  order: SortOrder;
+}
+
+const LEADS_PER_PAGE = 10;
 
 export const useClientsPage = () => {
   const navigate = useNavigate();
@@ -34,13 +51,16 @@ export const useClientsPage = () => {
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
   
   // Estados para modais
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [selectedLeadForEdit, setSelectedLeadForEdit] = useState<any>(null);
   
-  // Filtros
-  const [filters, setFilters] = useState<Filters>({
+  // Filtros internos
+  const [internalFilters, setInternalFilters] = useState<InternalFilters>({
     tagId: null,
     origemLead: null,
     servicoInteresse: null,
@@ -50,7 +70,8 @@ export const useClientsPage = () => {
   // Buscar dados
   const { 
     data: leads = [], 
-    isLoading: leadsLoading 
+    isLoading: leadsLoading,
+    refetch: refetchLeads
   } = useLeads();
 
   const { data: tags = [], isLoading: tagsLoading } = useTagsData();
@@ -68,12 +89,12 @@ export const useClientsPage = () => {
   }, [leads]);
 
   // Aplicar filtros e ordenação
-  const sortedLeads = useMemo(() => {
-    let filteredLeads = leads;
+  const filteredLeads = useMemo(() => {
+    let result = leads;
 
     // Aplicar busca
     if (searchQuery) {
-      filteredLeads = filteredLeads.filter(lead => 
+      result = result.filter(lead => 
         lead.nome?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lead.telefone?.includes(searchQuery) ||
         lead.email?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -81,24 +102,24 @@ export const useClientsPage = () => {
     }
 
     // Aplicar filtros
-    if (filters.tagId) {
-      filteredLeads = filteredLeads.filter(lead => lead.tag_id === filters.tagId);
+    if (internalFilters.tagId) {
+      result = result.filter(lead => lead.tag_id === internalFilters.tagId);
     }
 
-    if (filters.origemLead) {
-      filteredLeads = filteredLeads.filter(lead => lead.origem_lead === filters.origemLead);
+    if (internalFilters.origemLead) {
+      result = result.filter(lead => lead.origem_lead === internalFilters.origemLead);
     }
 
-    if (filters.servicoInteresse) {
-      filteredLeads = filteredLeads.filter(lead => lead.servico_interesse === filters.servicoInteresse);
+    if (internalFilters.servicoInteresse) {
+      result = result.filter(lead => lead.servico_interesse === internalFilters.servicoInteresse);
     }
 
-    if (filters.etapaId) {
-      filteredLeads = filteredLeads.filter(lead => lead.etapa_kanban_id === filters.etapaId);
+    if (internalFilters.etapaId) {
+      result = result.filter(lead => lead.etapa_kanban_id === internalFilters.etapaId);
     }
 
     // Aplicar ordenação
-    return filteredLeads.sort((a, b) => {
+    return result.sort((a, b) => {
       let aValue: any = a[sortField];
       let bValue: any = b[sortField];
 
@@ -116,18 +137,41 @@ export const useClientsPage = () => {
         return aValue < bValue ? 1 : -1;
       }
     });
-  }, [leads, searchQuery, filters, sortField, sortOrder]);
+  }, [leads, searchQuery, internalFilters, sortField, sortOrder]);
 
   // Verificar se há filtros ativos
   const hasActiveFilters = useMemo(() => {
     return Boolean(
       searchQuery ||
-      filters.tagId ||
-      filters.origemLead ||
-      filters.servicoInteresse ||
-      filters.etapaId
+      internalFilters.tagId ||
+      internalFilters.origemLead ||
+      internalFilters.servicoInteresse ||
+      internalFilters.etapaId
     );
-  }, [searchQuery, filters]);
+  }, [searchQuery, internalFilters]);
+
+  // Paginação
+  const totalLeads = filteredLeads.length;
+  const totalPages = Math.ceil(totalLeads / LEADS_PER_PAGE);
+  const paginatedLeads = useMemo(() => {
+    const startIndex = (currentPage - 1) * LEADS_PER_PAGE;
+    return filteredLeads.slice(startIndex, startIndex + LEADS_PER_PAGE);
+  }, [filteredLeads, currentPage]);
+
+  // Configuração de ordenação para compatibilidade
+  const sortConfig: SortConfig = {
+    field: sortField,
+    order: sortOrder
+  };
+
+  // Filtros no formato esperado pelo componente
+  const filters: FilterState = {
+    status: internalFilters.etapaId || '',
+    tag: internalFilters.tagId || '',
+    origem: internalFilters.origemLead || '',
+    servico: internalFilters.servicoInteresse || '',
+    hasActiveFilters
+  };
 
   // Handlers
   const handleSort = (field: SortField) => {
@@ -139,19 +183,158 @@ export const useClientsPage = () => {
     }
   };
 
-  const handleAddLead = () => {
-    setSelectedLeadForEdit(null);
-    setIsLeadModalOpen(true);
+  const handleFilterChange = (key: string, value: string) => {
+    const filterMap: Record<string, keyof InternalFilters> = {
+      status: 'etapaId',
+      tag: 'tagId',
+      origem: 'origemLead',
+      servico: 'servicoInteresse'
+    };
+
+    const internalKey = filterMap[key];
+    if (internalKey) {
+      setInternalFilters(prev => ({
+        ...prev,
+        [internalKey]: value || null
+      }));
+    }
+
+    // Reset da página ao alterar filtros
+    setCurrentPage(1);
   };
 
-  const handleClearFilters = () => {
+  const clearFilters = () => {
     setSearchQuery('');
-    setFilters({
+    setInternalFilters({
       tagId: null,
       origemLead: null,
       servicoInteresse: null,
       etapaId: null
     });
+    setCurrentPage(1);
+  };
+
+  const handleSelectLead = (leadId: string) => {
+    setSelectedLeadIds(prev => 
+      prev.includes(leadId) 
+        ? prev.filter(id => id !== leadId)
+        : [...prev, leadId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedLeadIds.length === paginatedLeads.length) {
+      setSelectedLeadIds([]);
+    } else {
+      setSelectedLeadIds(paginatedLeads.map(lead => lead.id));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!confirm(`Tem certeza que deseja deletar ${selectedLeadIds.length} leads selecionados?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .delete()
+        .in('id', selectedLeadIds);
+
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso",
+        description: `${selectedLeadIds.length} leads deletados com sucesso!`,
+      });
+
+      setSelectedLeadIds([]);
+      refetchLeads();
+    } catch (error: any) {
+      console.error('Erro ao deletar leads:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao deletar leads. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBulkStatusUpdate = async (etapaId: string) => {
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({ etapa_kanban_id: etapaId })
+        .in('id', selectedLeadIds);
+
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso",
+        description: `${selectedLeadIds.length} leads atualizados com sucesso!`,
+      });
+
+      setSelectedLeadIds([]);
+      refetchLeads();
+    } catch (error: any) {
+      console.error('Erro ao atualizar leads:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao atualizar leads. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExportContacts = async () => {
+    setIsExporting(true);
+    try {
+      // Lógica de exportação aqui
+      const leadsToExport = selectedLeadIds.length > 0 
+        ? leads.filter(lead => selectedLeadIds.includes(lead.id))
+        : filteredLeads;
+
+      // Criar CSV simples
+      const csvContent = [
+        ['Nome', 'Email', 'Telefone', 'Origem', 'Serviço'].join(','),
+        ...leadsToExport.map(lead => [
+          lead.nome || '',
+          lead.email || '',
+          lead.telefone || '',
+          lead.origem_lead || '',
+          lead.servico_interesse || ''
+        ].join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'contatos.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Sucesso",
+        description: "Contatos exportados com sucesso!",
+      });
+    } catch (error: any) {
+      console.error('Erro ao exportar:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao exportar contatos. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleAddLead = () => {
+    setSelectedLeadForEdit(null);
+    setIsLeadModalOpen(true);
   };
 
   const handleEditLead = (lead: any) => {
@@ -183,7 +366,7 @@ export const useClientsPage = () => {
         description: "Lead deletado com sucesso!",
       });
 
-      // Atualizar lista (o hook já fará isso automaticamente)
+      refetchLeads();
     } catch (error: any) {
       console.error('Erro ao deletar lead:', error);
       toast({
@@ -246,6 +429,7 @@ export const useClientsPage = () => {
 
       setIsLeadModalOpen(false);
       setSelectedLeadForEdit(null);
+      refetchLeads();
     } catch (error: any) {
       console.error('Erro ao salvar lead:', error);
       toast({
@@ -256,33 +440,54 @@ export const useClientsPage = () => {
     }
   };
 
+  const refreshData = () => {
+    refetchLeads();
+  };
+
   return {
     loading,
     tags,
     etapas,
+    leads,
+    filteredLeads,
+    selectedLeadIds,
+    setSelectedLeadIds,
+    selectedLead: selectedLeadForEdit,
+    setSelectedLead: setSelectedLeadForEdit,
+    isLeadModalOpen,
+    setIsLeadModalOpen,
     searchQuery,
     setSearchQuery,
     isFilterOpen,
     setIsFilterOpen,
-    sortField,
-    sortOrder,
-    isDeleting,
-    isLeadModalOpen,
-    setIsLeadModalOpen,
-    selectedLeadForEdit,
-    setSelectedLeadForEdit,
     filters,
-    setFilters,
+    setFilters: () => {}, // placeholder para compatibilidade
+    sortConfig,
+    setSortConfig: () => {}, // placeholder para compatibilidade
+    currentPage,
+    setCurrentPage,
+    leadsPerPage: LEADS_PER_PAGE,
+    totalLeads,
+    totalPages,
+    paginatedLeads,
+    isExporting,
+    isDeleting,
     uniqueOrigens,
     uniqueServicos,
-    sortedLeads,
     hasActiveFilters,
     handleSort,
+    handleFilterChange,
+    clearFilters,
+    handleSelectLead,
+    handleSelectAll,
+    handleDeleteSelected,
+    handleBulkStatusUpdate,
+    handleExportContacts,
     handleAddLead,
-    handleClearFilters,
     handleEditLead,
     handleOpenChat,
     handleDeleteLead,
     handleSaveLead,
+    refreshData,
   };
 };

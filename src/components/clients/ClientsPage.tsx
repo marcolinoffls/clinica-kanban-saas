@@ -1,8 +1,6 @@
+
 import React, { useState } from 'react';
 import { useClientsPage } from '@/hooks/useClientsPage';
-import { useLeadsData } from '@/hooks/useLeadsData';
-import { useTagsData } from '@/hooks/useTagsData';
-import { useEtapasData } from '@/hooks/useEtapasData';
 import { ContactsLoadingState } from './ContactsLoadingState';
 import { ContactsEmptyState } from './ContactsEmptyState';
 import { ContactsFilters } from './ContactsFilters';
@@ -35,19 +33,9 @@ import { LeadModal } from '@/components/kanban/LeadModal';
  * - Modal reutilizado do sistema Kanban
  */
 
-// Interface para o estado de filtros corrigida
-interface FilterState {
-  status: string;
-  tag: string;
-  origem: string;
-  servico: string;
-  hasActiveFilters: boolean;
-}
-
 export const ClientsPage = () => {
   // Hook principal para gerenciar a página
   const {
-    // ... keep existing code (todas as propriedades do useClientsPage)
     loading,
     tags,
     etapas,
@@ -55,25 +43,21 @@ export const ClientsPage = () => {
     setSearchQuery,
     isFilterOpen,
     setIsFilterOpen,
-    leads,
     filteredLeads,
-    isExporting,
     selectedLeadIds,
     setSelectedLeadIds,
-    selectedLead,
-    setSelectedLead,
     isLeadModalOpen,
     setIsLeadModalOpen,
+    selectedLead,
+    setSelectedLead,
     filters,
-    setFilters,
     sortConfig,
-    setSortConfig,
     currentPage,
     setCurrentPage,
-    leadsPerPage,
     totalLeads,
     totalPages,
     paginatedLeads,
+    isExporting,
     handleSort,
     handleFilterChange,
     clearFilters,
@@ -136,7 +120,7 @@ export const ClientsPage = () => {
       {/* Barra de ações quando há contatos selecionados */}
       {hasSelection && (
         <ClientsActionsBar
-          selectedCount={selectedLeads.length}
+          selectedCount={selectedLeadIds.length}
           onExport={handleExportContacts}
           onDelete={handleDeleteSelected}
           onStatusUpdate={handleBulkStatusUpdate}
@@ -181,6 +165,8 @@ export const ClientsPage = () => {
         <ContactsEmptyState 
           searchQuery={searchQuery}
           onAddLead={handleOpenAddModal}
+          hasFilters={filters.hasActiveFilters}
+          onClearFilters={clearFilters}
         />
       ) : (
         <>
