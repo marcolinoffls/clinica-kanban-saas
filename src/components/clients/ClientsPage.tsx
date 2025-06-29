@@ -1,13 +1,32 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useClientsPage } from '@/hooks/useClientsPage';
-import { ContactsTable } from './ContactsTable';
-import { ContactsFilters } from './ContactsFilters';
-import { ContactsEmptyState } from './ContactsEmptyState';
 import { ContactsLoadingState } from './ContactsLoadingState';
+import { ContactsEmptyState } from './ContactsEmptyState';
 import { ClientsPageHeader } from './ClientsPageHeader';
 import { ClientsActionsBar } from './ClientsActionsBar';
-import { toast } from 'sonner';
+import { LeadModal } from '../kanban/LeadModal';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import { MoreHorizontal, Edit, MessageSquare, Trash2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 /**
  * Página principal de Contatos/Clientes
@@ -32,124 +51,40 @@ import { toast } from 'sonner';
 export const ClientsPage = () => {
   // Hook principal que gerencia todos os dados e operações
   const {
-    contatos,
-    isLoading,
-    error,
-    searchTerm,
-    setSearchTerm,
-    statusFilter,
-    setStatusFilter,
-    originFilter,
-    setOriginFilter,
-    selectedContacts,
-    setSelectedContacts,
-    currentPage,
-    setCurrentPage,
-    totalPages,
-    handleDeleteContacts,
-    handleBulkStatusUpdate,
-    handleExportContacts,
-    refreshContacts
+    loading,
+    tags,
+    etapas,
+    searchQuery,
+    setSearchQuery,
+    isFilterOpen,
+    setIsFilterOpen,
+    sortField,
+    sortOrder,
+    isDeleting,
+    isLeadModalOpen,
+    setIsLeadModalOpen,
+    selectedLeadForEdit,
+    setSelectedLeadForEdit,
+    filters,
+    setFilters,
+    uniqueOrigens,
+    uniqueServicos,
+    sortedLeads,
+    hasActiveFilters,
+    handleSort,
+    handleAddLead,
+    handleClearFilters,
+    handleEditLead,
+    handleOpenChat,
+    handleDeleteLead,
+    handleSaveLead
   } = useClientsPage();
 
-  // Estados locais para controle da interface
-  const [isExporting, setIsExporting] = useState(false);
-
-  // Função para exportar contatos selecionados
-  const handleExport = async () => {
-    if (selectedContacts.length === 0) {
-      toast.error('Selecione pelo menos um contato para exportar');
-      return;
-    }
-
-    try {
-      setIsExporting(true);
-      await handleExportContacts();
-      toast.success(`${selectedContacts.length} contatos exportados com sucesso`);
-    } catch (error) {
-      console.error('Erro ao exportar contatos:', error);
-      toast.error('Erro ao exportar contatos');
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  // Função para deletar contatos selecionados
-  const handleDelete = async () => {
-    if (selectedContacts.length === 0) {
-      toast.error('Selecione pelo menos um contato para deletar');
-      return;
-    }
-
-    try {
-      await handleDeleteContacts();
-      setSelectedContacts([]);
-      toast.success(`${selectedContacts.length} contatos deletados com sucesso`);
-    } catch (error) {
-      console.error('Erro ao deletar contatos:', error);
-      toast.error('Erro ao deletar contatos');
-    }
-  };
-
-  // Função para atualizar status em lote
-  const handleStatusUpdate = async (newStatus: string) => {
-    if (selectedContacts.length === 0) {
-      toast.error('Selecione pelo menos um contato para atualizar');
-      return;
-    }
-
-    try {
-      await handleBulkStatusUpdate(newStatus);
-      setSelectedContacts([]);
-      toast.success(`Status de ${selectedContacts.length} contatos atualizado para ${newStatus}`);
-    } catch (error) {
-      console.error('Erro ao atualizar status:', error);
-      toast.error('Erro ao atualizar status dos contatos');
-    }
-  };
-
-  // Função para selecionar/deselecionar todos os contatos visíveis
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      const allContactIds = contatos.map(contato => contato.id);
-      setSelectedContacts(allContactIds);
-    } else {
-      setSelectedContacts([]);
-    }
-  };
-
-  // Função para alternar seleção de um contato específico
-  const handleSelectContact = (contactId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedContacts(prev => [...prev, contactId]);
-    } else {
-      setSelectedContacts(prev => prev.filter(id => id !== contactId));
-    }
-  };
-
-  // Verificar se todos os contatos visíveis estão selecionados
-  const allSelected = useMemo(() => {
-    if (contatos.length === 0) return false;
-    return contatos.every(contato => selectedContacts.includes(contato.id));
-  }, [contatos, selectedContacts]);
-
-  // Verificar se alguns contatos estão selecionados (para estado indeterminado)
-  const someSelected = useMemo(() => {
-    return selectedContacts.length > 0 && !allSelected;
-  }, [selectedContacts.length, allSelected]);
-
-  // Exibir erro se houver
-  if (error) {
+  if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">Erro ao carregar contatos: {error}</p>
-          <button
-            onClick={refreshContacts}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Tentar Novamente
-          </button>
+      <div className="h-full flex flex-col bg-gray-50">
+        <div className="flex-1 flex flex-col p-6">
+          <ContactsLoadingState />
         </div>
       </div>
     );
@@ -158,64 +93,190 @@ export const ClientsPage = () => {
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* Cabeçalho da página */}
-      <ClientsPageHeader
-        totalContacts={contatos.length}
-        selectedCount={selectedContacts.length}
-        onRefresh={refreshContacts}
-      />
-
-      {/* Barra de ações para seleção múltipla */}
-      <ClientsActionsBar
-        selectedCount={selectedContacts.length}
-        onExport={handleExport}
-        onDelete={handleDelete}
-        onStatusUpdate={handleStatusUpdate}
-        isExporting={isExporting}
-      />
+      <div className="p-6 bg-white border-b">
+        <ClientsPageHeader onAddLead={handleAddLead} />
+      </div>
 
       {/* Container principal com filtros e tabela */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-6 p-6">
-        {/* Painel de filtros (sidebar) */}
-        <div className="lg:w-64 flex-shrink-0">
-          <ContactsFilters
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-            statusFilter={statusFilter}
-            onStatusFilterChange={setStatusFilter}
-            originFilter={originFilter}
-            onOriginFilterChange={setOriginFilter}
-            totalContacts={contatos.length}
+      <div className="flex-1 flex flex-col p-6">
+        {/* Barra de ações de busca e filtros */}
+        <div className="mb-6">
+          <ClientsActionsBar
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            filters={filters}
+            setFilters={setFilters}
+            isFilterOpen={isFilterOpen}
+            setIsFilterOpen={setIsFilterOpen}
+            tags={tags}
+            uniqueOrigens={uniqueOrigens}
+            uniqueServicos={uniqueServicos}
+            onClearFilters={handleClearFilters}
+            hasActiveFilters={hasActiveFilters}
           />
         </div>
 
         {/* Área principal da tabela */}
         <div className="flex-1 bg-white rounded-lg shadow-sm">
-          {isLoading ? (
-            <ContactsLoadingState />
-          ) : contatos.length === 0 ? (
-            <ContactsEmptyState
-              hasFilters={searchTerm !== '' || statusFilter !== 'todos' || originFilter !== 'todos'}
-              onClearFilters={() => {
-                setSearchTerm('');
-                setStatusFilter('todos');
-                setOriginFilter('todos');
-              }}
-            />
+          {sortedLeads.length === 0 ? (
+            <div className="flex items-center justify-center h-96">
+              <ContactsEmptyState
+                hasFilters={hasActiveFilters}
+                searchQuery={searchQuery}
+                onClearFilters={handleClearFilters}
+                onAddLead={handleAddLead}
+              />
+            </div>
           ) : (
-            <ContactsTable
-              contatos={contatos}
-              selectedContacts={selectedContacts}
-              onSelectContact={handleSelectContact}
-              onSelectAll={handleSelectAll}
-              allSelected={allSelected}
-              someSelected={someSelected}
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-            />
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox />
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50"
+                        onClick={() => handleSort('nome')}
+                      >
+                        Nome
+                        {sortField === 'nome' && (
+                          <span className="ml-2">
+                            {sortOrder === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50"
+                        onClick={() => handleSort('email')}
+                      >
+                        Email
+                        {sortField === 'email' && (
+                          <span className="ml-2">
+                            {sortOrder === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </TableHead>
+                      <TableHead>Etapa</TableHead>
+                      <TableHead>Tag</TableHead>
+                      <TableHead>Origem</TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50"
+                        onClick={() => handleSort('created_at')}
+                      >
+                        Criado
+                        {sortField === 'created_at' && (
+                          <span className="ml-2">
+                            {sortOrder === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </TableHead>
+                      <TableHead className="w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedLeads.map((lead) => {
+                      const etapa = etapas.find(e => e.id === lead.etapa_kanban_id);
+                      const tag = tags.find(t => t.id === lead.tag_id);
+                      
+                      return (
+                        <TableRow key={lead.id} className="hover:bg-gray-50">
+                          <TableCell>
+                            <Checkbox />
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {lead.nome || 'Sem nome'}
+                          </TableCell>
+                          <TableCell>
+                            {lead.telefone || '-'}
+                          </TableCell>
+                          <TableCell>
+                            {lead.email || '-'}
+                          </TableCell>
+                          <TableCell>
+                            {etapa && (
+                              <Badge 
+                                variant="outline"
+                                style={{ 
+                                  backgroundColor: etapa.cor,
+                                  borderColor: etapa.cor,
+                                  color: 'white'
+                                }}
+                              >
+                                {etapa.nome}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {tag && (
+                              <Badge variant="secondary">
+                                {tag.nome}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {lead.origem_lead || 'Não informado'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-500">
+                            {lead.created_at && formatDistanceToNow(
+                              new Date(lead.created_at), 
+                              { addSuffix: true, locale: ptBR }
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleEditLead(lead)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleOpenChat(lead)}>
+                                  <MessageSquare className="h-4 w-4 mr-2" />
+                                  Chat
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleDeleteLead(lead.id)}
+                                  disabled={isDeleting === lead.id}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  {isDeleting === lead.id ? 'Deletando...' : 'Deletar'}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>
+
+      {/* Modal de Lead */}
+      <LeadModal
+        isOpen={isLeadModalOpen}
+        onClose={() => {
+          setIsLeadModalOpen(false);
+          setSelectedLeadForEdit(null);
+        }}
+        lead={selectedLeadForEdit}
+        onSave={handleSaveLead}
+        tags={tags}
+        etapas={etapas}
+      />
     </div>
   );
 };

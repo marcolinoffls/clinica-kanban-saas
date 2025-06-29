@@ -1,5 +1,5 @@
 
-import ClientsPage from '@/components/clients/ClientsPage'; // Corrigir o import
+import { ClientsPage } from '@/components/clients/ClientsPage';
 
 /**
  * Página de Contatos

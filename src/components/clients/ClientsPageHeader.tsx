@@ -20,7 +20,10 @@ interface ClientsPageHeaderProps {
 export const ClientsPageHeader: React.FC<ClientsPageHeaderProps> = ({ onAddLead }) => {
   return (
     <div className="flex items-center justify-between">
-      <h1 className="text-2xl font-bold">Contatos</h1>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Contatos</h1>
+        <p className="text-gray-600 mt-1">Gerencie sua base de contatos e leads</p>
+      </div>
       <Button onClick={onAddLead}>
         <Plus className="mr-2 h-4 w-4" />
         Adicionar Lead
