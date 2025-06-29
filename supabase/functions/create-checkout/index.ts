@@ -8,8 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
  * 
  * DESCRIÇÃO:
  * Cria uma sessão de checkout do Stripe para usuários autenticados.
- * Agora suporta alternância entre ambiente de teste e produção através
- * da variável ENVIRONMENT, usando os price IDs apropriados para cada ambiente.
+ * Agora configurado para PRODUÇÃO com Price IDs reais.
  * 
  * FUNCIONAMENTO:
  * 1. Autentica o usuário via token do Supabase
@@ -20,8 +19,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
  * 6. Retorna a URL da sessão para redirecionamento
  * 
  * CONFIGURAÇÃO DE AMBIENTE:
- * - ENVIRONMENT=test: Usa STRIPE_SECRET_KEY_TESTE e price IDs de teste
  * - ENVIRONMENT=production: Usa STRIPE_SECRET_KEY e price IDs de produção
+ * - ENVIRONMENT=test: Usa STRIPE_SECRET_KEY_TESTE e price IDs de teste
  */
 
 const corsHeaders = {
@@ -35,28 +34,26 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
 
-// Mapeamento de Price IDs por ambiente
+// Mapeamento de Price IDs por ambiente - ATUALIZADO COM IDS DE PRODUÇÃO
 const getPriceIds = (environment: string) => {
   if (environment === "production") {
     logStep("Usando Price IDs de PRODUÇÃO");
     return {
-      // Substitua pelos seus IDs reais de produção
-      "price_1RePhVGPYAaRS7MgpBF0h6mT": "price_PROD_basic_monthly", 
-      "price_1ReJriGPYAaRS7MgZVpjvFbT": "price_PROD_premium_monthly"
+      basic: "price_1RePhVGPYAaRS7MgpBF0h6mT",    // Básico - Produção
+      premium: "price_1ReJriGPYAaRS7MgZVpjvFbT"   // Premium - Produção
     };
   } else {
     logStep("Usando Price IDs de TESTE");
     return {
-      // Price IDs de teste fornecidos
-      "price_1RePhVGPYAaRS7MgpBF0h6mT": "price_1RePhVGPYAaRS7MgpBF0h6mT", // Basic
-      "price_1ReJriGPYAaRS7MgZVpjvFbT": "price_1ReJriGPYAaRS7MgZVpjvFbT"  // Premium
+      basic: "price_1ReLiFQAOfvkgjNZQkB2StTz",     // Básico - Teste
+      premium: "price_1RcAXAQAOfvkgjNZRJA1kxug"    // Premium - Teste
     };
   }
 };
 
 // Função para obter a chave Stripe baseada no ambiente
 const getStripeKey = () => {
-  const environment = Deno.env.get("ENVIRONMENT") || "test";
+  const environment = Deno.env.get("ENVIRONMENT") || "production"; // Padrão para produção
   logStep("Ambiente detectado", { environment });
   
   if (environment === "production") {
@@ -130,17 +127,24 @@ serve(async (req) => {
     // Obter mapeamento de price IDs para o ambiente atual
     const priceIdsMap = getPriceIds(environment);
     
-    // Usar o price ID fornecido ou um padrão
-    const finalPriceId = priceId || "price_1RePhVGPYAaRS7MgpBF0h6mT"; // Basic como padrão
+    // Usar o price ID fornecido ou mapear para o correto baseado no plano
+    let finalPriceId = priceId;
     
-    // Se estivermos em produção, mapear para o ID de produção correspondente
-    const mappedPriceId = environment === "production" 
-      ? (priceIdsMap[finalPriceId] || finalPriceId)
-      : finalPriceId;
+    // Se não foi fornecido um priceId específico, usar o básico como padrão
+    if (!finalPriceId) {
+      finalPriceId = priceIdsMap.basic;
+    } else {
+      // Mapear price IDs entre ambientes se necessário
+      if (priceId === "price_1ReLiFQAOfvkgjNZQkB2StTz" || priceId === "price_1RePhVGPYAaRS7MgpBF0h6mT") {
+        finalPriceId = priceIdsMap.basic;
+      } else if (priceId === "price_1RcAXAQAOfvkgjNZRJA1kxug" || priceId === "price_1ReJriGPYAaRS7MgZVpjvFbT") {
+        finalPriceId = priceIdsMap.premium;
+      }
+    }
 
     logStep("Price ID determinado", { 
-      originalPriceId: finalPriceId, 
-      mappedPriceId, 
+      originalPriceId: priceId, 
+      finalPriceId, 
       environment 
     });
 
@@ -152,13 +156,13 @@ serve(async (req) => {
       customer_email: customerId ? undefined : user.email,
       line_items: [
         {
-          price: mappedPriceId,
+          price: finalPriceId,
           quantity: 1,
         },
       ],
       mode: "subscription",
-      success_url: `${origin}/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/billing?canceled=true`,
+      success_url: `${origin}/configuracoes?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/configuracoes?canceled=true`,
       metadata: {
         user_id: user.id,
         user_email: user.email,
@@ -177,7 +181,7 @@ serve(async (req) => {
       sessionId: session.id, 
       sessionUrl: session.url,
       environment,
-      priceId: mappedPriceId
+      priceId: finalPriceId
     });
 
     return new Response(JSON.stringify({ 
@@ -193,7 +197,7 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERRO na create-checkout", { 
       message: errorMessage,
-      environment: Deno.env.get("ENVIRONMENT") || "test"
+      environment: Deno.env.get("ENVIRONMENT") || "production"
     });
     
     return new Response(JSON.stringify({ error: errorMessage }), {

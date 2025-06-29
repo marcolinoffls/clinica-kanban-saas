@@ -8,8 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
  * 
  * DESCRIÇÃO:
  * Verifica o status da assinatura de um usuário no Stripe e atualiza
- * as informações no banco de dados Supabase. Esta função agora suporta
- * alternância entre ambiente de teste e produção através da variável ENVIRONMENT.
+ * as informações no banco de dados Supabase. Agora configurado para PRODUÇÃO.
  * 
  * FUNCIONAMENTO:
  * 1. Autentica o usuário
@@ -17,12 +16,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
  * 3. Usa a chave Stripe apropriada para o ambiente
  * 4. Busca cliente no Stripe pelo email
  * 5. Verifica assinaturas ativas
- * 6. Determina tier da assinatura baseado no price ID (corrigido)
+ * 6. Determina tier da assinatura baseado no price ID (com IDs de produção)
  * 7. Atualiza dados no Supabase (tabelas clinicas e stripe_subscriptions)
  * 
  * CONFIGURAÇÃO DE AMBIENTE:
- * - ENVIRONMENT=test: Usa STRIPE_SECRET_KEY_TESTE
- * - ENVIRONMENT=production: Usa STRIPE_SECRET_KEY
+ * - ENVIRONMENT=production: Usa STRIPE_SECRET_KEY e Price IDs de produção
+ * - ENVIRONMENT=test: Usa STRIPE_SECRET_KEY_TESTE e Price IDs de teste
  */
 
 const corsHeaders = {
@@ -38,7 +37,7 @@ const logStep = (step: string, details?: any) => {
 
 // Função para obter a chave Stripe baseada no ambiente
 const getStripeKey = () => {
-  const environment = Deno.env.get("ENVIRONMENT") || "test";
+  const environment = Deno.env.get("ENVIRONMENT") || "production"; // Padrão para produção
   logStep("Ambiente detectado", { environment });
   
   if (environment === "production") {
@@ -54,11 +53,22 @@ const getStripeKey = () => {
   }
 };
 
-// Função para determinar o tier baseado no Price ID
+// Função para determinar o tier baseado no Price ID - ATUALIZADA COM IDS DE PRODUÇÃO
 const determineTierFromPriceId = (priceId: string, environment: string) => {
   logStep("Determinando tier pelo Price ID", { priceId, environment });
   
-  if (environment === "test") {
+  if (environment === "production") {
+    // Price IDs de produção - ATUALIZADOS
+    switch (priceId) {
+      case "price_1RePhVGPYAaRS7MgpBF0h6mT": // Basic produção
+        return "basic";
+      case "price_1ReJriGPYAaRS7MgZVpjvFbT": // Premium produção  
+        return "premium";
+      default:
+        logStep("Price ID de produção não reconhecido, usando 'basic' como padrão", { priceId });
+        return "basic";
+    }
+  } else {
     // Price IDs de teste
     switch (priceId) {
       case "price_1ReLiFQAOfvkgjNZQkB2StTz": // Basic teste
@@ -66,18 +76,7 @@ const determineTierFromPriceId = (priceId: string, environment: string) => {
       case "price_1RcAXAQAOfvkgjNZRJA1kxug": // Premium teste  
         return "premium";
       default:
-        logStep("Price ID não reconhecido, usando 'basic' como padrão", { priceId });
-        return "basic";
-    }
-  } else {
-    // Price IDs de produção (quando você tiver)
-    switch (priceId) {
-      case "price_PROD_basic_monthly":
-        return "basic";
-      case "price_PROD_premium_monthly":
-        return "premium";
-      default:
-        logStep("Price ID de produção não reconhecido, usando 'basic' como padrão", { priceId });
+        logStep("Price ID de teste não reconhecido, usando 'basic' como padrão", { priceId });
         return "basic";
     }
   }
@@ -100,7 +99,7 @@ serve(async (req) => {
 
     // Obter chave Stripe baseada no ambiente
     const stripeKey = getStripeKey();
-    const environment = Deno.env.get("ENVIRONMENT") || "test";
+    const environment = Deno.env.get("ENVIRONMENT") || "production"; // Padrão para produção
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Header de autorização não fornecido");
@@ -178,7 +177,7 @@ serve(async (req) => {
       subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
       logStep("Assinatura ativa encontrada", { subscriptionId: subscription.id, endDate: subscriptionEnd });
       
-      // Determinar tier da assinatura baseado no Price ID (CORRIGIDO)
+      // Determinar tier da assinatura baseado no Price ID (com IDs de produção)
       const priceId = subscription.items.data[0].price.id;
       subscriptionTier = determineTierFromPriceId(priceId, environment);
       
@@ -247,7 +246,7 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERRO na check-subscription", { 
       message: errorMessage,
-      environment: Deno.env.get("ENVIRONMENT") || "test"
+      environment: Deno.env.get("ENVIRONMENT") || "production"
     });
     return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

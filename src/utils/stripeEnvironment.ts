@@ -18,21 +18,20 @@
 export type EnvironmentType = 'test' | 'production';
 
 // Função para detectar o ambiente atual
-// Em produção, você pode usar uma variável de ambiente ou configuração
+// Agora configurado para produção por padrão
 export const getCurrentEnvironment = (): EnvironmentType => {
-  // Por padrão, considera teste. Em produção, você pode configurar isso
-  // através de uma variável de ambiente ou configuração do build
-  return (window as any).__STRIPE_ENVIRONMENT__ || 'test';
+  // Verifica se há uma configuração específica do ambiente
+  return (window as any).__STRIPE_ENVIRONMENT__ || 'production';
 };
 
-// Mapeamento de Price IDs por ambiente
+// Mapeamento de Price IDs por ambiente - ATUALIZADO COM IDS DE PRODUÇÃO
 const PRICE_IDS_MAP = {
   test: {
     basic: 'price_1ReLiFQAOfvkgjNZQkB2StTz',
     premium: 'price_1RcAXAQAOfvkgjNZRJA1kxug'
   },
   production: {
-    // Substitua pelos seus IDs reais de produção quando obtê-los
+    // Price IDs reais de produção fornecidos
     basic: 'price_1RePhVGPYAaRS7MgpBF0h6mT',
     premium: 'price_1ReJriGPYAaRS7MgZVpjvFbT'
   }
