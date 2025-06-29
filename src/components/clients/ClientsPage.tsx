@@ -7,13 +7,13 @@ import { ContactsFilters } from './ContactsFilters';
 import { ContactsTable } from './ContactsTable';
 import { ClientsPageHeader } from './ClientsPageHeader';
 import { ClientsActionsBar } from './ClientsActionsBar';
+import { ActiveFiltersDisplay } from './ActiveFiltersDisplay';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { RefreshCw } from 'lucide-react';
 import { LeadModal } from '@/components/kanban/LeadModal';
 
 /**
- * Página principal de clientes/contatos da clínica
+ * Página principal de clientes/contatos da clínica - REFATORADA
  * 
  * FUNCIONALIDADES:
  * - Lista todos os contatos/leads da clínica
@@ -29,7 +29,7 @@ import { LeadModal } from '@/components/kanban/LeadModal';
  * 
  * INTEGRAÇÃO:
  * - Hook useClientsPage para gerenciar estado e filtros
- * - Hooks específicos para leads, tags e etapas
+ * - Componentes refatorados para melhor organização
  * - Modal reutilizado do sistema Kanban
  */
 
@@ -46,10 +46,6 @@ export const ClientsPage = () => {
     filteredLeads,
     selectedLeadIds,
     setSelectedLeadIds,
-    isLeadModalOpen,
-    setIsLeadModalOpen,
-    selectedLead,
-    setSelectedLead,
     filters,
     sortConfig,
     currentPage,
@@ -66,8 +62,6 @@ export const ClientsPage = () => {
     handleDeleteSelected,
     handleBulkStatusUpdate,
     handleExportContacts,
-    handleAddLead,
-    handleEditLead,
     handleSaveLead,
     refreshData,
   } = useClientsPage();
@@ -128,7 +122,7 @@ export const ClientsPage = () => {
         />
       )}
 
-      {/* Filtros */}
+      {/* Filtros e busca */}
       <div className="space-y-4">
         <ContactsFilters
           searchQuery={searchQuery}
@@ -142,22 +136,13 @@ export const ClientsPage = () => {
           onToggle={() => setIsFilterOpen(!isFilterOpen)}
         />
         
-        {/* Limpar filtros se houver filtros ativos */}
-        {filters.hasActiveFilters && (
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={clearFilters}
-              className="text-xs"
-            >
-              Limpar Filtros
-            </Button>
-            <Badge variant="secondary" className="text-xs">
-              {filteredLeads.length} de {totalLeads} contatos
-            </Badge>
-          </div>
-        )}
+        {/* Exibir filtros ativos */}
+        <ActiveFiltersDisplay
+          filters={filters}
+          onClearFilters={clearFilters}
+          filteredCount={filteredLeads.length}
+          totalCount={totalLeads}
+        />
       </div>
 
       {/* Estado vazio ou tabela de contatos */}

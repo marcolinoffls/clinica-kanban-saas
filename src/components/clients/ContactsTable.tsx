@@ -2,6 +2,7 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -23,51 +24,84 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Edit2, Eye, MessageSquare, MoreHorizontal, Trash2, ArrowUpDown } from 'lucide-react';
-import { Lead } from '@/hooks/useLeadsData';
-import { SortField, SortOrder } from './types';
 import { formatarData } from './utils';
 
 /**
- * Componente de Tabela de Contatos
+ * Componente de Tabela de Contatos com seleção múltipla
  * 
  * Exibe a lista de contatos/leads em formato de tabela com:
+ * - Seleção múltipla com checkboxes
  * - Ações rápidas (editar, ver detalhes, chat)
  * - Menu de ações (excluir)
  * - Exibição de tags com cores
  * - Ordenação clicável nas colunas
+ * - Paginação
  * - Painel lateral para detalhes do lead
  */
 
+interface Lead {
+  id: string;
+  nome: string;
+  email: string;
+  telefone: string;
+  tag_id?: string;
+  origem_lead?: string;
+  servico_interesse?: string;
+  data_ultimo_contato?: string;
+  created_at: string;
+  anotacoes?: string;
+}
+
+interface Etapa {
+  id: string;
+  nome: string;
+  ordem: number;
+  cor?: string;
+}
+
+interface SortConfig {
+  field: string;
+  order: 'asc' | 'desc';
+}
+
 interface ContactsTableProps {
-  leads: any[];
-  tags: any[];
-  sortField: SortField;
-  sortOrder: SortOrder;
-  onSort: (field: SortField) => void;
-  onEdit: (lead: any) => void;
-  onChat: (lead: any) => void;
-  onDelete: (lead: any) => void;
-  isDeleting: boolean;
+  leads: Lead[];
+  selectedLeadIds: string[];
+  onSelectLead: (leadId: string) => void;
+  onSelectAll: () => void;
+  allSelected: boolean;
+  someSelected: boolean;
+  onSort: (field: string) => void;
+  sortConfig: SortConfig;
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  onEditLead: (lead: Lead) => void;
+  etapas: Etapa[];
 }
 
 export const ContactsTable: React.FC<ContactsTableProps> = ({
   leads,
-  tags,
-  sortField,
-  sortOrder,
+  selectedLeadIds,
+  onSelectLead,
+  onSelectAll,
+  allSelected,
+  someSelected,
   onSort,
-  onEdit,
-  onChat,
-  onDelete,
-  isDeleting,
+  sortConfig,
+  currentPage,
+  totalPages,
+  onPageChange,
+  onEditLead,
+  etapas,
 }) => {
   const [selectedLead, setSelectedLead] = React.useState<Lead | null>(null);
   const [isDetailSheetOpen, setIsDetailSheetOpen] = React.useState(false);
 
-  // Função para obter informações da tag pelo ID
-  const getTagInfo = (tagId: string | null) => {
-    if (!tagId) return null;
-    return tags.find(tag => tag.id === tagId);
+  // Função para obter informações da etapa pelo ID
+  const getEtapaInfo = (etapaId: string | null) => {
+    if (!etapaId) return null;
+    return etapas.find(etapa => etapa.id === etapaId);
   };
 
   // Função para exibir detalhes do lead
@@ -76,8 +110,13 @@ export const ContactsTable: React.FC<ContactsTableProps> = ({
     setIsDetailSheetOpen(true);
   };
 
+  // Função para abrir chat (placeholder)
+  const handleOpenChat = (lead: Lead) => {
+    console.log('Abrir chat com lead:', lead.id);
+  };
+
   // Componente para cabeçalho de coluna ordenável
-  const SortableHeader: React.FC<{ field: SortField; children: React.ReactNode }> = ({ field, children }) => (
+  const SortableHeader: React.FC<{ field: string; children: React.ReactNode }> = ({ field, children }) => (
     <Button
       variant="ghost"
       className="h-auto p-0 font-semibold hover:bg-transparent"
@@ -94,13 +133,20 @@ export const ContactsTable: React.FC<ContactsTableProps> = ({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={onSelectAll}
+                  aria-label="Selecionar todos"
+                />
+              </TableHead>
               <TableHead>
                 <SortableHeader field="nome">Nome</SortableHeader>
               </TableHead>
               <TableHead>
                 <SortableHeader field="email">Email</SortableHeader>
               </TableHead>
-              <TableHead>Tag</TableHead>
+              <TableHead>Telefone</TableHead>
               <TableHead>Origem</TableHead>
               <TableHead>Serviço</TableHead>
               <TableHead>
@@ -113,90 +159,105 @@ export const ContactsTable: React.FC<ContactsTableProps> = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {leads.map((lead) => {
-              const tagInfo = getTagInfo(lead.tag_id);
-              return (
-                <TableRow key={lead.id}>
-                  <TableCell className="font-medium">{lead.nome}</TableCell>
-                  <TableCell>{lead.email}</TableCell>
-                  <TableCell>
-                    {tagInfo && (
-                      <Badge 
-                        variant="outline" 
-                        className="border-0"
-                        style={{ 
-                          backgroundColor: `${tagInfo.cor}20`,
-                          color: tagInfo.cor,
-                          borderLeft: `3px solid ${tagInfo.cor}`
-                        }}
-                      >
-                        {tagInfo.nome}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>{lead.origem_lead || '-'}</TableCell>
-                  <TableCell>{lead.servico_interesse || '-'}</TableCell>
-                  <TableCell>{formatarData(lead.data_ultimo_contato)}</TableCell>
-                  <TableCell>{formatarData(lead.created_at)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      {/* Ações rápidas */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => onEdit(lead)}
-                        title="Editar lead"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => handleViewDetails(lead)}
-                        title="Ver detalhes"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => onChat(lead)}
-                        title="Abrir chat"
-                      >
-                        <MessageSquare className="h-4 w-4" />
-                      </Button>
+            {leads.map((lead) => (
+              <TableRow key={lead.id}>
+                <TableCell>
+                  <Checkbox
+                    checked={selectedLeadIds.includes(lead.id)}
+                    onCheckedChange={() => onSelectLead(lead.id)}
+                    aria-label={`Selecionar ${lead.nome}`}
+                  />
+                </TableCell>
+                <TableCell className="font-medium">{lead.nome}</TableCell>
+                <TableCell>{lead.email}</TableCell>
+                <TableCell>{lead.telefone}</TableCell>
+                <TableCell>{lead.origem_lead || '-'}</TableCell>
+                <TableCell>{lead.servico_interesse || '-'}</TableCell>
+                <TableCell>{formatarData(lead.data_ultimo_contato)}</TableCell>
+                <TableCell>{formatarData(lead.created_at)}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    {/* Ações rápidas */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => onEditLead(lead)}
+                      title="Editar lead"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleViewDetails(lead)}
+                      title="Ver detalhes"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleOpenChat(lead)}
+                      title="Abrir chat"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                    </Button>
 
-                      {/* Menu de ações */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem
-                            onClick={() => onDelete(lead.id)}
-                            disabled={isDeleting}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+                    {/* Menu de ações */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>
+
+      {/* Paginação */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-gray-700">
+            Página {currentPage} de {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
+              Próxima
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Painel lateral para detalhes do lead */}
       <Sheet open={isDetailSheetOpen} onOpenChange={setIsDetailSheetOpen}>
@@ -229,25 +290,6 @@ export const ContactsTable: React.FC<ContactsTableProps> = ({
                 </div>
 
                 <div>
-                  <span className="text-sm font-medium text-muted-foreground">Tag:</span>
-                  {getTagInfo(selectedLead.tag_id) ? (
-                    <Badge 
-                      variant="outline" 
-                      className="border-0 mt-1"
-                      style={{ 
-                        backgroundColor: `${getTagInfo(selectedLead.tag_id)?.cor}20`,
-                        color: getTagInfo(selectedLead.tag_id)?.cor,
-                        borderLeft: `3px solid ${getTagInfo(selectedLead.tag_id)?.cor}`
-                      }}
-                    >
-                      {getTagInfo(selectedLead.tag_id)?.nome}
-                    </Badge>
-                  ) : (
-                    <p>Nenhuma tag atribuída</p>
-                  )}
-                </div>
-
-                <div>
                   <span className="text-sm font-medium text-muted-foreground">Último contato:</span>
                   <p>{formatarData(selectedLead.data_ultimo_contato)}</p>
                 </div>
@@ -266,11 +308,11 @@ export const ContactsTable: React.FC<ContactsTableProps> = ({
               </div>
 
               <div className="flex gap-2 pt-4">
-                <Button onClick={() => onEdit(selectedLead)} className="flex-1">
+                <Button onClick={() => onEditLead(selectedLead)} className="flex-1">
                   <Edit2 className="mr-2 h-4 w-4" />
                   Editar
                 </Button>
-                <Button variant="outline" onClick={() => onChat(selectedLead)} className="flex-1">
+                <Button variant="outline" onClick={() => handleOpenChat(selectedLead)} className="flex-1">
                   <MessageSquare className="mr-2 h-4 w-4" />
                   Chat
                 </Button>

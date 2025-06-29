@@ -1,73 +1,77 @@
 
 import React from 'react';
-import { Input } from "@/components/ui/input";
-import { ContactsFilters } from './ContactsFilters';
-import { FilterState } from './types';
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Download, Trash2, Tag } from 'lucide-react';
 
 /**
- * Barra de ações da página de Contatos.
- * Contém a busca por texto e o componente de filtros avançados.
- *
- * Props:
- * - searchQuery, setSearchQuery: Estado e setter para o campo de busca.
- * - filters, setFilters: Estado e setter para os filtros avançados.
- * - isFilterOpen, setIsFilterOpen: Estado e setter para a visibilidade do popover de filtros.
- * - tags, uniqueOrigens, uniqueServicos: Dados para popular os seletores dos filtros.
- * - onClearFilters: Função para limpar todos os filtros.
- * - hasActiveFilters: Indica se existem filtros ativos.
+ * Barra de ações em massa para contatos selecionados
  * 
- * Onde é usado:
- * - ClientsPage.tsx
+ * Permite executar ações em lote como:
+ * - Exportar contatos selecionados
+ * - Deletar contatos em massa
+ * - Atualizar status/etapa em massa
+ * 
+ * ONDE É USADO:
+ * - ClientsPage quando há contatos selecionados
  */
 interface ClientsActionsBarProps {
-  searchQuery: string;
-  setSearchQuery: (value: string) => void;
-  filters: FilterState;
-  setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
-  isFilterOpen: boolean;
-  setIsFilterOpen: (open: boolean) => void;
-  tags: any[];
-  uniqueOrigens: string[];
-  uniqueServicos: string[];
-  onClearFilters: () => void;
-  hasActiveFilters: boolean;
+  selectedCount: number;
+  onExport: () => Promise<void>;
+  onDelete: () => Promise<void>;
+  onStatusUpdate: (etapaId: string) => Promise<void>;
+  isExporting: boolean;
 }
 
 export const ClientsActionsBar: React.FC<ClientsActionsBarProps> = ({
-  searchQuery,
-  setSearchQuery,
-  filters,
-  setFilters,
-  isFilterOpen,
-  setIsFilterOpen,
-  tags,
-  uniqueOrigens,
-  uniqueServicos,
-  onClearFilters,
-  hasActiveFilters,
+  selectedCount,
+  onExport,
+  onDelete,
+  onStatusUpdate,
+  isExporting,
 }) => {
   return (
-    <div className="flex items-center space-x-4">
-      <div className="flex-1">
-        <Input
-          placeholder="Buscar por nome ou email..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="max-w-sm"
-        />
+    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+            {selectedCount} contatos selecionados
+          </Badge>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onExport}
+            disabled={isExporting}
+            className="flex items-center gap-1"
+          >
+            <Download className="h-4 w-4" />
+            {isExporting ? 'Exportando...' : 'Exportar'}
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onStatusUpdate('')}
+            className="flex items-center gap-1"
+          >
+            <Tag className="h-4 w-4" />
+            Alterar Status
+          </Button>
+          
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={onDelete}
+            className="flex items-center gap-1"
+          >
+            <Trash2 className="h-4 w-4" />
+            Deletar
+          </Button>
+        </div>
       </div>
-      
-      <ContactsFilters
-        filters={filters}
-        setFilters={setFilters}
-        isFilterOpen={isFilterOpen}
-        setIsFilterOpen={setIsFilterOpen}
-        tags={tags || []}
-        uniqueOrigens={uniqueOrigens}
-        uniqueServicos={uniqueServicos}
-        onClearFilters={onClearFilters}
-        hasActiveFilters={hasActiveFilters}
-      />
     </div>
   );
 };
