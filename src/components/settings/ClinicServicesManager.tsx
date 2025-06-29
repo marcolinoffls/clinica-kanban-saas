@@ -65,17 +65,6 @@ export const ClinicServicesManager = () => {
 
   return (
     <div className="space-y-6">
-      {/* Título da seção */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          Serviços/Procedimentos da Clínica
-        </h3>
-        <p className="text-sm text-gray-600">
-          Gerencie a lista de serviços e procedimentos oferecidos pela sua clínica.
-          Estes dados serão utilizados em outras partes do sistema.
-        </p>
-      </div>
-
       {/* Campo para adicionar novo serviço */}
       <div className="flex gap-2">
         <Input
