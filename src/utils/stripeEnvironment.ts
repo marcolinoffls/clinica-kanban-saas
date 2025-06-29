@@ -33,8 +33,8 @@ const PRICE_IDS_MAP = {
   },
   production: {
     // Substitua pelos seus IDs reais de produção quando obtê-los
-    basic: 'price_PROD_basic_monthly',
-    premium: 'price_PROD_premium_monthly'
+    basic: 'price_1RePhVGPYAaRS7MgpBF0h6mT',
+    premium: 'price_1ReJriGPYAaRS7MgZVpjvFbT'
   }
 };
 
