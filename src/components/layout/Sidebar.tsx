@@ -134,7 +134,6 @@ export const Sidebar = () => {
       </div>
 
       {/* Menu de navegação */}
-      {/* Menu de navegação */}
       <nav className="flex-1 p-4">
         <ul className="space-y-2">
           {navigationItems.map((item) => {
@@ -176,9 +175,10 @@ export const Sidebar = () => {
           </li>
         </ul>
       </nav>
-      {/* Footer da sidebar com informações do usuário e logout */}
+
+      {/* Footer da sidebar com informações simplificadas */}
       <div className="p-4 border-t border-gray-200 space-y-4">
-        {/* Informações da clínica - com verificações de segurança */}
+        {/* Informações da clínica - apenas nome */}
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
             <span className="text-blue-600 font-semibold text-sm">
@@ -189,7 +189,6 @@ export const Sidebar = () => {
             <p className="text-sm font-medium text-gray-900 truncate">
               {isLoading ? 'Carregando...' : (clinicaAtiva?.nome || 'Clínica')}
             </p>
-            <p className="text-xs text-gray-500">Clínica</p>
           </div>
         </div>
 
@@ -204,9 +203,7 @@ export const Sidebar = () => {
             <p className="text-sm font-medium text-gray-900 truncate">
               {getDisplayName()}
             </p>
-            <p className="text-xs text-gray-500 truncate">
-              {user?.email}
-            </p>
+            <p className="text-xs text-gray-500">Usuário</p>
           </div>
         </div>
 

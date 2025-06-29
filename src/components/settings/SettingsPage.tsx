@@ -10,20 +10,20 @@ import { ClinicServicesManager } from './ClinicServicesManager';
 import { BusinessHoursSettings } from './BusinessHoursSettings';
 import { AISettingsForm } from './AISettingsForm';
 import { TagManager } from '@/components/tags/TagManager';
+import BillingPage from '@/components/billing/BillingPage';
 import { useClinica } from '@/contexts/ClinicaContext';
 import { useUpdateClinica } from '@/hooks/useClinicaOperations';
-import { Building2, Clock, Cog, Tag, User, Bell, Link } from 'lucide-react';
+import { Building2, Clock, Stethoscope, Users, CreditCard } from 'lucide-react';
 
 /**
- * Página de configurações da clínica com layout em abas
+ * Página de configurações da clínica com layout em abas aprimorado
  * 
- * Organizada em abas laterais para melhor navegação:
+ * Organizada em abas laterais com design moderno:
  * - Clínica: dados básicos da clínica
  * - Horário: horários de funcionamento  
  * - Serviços: gerenciamento de serviços/procedimentos
  * - Usuários: gerenciamento de usuários (placeholder)
- * - Notificações: configurações de notificações (placeholder)
- * - Integrações: configurações de integrações (placeholder)
+ * - Planos e Cobrança: gestão de assinaturas e pagamentos
  */
 
 export const SettingsPage = () => {
@@ -119,65 +119,71 @@ export const SettingsPage = () => {
   return (
     <div className="max-w-7xl mx-auto p-6">
       {/* Header da página */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Configurações</h1>
-          <p className="text-gray-600 mt-1">
-            Configure sua clínica e personalize o sistema
-          </p>
-        </div>
-        <Button variant="default" className="flex items-center gap-2">
-          <Cog size={16} />
-          Salvar Alterações
-        </Button>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Configurações</h1>
+        <p className="text-gray-600 mt-2">
+          Configure sua clínica e personalize o sistema
+        </p>
       </div>
 
-      {/* Layout com abas */}
-      <Tabs defaultValue="clinica" className="flex gap-6">
-        {/* Navegação lateral */}
-        <div className="w-64 flex-shrink-0">
-          <TabsList className="flex flex-col h-auto w-full p-1 bg-gray-50">
+      {/* Layout com abas aprimorado */}
+      <Tabs defaultValue="clinica" className="flex gap-8">
+        {/* Navegação lateral com design aprimorado */}
+        <div className="w-72 flex-shrink-0">
+          <TabsList className="flex flex-col h-auto w-full p-2 bg-white border border-gray-200 shadow-sm rounded-xl">
             <TabsTrigger 
               value="clinica" 
-              className="w-full justify-start gap-3 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              className="w-full justify-start gap-3 p-4 text-left data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200 data-[state=active]:shadow-sm hover:bg-gray-50 transition-all duration-200 rounded-lg border border-transparent"
             >
-              <Building2 size={16} />
-              Clínica
+              <Building2 size={20} className="flex-shrink-0" />
+              <div className="text-left">
+                <div className="font-medium">Clínica</div>
+                <div className="text-xs text-gray-500">Dados básicos</div>
+              </div>
             </TabsTrigger>
+            
             <TabsTrigger 
               value="horario"
-              className="w-full justify-start gap-3 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              className="w-full justify-start gap-3 p-4 text-left data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200 data-[state=active]:shadow-sm hover:bg-gray-50 transition-all duration-200 rounded-lg border border-transparent"
             >
-              <Clock size={16} />
-              Horário
+              <Clock size={20} className="flex-shrink-0" />
+              <div className="text-left">
+                <div className="font-medium">Horário</div>
+                <div className="text-xs text-gray-500">Funcionamento</div>
+              </div>
             </TabsTrigger>
+            
             <TabsTrigger 
               value="servicos"
-              className="w-full justify-start gap-3 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              className="w-full justify-start gap-3 p-4 text-left data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200 data-[state=active]:shadow-sm hover:bg-gray-50 transition-all duration-200 rounded-lg border border-transparent"
             >
-              <Cog size={16} />
-              Serviços
+              <Stethoscope size={20} className="flex-shrink-0" />
+              <div className="text-left">
+                <div className="font-medium">Serviços</div>
+                <div className="text-xs text-gray-500">Procedimentos</div>
+              </div>
             </TabsTrigger>
+            
             <TabsTrigger 
               value="usuarios"
-              className="w-full justify-start gap-3 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              className="w-full justify-start gap-3 p-4 text-left data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200 data-[state=active]:shadow-sm hover:bg-gray-50 transition-all duration-200 rounded-lg border border-transparent"
             >
-              <User size={16} />
-              Usuários
+              <Users size={20} className="flex-shrink-0" />
+              <div className="text-left">
+                <div className="font-medium">Usuários</div>
+                <div className="text-xs text-gray-500">Gerenciamento</div>
+              </div>
             </TabsTrigger>
+
             <TabsTrigger 
-              value="notificacoes"
-              className="w-full justify-start gap-3 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              value="billing"
+              className="w-full justify-start gap-3 p-4 text-left data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200 data-[state=active]:shadow-sm hover:bg-gray-50 transition-all duration-200 rounded-lg border border-transparent"
             >
-              <Bell size={16} />
-              Notificações
-            </TabsTrigger>
-            <TabsTrigger 
-              value="integracoes"
-              className="w-full justify-start gap-3 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-            >
-              <Link size={16} />
-              Integrações
+              <CreditCard size={20} className="flex-shrink-0" />
+              <div className="text-left">
+                <div className="font-medium">Planos e Cobrança</div>
+                <div className="text-xs text-gray-500">Assinaturas</div>
+              </div>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -186,10 +192,10 @@ export const SettingsPage = () => {
         <div className="flex-1">
           {/* Aba Clínica */}
           <TabsContent value="clinica" className="mt-0">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+            <Card className="shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between pb-4">
                 <div>
-                  <CardTitle>Informações da Clínica</CardTitle>
+                  <CardTitle className="text-xl">Informações da Clínica</CardTitle>
                   <p className="text-sm text-gray-600 mt-1">
                     Gerencie os dados básicos da sua clínica
                   </p>
@@ -334,30 +340,15 @@ export const SettingsPage = () => {
                     />
                   </div>
                 </div>
-
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                    <div>
-                      <h4 className="font-medium text-blue-900 mb-1">Usuário do Webhook</h4>
-                      <p className="text-sm text-blue-700 mb-2">
-                        Nome de usuário para integração via webhook. Será usado na URL: 
-                        <span className="font-mono text-xs bg-blue-100 px-1 rounded ml-1">
-                          https://webhooks.marcolinofernandes.site/webhook/{editedData.nome?.toLowerCase().replace(/\s+/g, '-') || 'usuario'}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
           {/* Aba Horário */}
           <TabsContent value="horario" className="mt-0">
-            <Card>
+            <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle>Horário de Funcionamento</CardTitle>
+                <CardTitle className="text-xl">Horário de Funcionamento</CardTitle>
                 <p className="text-sm text-gray-600">
                   Defina os horários em que sua clínica está aberta para atendimento.
                 </p>
@@ -370,32 +361,44 @@ export const SettingsPage = () => {
 
           {/* Aba Serviços */}
           <TabsContent value="servicos" className="mt-0">
-            <Card>
+            <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle>Serviços/Procedimentos da Clínica</CardTitle>
+                <CardTitle className="text-xl">Serviços da Clínica</CardTitle>
                 <p className="text-sm text-gray-600">
-                  Gerencie a lista de serviços e procedimentos oferecidos pela sua clínica. 
-                  Estes dados serão utilizados em outras partes do sistema.
+                  Gerencie a lista de serviços e procedimentos oferecidos pela sua clínica.
                 </p>
               </CardHeader>
               <CardContent>
                 <ClinicServicesManager />
+                
+                {/* Seção de configurações de IA e tags */}
+                <div className="mt-8 space-y-6">
+                  <div className="border-t pt-6">
+                    <h3 className="text-lg font-medium mb-4">Configurações de IA</h3>
+                    <AISettingsForm />
+                  </div>
+                  
+                  <div className="border-t pt-6">
+                    <h3 className="text-lg font-medium mb-4">Gerenciamento de Tags</h3>
+                    <TagManager />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
           {/* Aba Usuários */}
           <TabsContent value="usuarios" className="mt-0">
-            <Card>
+            <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle>Gerenciamento de Usuários</CardTitle>
+                <CardTitle className="text-xl">Gerenciamento de Usuários</CardTitle>
                 <p className="text-sm text-gray-600">
                   Gerencie os usuários que têm acesso ao sistema da clínica.
                 </p>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-12">
-                  <User size={48} className="mx-auto text-gray-400 mb-4" />
+                <div className="text-center py-16">
+                  <Users size={64} className="mx-auto text-gray-300 mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
                     Gerenciamento de Usuários
                   </h3>
@@ -407,54 +410,11 @@ export const SettingsPage = () => {
             </Card>
           </TabsContent>
 
-          {/* Aba Notificações */}
-          <TabsContent value="notificacoes" className="mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle>Configurações de Notificações</CardTitle>
-                <p className="text-sm text-gray-600">
-                  Configure como e quando você deseja receber notificações.
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <Bell size={48} className="mx-auto text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Configurações de Notificações
-                  </h3>
-                  <p className="text-gray-600">
-                    Esta funcionalidade estará disponível em breve.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Aba Integrações */}
-          <TabsContent value="integracoes" className="mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle>Integrações</CardTitle>
-                <p className="text-sm text-gray-600">
-                  Configure integrações com ferramentas externas e APIs.
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {/* Configurações de IA */}
-                  <div>
-                    <h3 className="text-lg font-medium mb-4">Configurações de IA</h3>
-                    <AISettingsForm />
-                  </div>
-                  
-                  {/* Gerenciamento de Tags */}
-                  <div className="border-t pt-6">
-                    <h3 className="text-lg font-medium mb-4">Gerenciamento de Tags</h3>
-                    <TagManager />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Aba Planos e Cobrança */}
+          <TabsContent value="billing" className="mt-0">
+            <div className="bg-white rounded-lg shadow-sm">
+              <BillingPage />
+            </div>
           </TabsContent>
         </div>
       </Tabs>
